@@ -1,0 +1,433 @@
+import 'dart:developer';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:fontend_pro/pages/login.dart';
+import 'package:fontend_pro/config/config.dart';
+import 'package:fontend_pro/models/register_user_request.dart';
+
+
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
+
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
+}
+
+class _RegisterPageState extends State<RegisterPage> {
+  TextEditingController nameNoCt1 = TextEditingController();
+  TextEditingController emailNoCt1 = TextEditingController();
+  TextEditingController passwordNoCt1 = TextEditingController();
+  TextEditingController conpasswordNoCt1 = TextEditingController();
+
+  int? height;
+  int? weight;
+  int? chest;
+  int? waist;
+  int? hips;
+  String? selectedSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.grey,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: Icon(Icons.keyboard_arrow_left, color: Colors.white, size: 28),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+        title: Text(
+          'สมัครสมาชิก',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      body: Container(
+        color: Color.fromARGB(255, 255, 255, 255),
+        width: double.infinity,
+        height: double.infinity,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Text(
+                  'กรุณากรอกข้อมูลเพื่อสมัครสมาชิก\n'
+                  'เริ่มต้นด้วยการตั้งชื่อผู้ใช้ที่คุณต้องการใช้ ใส่อีเมลที่สามารถติดต่อได้\n'
+                  'และสร้างรหัสผ่านที่ปลอดภัย เพื่อให้คุณสามารถเข้าสู่ระบบและใช้บริการได้อย่างปลอดภัย',
+                  style: TextStyle(fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              SizedBox(height: 10),
+              Text('ข้อมูลของคุณ',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 10),
+              _buildTextField('ชื่อผู้ใช้', nameNoCt1),
+              _buildTextField('อีเมล', emailNoCt1),
+              _buildTextField('รหัสผ่าน', passwordNoCt1, obscure: true),
+              _buildTextField('ยืนยันรหัสผ่าน', conpasswordNoCt1,
+                  obscure: true),
+              SizedBox(height: 20),
+              Text('สัดส่วนของคุณ',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'โดยเราจะนำข้อมูลสัดส่วนของคุณไปค้นหาเสื้อผ้า หรือไลฟ์สไตล์ที่เหมาะกับลักษณะร่างกายของคุณ',
+                style: TextStyle(fontSize: 12),
+              ),
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                      child: _buildNumberInput('ส่วนสูง', () => height,
+                          (val) => setState(() => height = val))),
+                  SizedBox(width: 10),
+                  Expanded(
+                      child: _buildNumberInput('น้ำหนัก', () => weight,
+                          (val) => setState(() => weight = val))),
+                  SizedBox(width: 10),
+                  Expanded(child: _buildDropdownInput('Size')),
+                ],
+              ),
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                      child: _buildNumberInput('รอบอก', () => chest,
+                          (val) => setState(() => chest = val))),
+                  SizedBox(width: 10),
+                  Expanded(
+                      child: _buildNumberInput('รอบเอว', () => waist,
+                          (val) => setState(() => waist = val))),
+                  SizedBox(width: 10),
+                  Expanded(
+                      child: _buildNumberInput('สะโพก', () => hips,
+                          (val) => setState(() => hips = val))),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Container(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Color.fromARGB(255, 227, 227, 227),
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(horizontal: 135),
+                      textStyle: TextStyle(fontSize: 16),
+                      elevation: 10,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: register,
+                    child: Text('ยืนยัน',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      
+    );
+    
+    
+  }
+
+
+  Widget _buildTextField(String label, TextEditingController controller,
+      {bool obscure = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        cursorColor: Colors.grey,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.grey),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: Colors.grey, width: 2),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: Colors.grey, width: 2),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNumberInput(
+      String label, int? Function() getValue, void Function(int?) setValue) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label),
+        SizedBox(height: 5),
+        Container(
+          height: 50,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey, width: 1.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_left),
+                onPressed: () {
+                  int newValue = (getValue() ?? 0) - 1;
+                  if (newValue >= 0) {
+                    setValue(newValue);
+                  }
+                },
+              ),
+              Text(getValue()?.toString() ?? '',
+                  style: TextStyle(fontSize: 16)),
+              IconButton(
+                icon: Icon(Icons.arrow_right),
+                onPressed: () {
+                  int newValue = (getValue() ?? 0) + 1;
+                  setValue(newValue);
+                },
+              ),
+            ],
+          ),
+        ),
+        Text('*ไม่จำเป็นต้องระบุ',
+            style: TextStyle(color: Colors.red, fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildDropdownInput(String label) {
+    List<String> sizeOptions = ['S', 'M', 'L', 'XL'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label),
+        Container(
+          height: 50,
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey, width: 1.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButton<String>(
+            isExpanded: true,
+            underline: SizedBox(),
+            value: selectedSize,
+            hint: Text(''),
+            items: sizeOptions.map((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                selectedSize = value;
+              });
+            },
+          ),
+        ),
+        Text('*ไม่จำเป็นต้องระบุ',
+            style: TextStyle(color: Colors.red, fontSize: 12)),
+      ],
+    );
+  }
+
+
+  void register() async {
+     // ตรวจสอบให้แน่ใจว่าทุกช่องกรอกข้อมูลถูกต้องและไม่มีช่องว่าง
+    if (nameNoCt1.text.trim().isEmpty ||
+        emailNoCt1.text.trim().isEmpty ||
+        passwordNoCt1.text.trim().isEmpty ||
+        conpasswordNoCt1.text.trim().isEmpty) {
+      log('กรอกข้อมูลไม่ครบทุกช่องหรือมีช่องว่าง');
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Center(
+                child: Text(
+              'กรุณากรอกข้อมูลให้ครบทุกช่องและไม่มีช่องว่าง',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            )),
+            actions: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FilledButton(
+                    child: Text('ตกลง'),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: Color.fromARGB(255, 72, 0, 0),
+                        foregroundColor:
+                            const Color.fromARGB(255, 255, 255, 255),
+                        textStyle: TextStyle(fontSize: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                        elevation: 5),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    if (passwordNoCt1.text != conpasswordNoCt1.text) {
+      log('Passwords do not match');
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Center(
+                child: Text(
+              'รหัสผ่านไม่ตรงกัน',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            )),
+            actions: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FilledButton(
+                    child: Text('ตกลง'),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: Color.fromARGB(255, 72, 0, 0),
+                        foregroundColor:
+                            const Color.fromARGB(255, 255, 255, 255),
+                        textStyle: TextStyle(fontSize: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                        elevation: 5),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    // ทำการสมัครสมาชิก
+    var model = RegisterUserRequest(name: nameNoCt1.text, email: emailNoCt1.text, password: passwordNoCt1.text, height: height.toString(), weight: weight.toString(), shirtSize: selectedSize.toString(), chest: chest.toString(), waistCircumference: waist.toString(), hip: hips.toString());
+
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      var response = await http.post(
+        Uri.parse("$url/user/register"),
+        headers: {"Content-Type": "application/json; charset=utf-8"},
+        body: registerUserRequestToJson(model),
+      );
+
+      // ล็อกข้อมูลการตอบสนอง
+      log('Status code: ${response.statusCode}');
+      log('Response body: ${response.body}');
+
+      // แสดงป็อบอัพสำหรับสถานะสมัครสมาชิกสำเร็จ
+      if (response.statusCode == 201) {
+        // แสดงป็อบอัพเมื่อสมัครสมาชิกสำเร็จ
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Center(
+                  child: Text(
+                'สมัครสมาชิกสำเร็จ',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              )),
+              actions: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FilledButton(
+                      child: Text('ตกลง'),
+                      style: FilledButton.styleFrom(
+                          backgroundColor: Color.fromARGB(255, 0, 247, 37),
+                          foregroundColor:
+                              const Color.fromARGB(255, 255, 255, 255),
+                          textStyle: TextStyle(fontSize: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                          elevation: 5),
+                      onPressed: () {
+                         Navigator.pop(context); // ปิดป็อบอัพ
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Loginpage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      log('Error: $e');
+      // แสดงป็อบอัพเมื่อเกิดข้อผิดพลาดในการเชื่อมต่อ
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Center(
+                child: Text(
+              'เกิดข้อผิดพลาดในการเชื่อมต่อ',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            )),
+            actions: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FilledButton(
+                    child: Text('ตกลง'),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: Color.fromARGB(255, 72, 0, 0),
+                        foregroundColor:
+                            const Color.fromARGB(255, 255, 255, 255),
+                        textStyle: TextStyle(fontSize: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                        elevation: 5),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
+}
