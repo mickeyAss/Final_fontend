@@ -252,6 +252,8 @@ class _LoginpageState extends State<Loginpage> {
       // แสดงป็อบอัพเตือนเมื่อไม่มีการกรอกข้อมูล
       showModalBottomSheet(
         context: context,
+        isDismissible: false, // ❌ ปิดไม่ได้โดยการแตะนอก
+        enableDrag: false, // ❌ ปิดไม่ได้โดยการลากลง
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -328,6 +330,8 @@ class _LoginpageState extends State<Loginpage> {
 
         showModalBottomSheet(
           context: context,
+          isDismissible: false, // ❌ ปิดไม่ได้โดยการแตะนอก
+          enableDrag: false, // ❌ ปิดไม่ได้โดยการลากลง
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -374,6 +378,8 @@ class _LoginpageState extends State<Loginpage> {
         var errorData = jsonDecode(response.body);
         showModalBottomSheet(
           context: context,
+          isDismissible: false, // ❌ ปิดไม่ได้โดยการแตะนอก
+          enableDrag: false, // ❌ ปิดไม่ได้โดยการลากลง
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
