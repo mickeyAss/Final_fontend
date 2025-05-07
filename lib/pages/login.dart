@@ -312,7 +312,7 @@ class _LoginpageState extends State<Loginpage> {
         var responseData = jsonDecode(response.body); // เปลี่ยนตรงนี้
         if (responseData['message'] == 'Login successful') {
           gs.write(
-              'uid',
+              'uid',  
               responseData['user']
                   ['uid']); //ถ้าlogin ผ่านให้เก็บ username ไว้ในระบบ
           Navigator.push(
