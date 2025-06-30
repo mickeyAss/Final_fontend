@@ -15,6 +15,7 @@ import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 class Mainpage extends StatefulWidget {
   final int uid;
+
   Mainpage({super.key, required this.uid});
 
   @override
@@ -22,12 +23,9 @@ class Mainpage extends StatefulWidget {
 }
 
 class _MainpageState extends State<Mainpage> {
-
   bool isFavorite = false;
 
   int _currentIndex = 0; // เก็บ index ของ navbar ที่เลือก
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -38,76 +36,75 @@ class _MainpageState extends State<Mainpage> {
       UserAddFriendspage(),
       Profilepage(uid: widget.uid),
     ];
-    return DefaultTabController(
-      length: 2,
-      initialIndex: 1,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          automaticallyImplyLeading: false,
-          bottom: _currentIndex == 0 // 🛠 โชว์ TabBar เฉพาะหน้า Home
-              ? PreferredSize(
-                  preferredSize: const Size.fromHeight(10),
-                  child: TabBar(
-                    isScrollable: false,
-                    labelColor: Colors.black,
-                    unselectedLabelColor: Colors.black54,
-                    indicatorColor: Colors.black,
-                    tabs: const [
-                      Tab(text: 'แนะนำสำหรับคุณ'),
-                      Tab(text: 'กำลังติดตาม'),
-                    ],
-                  ))
-              : null,
-        ),
-        body: _currentIndex == 0
-            ? TabBarView(
-                children: [
-                  RecommendedTab(pageController:PageController()),
-                  FollowingTab(pageController: PageController()),
-                ],
+    return Scaffold(
+      body: SafeArea(
+        child: _currentIndex == 0
+            ? DefaultTabController(
+                length: 2,
+                initialIndex: 1, 
+                child: Column(
+                  children: [
+                    // สร้าง TabBar เองโดยไม่ใช้ AppBar
+                    TabBar(
+                      labelColor: Colors.black,
+                      unselectedLabelColor: Colors.black54,
+                      indicatorColor: Colors.black,
+                      tabs: const [
+                        Tab(text: 'กำลังติดตาม'),
+                        Tab(text: 'แนะนำสำหรับคุณ'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          FollowingTab(pageController: PageController()),
+                          RecommendedTab(pageController: PageController()),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
               )
-            : _pages[_currentIndex], // ถ้าไม่ใช่ index 0 ไปหน้าโปรไฟล์
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.black,
-          unselectedItemColor: Colors.black54,
-          selectedFontSize: 0, // ลดขนาดฟอนต์ของข้อความที่เลือกเป็น 0
-          unselectedFontSize: 0, // ลดขนาดฟอนต์ของข้อความที่ไม่เลือกเป็น 0
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.search),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.add_circle_sharp),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people_alt_rounded),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: '',
-            ),
-          ],
-        ),
+            : _pages[_currentIndex],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        backgroundColor: Colors.white,
+         elevation: 8,
+        selectedItemColor: Colors.black,
+        unselectedItemColor: Colors.black54,
+        selectedFontSize: 0, // ลดขนาดฟอนต์ของข้อความที่เลือกเป็น 0
+        unselectedFontSize: 0, // ลดขนาดฟอนต์ของข้อความที่ไม่เลือกเป็น 0
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.add_circle_sharp),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_alt_rounded),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: '',
+          ),
+        ],
       ),
     );
   }
-
 }
 
 // หน้าแรกที่มี TabBar
@@ -122,10 +119,3 @@ class HomePageTab extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-
