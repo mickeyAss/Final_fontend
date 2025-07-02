@@ -61,19 +61,29 @@ class _LoginpageState extends State<Loginpage> {
                       padding: const EdgeInsets.fromLTRB(0, 10, 0, 10),
                       child: TextField(
                         controller: emailNoCt1,
-                        cursorColor: Colors.grey, // เปลี่ยนสีของเคอร์เซอร์
+                        cursorColor: Colors.grey,
                         decoration: InputDecoration(
                           labelText: 'อีเมล',
                           labelStyle: TextStyle(color: Colors.grey),
+                          filled: true, // ทำให้มีพื้นหลังสีขาว
+                          fillColor: Colors.white, // สีพื้นหลัง
                           enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8), // มุมโค้งมน
                             borderSide: BorderSide(
-                                color: Colors.grey, width: 2), // สีขอบปกติ
+                              color: Colors.grey.shade300, // สีขอบจาง ๆ
+                              width: 1.5,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide(
-                                color: Colors.grey,
-                                width: 2), // สีขอบเมื่อโฟกัส
+                              color: Colors.grey.shade500, // สีขอบตอนโฟกัส
+                              width: 2,
+                            ),
                           ),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 15,
+                              vertical: 12), // เพิ่มความสูงให้ช่อง
                         ),
                       ),
                     ),
@@ -81,19 +91,29 @@ class _LoginpageState extends State<Loginpage> {
                       padding: const EdgeInsets.fromLTRB(0, 10, 0, 10),
                       child: TextField(
                         controller: passwordNoCt1,
-                        cursorColor: Colors.grey, // เปลี่ยนสีของเคอร์เซอร์
+                        cursorColor: Colors.grey,
                         decoration: InputDecoration(
                           labelText: 'รหัสผ่าน',
                           labelStyle: TextStyle(color: Colors.grey),
+                          filled: true, // ทำให้มีพื้นหลังสีขาว
+                          fillColor: Colors.white, // สีพื้นหลัง
                           enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8), // มุมโค้งมน
                             borderSide: BorderSide(
-                                color: Colors.grey, width: 2), // สีขอบปกติ
+                              color: Colors.grey.shade300, // สีขอบจาง ๆ
+                              width: 1.5,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide(
-                                color: Colors.grey,
-                                width: 2), // สีขอบเมื่อโฟกัส
+                              color: Colors.grey.shade500, // สีขอบตอนโฟกัส
+                              width: 2,
+                            ),
                           ),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 15,
+                              vertical: 12), // เพิ่มความสูงให้ช่อง
                         ),
                       ),
                     ),
@@ -297,6 +317,8 @@ class _LoginpageState extends State<Loginpage> {
       return; // ออกจากฟังก์ชันถ้าไม่มีข้อมูล
     }
 
+    showLoadingDialog(context); // <--- แสดงโหลดดิ้ง
+
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
 
@@ -307,19 +329,19 @@ class _LoginpageState extends State<Loginpage> {
         body: jsonEncode(model.toJson()),
       );
 
+      Navigator.pop(context); // <--- ปิดโหลดดิ้ง
+
       if (response.statusCode == 200) {
         // การล็อกอินสำเร็จ
         var responseData = jsonDecode(response.body); // เปลี่ยนตรงนี้
         if (responseData['message'] == 'Login successful') {
-          gs.write(
-              'uid',  
-              responseData['user']
-                  ['uid']); //ถ้าlogin ผ่านให้เก็บ username ไว้ในระบบ
+         await gs.write(
+              'user',
+              responseData['user']['uid']); //ถ้าlogin ผ่านให้เก็บ username ไว้ในระบบ
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => Mainpage(
-                uid: responseData['user']['uid'], // เปลี่ยนตรงนี้
               ),
             ),
           );
@@ -426,5 +448,21 @@ class _LoginpageState extends State<Loginpage> {
     } catch (e) {
       log('Error: $e');
     }
+  }
+
+  void showLoadingDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // ไม่ให้ปิดเอง
+      barrierColor: Colors.black.withOpacity(0.3), // พื้นหลังโปร่งใส
+      builder: (BuildContext context) {
+        return const Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 4,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+          ),
+        );
+      },
+    );
   }
 }
