@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:fontend_pro/pages/%E0%B8%B5category_man_tab.dart';
+import 'package:fontend_pro/pages/category_man_tab.dart';
 import 'package:fontend_pro/pages/category_woman_tab.dart';
 
 class ChooseCategorypage extends StatefulWidget {
