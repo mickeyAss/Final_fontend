@@ -1,4 +1,6 @@
+import 'dart:developer'; // สำหรับ log
 import 'package:flutter/material.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/pages/category_man_tab.dart';
 import 'package:fontend_pro/pages/category_woman_tab.dart';
 
@@ -11,6 +13,23 @@ class ChooseCategorypage extends StatefulWidget {
 
 class _ChooseCategorypageState extends State<ChooseCategorypage> {
   int selectedGenderIndex = 0; // 0 = ผู้ชาย, 1 = ผู้หญิง
+  final box = GetStorage();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // อ่านและ log ข้อมูลจาก GetStorage
+    log('Register Name: ${box.read('register_name')}');
+    log('Register Email: ${box.read('register_email')}');
+    log('Register Password: ${box.read('register_password')}');
+    log('Register Height: ${box.read('register_height')}');
+    log('Register Weight: ${box.read('register_weight')}');
+    log('Register Chest: ${box.read('register_chest')}');
+    log('Register Waist: ${box.read('register_waist')}');
+    log('Register Hips: ${box.read('register_hips')}');
+    log('Register Shirt Size: ${box.read('register_shirtSize')}');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +37,10 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 20, top: 50, right: 20),
+            padding: const EdgeInsets.only(
+                left: 20,
+                top: 20,
+                right: 20), // top จาก 50 เหลือ 20 เพราะมี AppBar แล้ว
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -31,7 +53,7 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
                     decoration: TextDecoration.none,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
                   "แบบไหน?",
                   style: TextStyle(
@@ -41,20 +63,20 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
                     decoration: TextDecoration.none,
                   ),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   "เลือกสไตล์การแต่งตัวที่คุณสนใจเพื่อแสดงผลลัพธ์ในสิ่งที่คุณสนใจมากขึ้น",
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.black45,
                     decoration: TextDecoration.none,
-                    fontWeight: FontWeight.normal, // กำหนด explicitly
+                    fontWeight: FontWeight.normal,
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(height: 15),
+          const SizedBox(height: 15),
           Row(
             children: [
               Expanded(
@@ -65,12 +87,10 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
                     });
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: selectedGenderIndex == 0
-                        ? Colors.black
-                        : Colors.white,
-                    foregroundColor: selectedGenderIndex == 0
-                        ? Colors.white
-                        : Colors.black,
+                    backgroundColor:
+                        selectedGenderIndex == 0 ? Colors.black : Colors.white,
+                    foregroundColor:
+                        selectedGenderIndex == 0 ? Colors.white : Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(2),
@@ -90,12 +110,10 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
                     });
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: selectedGenderIndex == 1
-                        ? Colors.black
-                        : Colors.white,
-                    foregroundColor: selectedGenderIndex == 1
-                        ? Colors.white
-                        : Colors.black,
+                    backgroundColor:
+                        selectedGenderIndex == 1 ? Colors.black : Colors.white,
+                    foregroundColor:
+                        selectedGenderIndex == 1 ? Colors.white : Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(2),
@@ -108,9 +126,7 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-      
-          // เรียกใช้เนื้อหาจากคลาสใหม่
+
           Expanded(
             child: IndexedStack(
               index: selectedGenderIndex,

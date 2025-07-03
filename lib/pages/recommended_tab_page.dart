@@ -19,51 +19,106 @@ class RecommendedTab extends StatefulWidget {
 
 class _RecommendedTabState extends State<RecommendedTab> {
   List<GetAllCategory> category = [];
-  late Future<void> loadData_Category;
-  int selectedIndex = -1;
+  List<model.GetAllPost> post = [];
 
+  late Future<List<dynamic>> loadDataAll;
+
+  int selectedIndex = -1;
   GetStorage gs = GetStorage();
 
-  List<model.GetAllPost> post = [];
-  late Future<List<model.GetAllPost>?> loadData_Post;
-
-  // เก็บสถานะการแสดงหัวใจตาม index โพสต์
   Map<int, bool> showHeartMap = {};
-
   Map<int, int> likeCountMap = {};
-
-  Map<int, bool> likedMap = {}; // เก็บสถานะไลก์ของแต่ละโพสต์
+  Map<int, bool> likedMap = {};
 
   @override
   void initState() {
     super.initState();
-    loadData_Category = loadDataCategory();
-    loadData_Post = loadDataPost();
+    loadDataAll = loadData();
     var user = gs.read('user');
     log(user.toString());
   }
 
-  final PageController pageController = PageController();
+  Future<List<dynamic>> loadData() async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    final categoryResponse = await http.get(Uri.parse("$url/category/get"));
+    final postResponse = await http.get(Uri.parse("$url/image_post/get"));
+
+    if (categoryResponse.statusCode == 200 && postResponse.statusCode == 200) {
+      category = getAllCategoryFromJson(categoryResponse.body);
+
+      final List<dynamic> jsonData = jsonDecode(postResponse.body);
+      post = jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
+
+      for (var p in post) {
+        likeCountMap[p.post.postId] ??= p.post.amountOfLike ?? 0;
+        likedMap[p.post.postId] ??= false;
+      }
+
+      return [category, post];
+    } else {
+      throw Exception('โหลดข้อมูลไม่สำเร็จ');
+    }
+  }
+
+  Future<void> likePost(int postId) async {
+    final isLikedNow = likedMap[postId] ?? false;
+
+    setState(() {
+      likedMap[postId] = !isLikedNow;
+      if (isLikedNow) {
+        likeCountMap[postId] = (likeCountMap[postId] ?? 1) - 1;
+      } else {
+        likeCountMap[postId] = (likeCountMap[postId] ?? 0) + 1;
+      }
+    });
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.post(
+        Uri.parse("$url/image_post/like/$postId"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"isLiked": isLikedNow}),
+      );
+
+      if (response.statusCode == 200) {
+        log("🔁 Like toggled: ${response.body}");
+      } else {
+        log("❌ Failed to toggle like: ${response.statusCode}");
+      }
+    } catch (e) {
+      log("🚨 Error toggling like: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(10, 0, 10, 0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: FutureBuilder(
-                future: loadData_Category,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return const Center(child: Text('Error loading user data'));
-                  }
-                  return Row(
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+      child: FutureBuilder<List<dynamic>>(
+        future: loadDataAll,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                color: Colors.black, // เพิ่มสีดำที่นี่
+              ),
+            );
+          } else if (snapshot.hasError) {
+            return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
+          }
+
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // หมวดหมู่
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
                     children: category.asMap().entries.map((entry) {
                       int index = entry.key;
                       var cate = entry.value;
@@ -93,37 +148,16 @@ class _RecommendedTabState extends State<RecommendedTab> {
                         ),
                       );
                     }).toList(),
-                  );
-                },
-              ),
-            ),
-            FutureBuilder<List<model.GetAllPost>?>(
-              future: loadData_Post, // ✅ ใช้ค่าที่โหลดครั้งเดียวตอน initState
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(
-                      child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(child: Text('ไม่พบข้อมูล'));
-                }
+                  ),
+                ),
 
-                final posts = snapshot.data!;
-
-                // เติมจำนวนไลก์ใน likeCountMap ถ้ายังไม่มี
-                for (var p in posts) {
-                  likeCountMap[p.post.postId] ??= p.post.amountOfLike ?? 0;
-                  likedMap[p.post.postId] ??=
-                      false; // 🆕 กำหนดว่าเริ่มต้นยังไม่ไลก์
-                }
-
-                return ListView.builder(
+                // รายการโพสต์
+                ListView.builder(
                   shrinkWrap: true,
                   physics: NeverScrollableScrollPhysics(),
-                  itemCount: posts.length,
+                  itemCount: post.length,
                   itemBuilder: (context, index) {
-                    final post = posts[index];
+                    final postItem = post[index];
                     final pageController = PageController();
 
                     return Padding(
@@ -131,7 +165,6 @@ class _RecommendedTabState extends State<RecommendedTab> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Header: รูปโปรไฟล์ + ชื่อ + ปุ่มติดตาม + เมนู
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -139,7 +172,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                 children: [
                                   ClipOval(
                                     child: Image.network(
-                                      post.user.profileImage ?? '',
+                                      postItem.user.profileImage ?? '',
                                       width: 40,
                                       height: 40,
                                       fit: BoxFit.cover,
@@ -155,7 +188,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                   ),
                                   SizedBox(width: 10),
                                   Text(
-                                    post.user.name,
+                                    postItem.user.name,
                                     style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold),
@@ -185,13 +218,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                   ),
                                   PopupMenuButton<String>(
                                     icon: Icon(Icons.more_vert),
-                                    onSelected: (value) {
-                                      if (value == 'report') {
-                                        // รายงาน
-                                      } else if (value == 'block') {
-                                        // บล็อก
-                                      }
-                                    },
+                                    onSelected: (value) {},
                                     itemBuilder: (context) => [
                                       PopupMenuItem(
                                           value: 'report',
@@ -205,9 +232,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                             ],
                           ),
                           SizedBox(height: 10),
-
-                          // รูปภาพแบบ PageView พร้อมแสดงหัวใจตอนกด double tap
-                          if (post.images.isNotEmpty)
+                          if (postItem.images.isNotEmpty)
                             Center(
                               child: Container(
                                 height: 450,
@@ -217,10 +242,10 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                   children: [
                                     PageView(
                                       controller: pageController,
-                                      children: post.images.map((image) {
+                                      children: postItem.images.map((image) {
                                         return GestureDetector(
                                           onDoubleTap: () async {
-                                            likePost(post.post.postId);
+                                            likePost(postItem.post.postId);
                                             setState(() {
                                               showHeartMap[index] = true;
                                             });
@@ -241,8 +266,6 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         );
                                       }).toList(),
                                     ),
-
-                                    // ไอคอนหัวใจซ้อนบนภาพ เมื่อ showHeartMap[index] == true
                                     AnimatedOpacity(
                                       opacity: showHeartMap[index] == true
                                           ? 1.0
@@ -258,15 +281,11 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                 ),
                               ),
                             ),
-
-                          SizedBox(height: 10),
-
-                          // SmoothPageIndicator
-                          if (post.images.length > 1)
+                          if (postItem.images.length > 1)
                             Center(
                               child: SmoothPageIndicator(
                                 controller: pageController,
-                                count: post.images.length,
+                                count: postItem.images.length,
                                 effect: ExpandingDotsEffect(
                                   dotWidth: 8,
                                   dotHeight: 8,
@@ -277,78 +296,75 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                 ),
                               ),
                             ),
-
                           SizedBox(height: 10),
-
-                          // แสดงปุ่ม category และไอคอนต่าง ๆ
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // ปุ่ม category เลื่อนซ้าย-ขวาได้
                               Expanded(
                                 child: SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   physics: BouncingScrollPhysics(),
                                   child: Row(
-                                    children: post.categories.map((category) {
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6.0),
-                                        child: OutlinedButton(
-                                          style: OutlinedButton.styleFrom(
-                                            backgroundColor:
-                                                Colors.grey.shade100,
-                                            foregroundColor: Colors.black87,
-                                            padding: EdgeInsets.symmetric(
-                                                horizontal: 14, vertical: 6),
-                                            textStyle: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                            side: BorderSide(
-                                                color: Colors.grey.shade400,
-                                                width: 1.2),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(30),
-                                            ),
-                                            elevation: 0,
-                                          ),
-                                          onPressed: () {},
-                                          child: Text(category.cname),
-                                        ),
-                                      );
-                                    }).toList(),
+                                    children: postItem.categories
+                                        .map((category) => Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 6.0),
+                                              child: OutlinedButton(
+                                                style: OutlinedButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.grey.shade100,
+                                                  foregroundColor:
+                                                      Colors.black87,
+                                                  padding: EdgeInsets.symmetric(
+                                                      horizontal: 14,
+                                                      vertical: 6),
+                                                  textStyle: TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                  side: BorderSide(
+                                                      color:
+                                                          Colors.grey.shade400,
+                                                      width: 1.2),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            30),
+                                                  ),
+                                                ),
+                                                onPressed: () {},
+                                                child: Text(category.cname),
+                                              ),
+                                            ))
+                                        .toList(),
                                   ),
                                 ),
                               ),
-
                               SizedBox(width: 10),
-
-                              // ไอคอน action ต่าง ๆ รวมกันเลย
                               Row(
                                 children: [
                                   GestureDetector(
                                     onTap: () {
-                                      likePost(post.post.postId);
+                                      likePost(postItem.post.postId);
                                     },
-                                    behavior: HitTestBehavior.opaque,
                                     child: Row(
                                       children: [
                                         Icon(
-                                          likedMap[post.post.postId] == true
+                                          likedMap[postItem.post.postId] == true
                                               ? Icons.favorite
                                               : Icons.favorite_border,
                                           size: 22,
                                           color:
-                                              likedMap[post.post.postId] == true
+                                              likedMap[postItem.post.postId] ==
+                                                      true
                                                   ? Colors.red
                                                   : Colors.black87,
                                         ),
                                         SizedBox(width: 6),
                                         Text(
-                                          likeCountMap[post.post.postId]
+                                          likeCountMap[postItem.post.postId]
                                                   ?.toString() ??
                                               '0',
                                           style: TextStyle(
@@ -362,10 +378,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                   ),
                                   SizedBox(width: 15),
                                   GestureDetector(
-                                    onTap: () {
-                                      // เพิ่มฟังก์ชันคอมเมนต์
-                                    },
-                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {},
                                     child: Row(
                                       children: [
                                         Image.asset(
@@ -376,7 +389,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         ),
                                         SizedBox(width: 6),
                                         Text(
-                                          (post.post.amountOfComment ?? 0)
+                                          (postItem.post.amountOfComment ?? 0)
                                               .toString(),
                                           style: TextStyle(
                                             fontSize: 13,
@@ -389,17 +402,14 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                   ),
                                   SizedBox(width: 15),
                                   GestureDetector(
-                                    onTap: () {
-                                      // เพิ่มฟังก์ชันบันทึก
-                                    },
-                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {},
                                     child: Row(
                                       children: [
                                         Icon(Icons.bookmark_outline_rounded,
                                             size: 22, color: Colors.black87),
                                         SizedBox(width: 6),
                                         Text(
-                                          (post.post.amountOfSave ?? 0)
+                                          (postItem.post.amountOfSave ?? 0)
                                               .toString(),
                                           style: TextStyle(
                                             fontSize: 13,
@@ -414,112 +424,39 @@ class _RecommendedTabState extends State<RecommendedTab> {
                               ),
                             ],
                           ),
-
-                          // ข้อความเนื้อหาโพสต์
                           Padding(
                             padding: const EdgeInsets.only(left: 8, top: 8),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(post.post.postTopic,
+                                Text(postItem.post.postTopic,
                                     style:
                                         TextStyle(fontWeight: FontWeight.bold)),
-                                if (post.post.postDescription != null)
-                                  Text(post.post.postDescription!),
+                                if (postItem.post.postDescription != null)
+                                  Text(postItem.post.postDescription!),
                                 Text("#ถ่ายรูปหน้ากระจก #ชุดเล่น",
                                     style: TextStyle(color: Colors.blue)),
                                 SizedBox(height: 5),
                                 Text(
                                   DateFormat('d MMM yyyy')
-                                      .format(post.post.postDate),
+                                      .format(postItem.post.postDate),
                                   style: TextStyle(
                                       color: Colors.black38, fontSize: 10),
                                 ),
-                              ],  
+                              ],
                             ),
                           ),
-
                           Divider(thickness: 1),
                         ],
                       ),
                     );
                   },
-                );
-              },
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
-  }
-
-  Future<void> loadDataCategory() async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    final response = await http.get(Uri.parse("$url/category/get"));
-    if (response.statusCode == 200) {
-      category = getAllCategoryFromJson(response.body);
-      log(response.body);
-      setState(() {});
-    } else {
-      log('Error loading category data: ${response.statusCode}');
-    }
-  }
-
-  Future<List<model.GetAllPost>?> loadDataPost() async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    try {
-      final response = await http.get(Uri.parse("$url/image_post/get"));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonData = jsonDecode(response.body);
-        final posts =
-            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
-
-        log('Received post data: ${posts.length}');
-        return posts;
-      } else {
-        log('Error loading post data: ${response.statusCode}');
-      }
-    } catch (e) {
-      log('Exception during post loading: $e');
-    }
-    return null;
-  }
-
-  Future<void> likePost(int postId) async {
-    final isLikedNow = likedMap[postId] ?? false;
-
-    // Toggle บน UI
-    setState(() {
-      likedMap[postId] = !isLikedNow;
-      if (isLikedNow) {
-        likeCountMap[postId] = (likeCountMap[postId] ?? 1) - 1;
-      } else {
-        likeCountMap[postId] = (likeCountMap[postId] ?? 0) + 1;
-      }
-    });
-
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-
-      final response = await http.post(
-        Uri.parse("$url/image_post/like/$postId"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"isLiked": isLikedNow}),
-      );
-
-      if (response.statusCode == 200) {
-        log("🔁 Like toggled: ${response.body}");
-      } else {
-        log("❌ Failed to toggle like: ${response.statusCode}");
-      } 
-    } catch (e) {
-      log("🚨 Error toggling like: $e");
-    }
   }
 }

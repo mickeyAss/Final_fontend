@@ -1,9 +1,11 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/pages/login.dart';
 import 'package:fontend_pro/config/config.dart';
-import 'package:fontend_pro/models/register_user_request.dart';
+import 'package:fontend_pro/pages/choose_categoryPage.dart';
+import 'package:fontend_pro/models/register_user_request.dart'; // import หน้า ChooseCategorypage
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -29,7 +31,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+        backgroundColor: Colors.black,
         centerTitle: true,
         automaticallyImplyLeading: false,
         leading: IconButton(
@@ -42,115 +44,123 @@ class _RegisterPageState extends State<RegisterPage> {
                 fontWeight: FontWeight.bold,
                 color: Colors.white)),
       ),
-      body: Container(
-        color: Colors.white,
-        width: double.infinity,
-        height: double.infinity,
-        child: SingleChildScrollView(
+      body: SafeArea(
+        child: Container(
+          width: double.infinity,
           padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.15),
-                        blurRadius: 12,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.person_add_alt_1_rounded,
-                          color: Colors.black87, size: 40),
-                      SizedBox(height: 12),
-                      Text('ยินดีต้อนรับเข้าสู่โลกของคุณ',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
-                      SizedBox(height: 8),
-                      Text(
-                          'สมัครสมาชิกเพื่อค้นหาสไตล์ที่ใช่\nและรับประสบการณ์ที่ออกแบบมาเพื่อคุณ',
-                          style: TextStyle(fontSize: 13, color: Colors.black54),
-                          textAlign: TextAlign.center),
-                    ],
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.white, Colors.grey.shade100],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+                bottom:
+                    80), // กำหนด padding เพิ่มล่าง เพื่อให้เนื้อหาไม่ซ้อนทับปุ่มยืนยัน
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ... ส่วนเนื้อหาทั้งหมดเหมือนเดิม ยกเว้นปุ่มยืนยัน
+                const SizedBox(height: 10),
+                Center(
+                  child: AnimatedOpacity(
+                    opacity: 1.0,
+                    duration: Duration(milliseconds: 600),
+                    child: Column(
+                      children: [
+                        Icon(Icons.person_add_alt_1_rounded,
+                            color: Colors.black87, size: 40),
+                        SizedBox(height: 12),
+                        Text('ยินดีต้อนรับเข้าสู่โลกของคุณ',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
+                        SizedBox(height: 8),
+                        Text(
+                            'สมัครสมาชิกเพื่อค้นหาสไตล์ที่ใช่\nและรับประสบการณ์ที่ออกแบบมาเพื่อคุณ',
+                            style:
+                                TextStyle(fontSize: 13, color: Colors.black54),
+                            textAlign: TextAlign.center),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: 20),
-              Text('ข้อมูลของคุณ',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              SizedBox(height: 10),
-              _buildTextField('ชื่อผู้ใช้', nameNoCt1),
-              _buildTextField('อีเมล', emailNoCt1),
-              _buildTextField('รหัสผ่าน', passwordNoCt1, obscure: true),
-              _buildTextField('ยืนยันรหัสผ่าน', conpasswordNoCt1,
-                  obscure: true),
-              SizedBox(height: 20),
-              _buildSectionHeader('สัดส่วนของคุณ',
-                  'เราจะใช้ข้อมูลสัดส่วนของคุณเพื่อแนะนำเสื้อผ้าและไลฟ์สไตล์ที่เหมาะกับรูปร่างของคุณที่สุด'),
-              SizedBox(height: 10),
-              _buildInputWithDropdown(
-                label: 'ส่วนสูง',
-                unit: 'ซม.',
-                value: height,
-                suggestedValues: List.generate(41, (i) => 150 + i),
-                onChanged: (val) => setState(() => height = val),
-              ),
-              _buildInputWithDropdown(
-                label: 'น้ำหนัก',
-                unit: 'กก.',
-                value: weight,
-                suggestedValues: List.generate(51, (i) => 40 + i),
-                onChanged: (val) => setState(() => weight = val),
-              ),
-              _buildInputWithDropdown(
-                label: 'รอบอก',
-                unit: 'ซม.',
-                value: chest,
-                suggestedValues: List.generate(51, (i) => 70 + i),
-                onChanged: (val) => setState(() => chest = val),
-              ),
-              _buildInputWithDropdown(
-                label: 'รอบเอว',
-                unit: 'ซม.',
-                value: waist,
-                suggestedValues: List.generate(51, (i) => 60 + i),
-                onChanged: (val) => setState(() => waist = val),
-              ),
-              _buildInputWithDropdown(
-                label: 'สะโพก',
-                unit: 'ซม.',
-                value: hips,
-                suggestedValues: List.generate(51, (i) => 80 + i),
-                onChanged: (val) => setState(() => hips = val),
-              ),
-              SizedBox(height: 12),
-              _buildDropdownInput('Size'),
-              SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.grey.shade300,
-                    foregroundColor: Colors.black,
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    textStyle: TextStyle(fontSize: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: register,
-                  child: Text('ยืนยัน',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                SizedBox(height: 20),
+                Text('ข้อมูลของคุณ',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                SizedBox(height: 10),
+                _buildTextField('ชื่อผู้ใช้', nameNoCt1),
+                _buildTextField('อีเมล', emailNoCt1),
+                _buildTextField('รหัสผ่าน', passwordNoCt1, obscure: true),
+                _buildTextField('ยืนยันรหัสผ่าน', conpasswordNoCt1,
+                    obscure: true),
+                SizedBox(height: 20),
+                _buildSectionHeader('สัดส่วนของคุณ',
+                    'เราจะใช้ข้อมูลสัดส่วนของคุณเพื่อแนะนำเสื้อผ้าและไลฟ์สไตล์ที่เหมาะกับรูปร่างของคุณที่สุด'),
+                SizedBox(height: 10),
+                _buildInputWithDropdown(
+                  label: 'ส่วนสูง',
+                  unit: 'ซม.',
+                  value: height,
+                  suggestedValues: List.generate(41, (i) => 150 + i),
+                  onChanged: (val) => setState(() => height = val),
                 ),
-              ),
-            ],
+                _buildInputWithDropdown(
+                  label: 'น้ำหนัก',
+                  unit: 'กก.',
+                  value: weight,
+                  suggestedValues: List.generate(51, (i) => 40 + i),
+                  onChanged: (val) => setState(() => weight = val),
+                ),
+                _buildInputWithDropdown(
+                  label: 'รอบอก',
+                  unit: 'ซม.',
+                  value: chest,
+                  suggestedValues: List.generate(51, (i) => 70 + i),
+                  onChanged: (val) => setState(() => chest = val),
+                ),
+                _buildInputWithDropdown(
+                  label: 'รอบเอว',
+                  unit: 'ซม.',
+                  value: waist,
+                  suggestedValues: List.generate(51, (i) => 60 + i),
+                  onChanged: (val) => setState(() => waist = val),
+                ),
+                _buildInputWithDropdown(
+                  label: 'สะโพก',
+                  unit: 'ซม.',
+                  value: hips,
+                  suggestedValues: List.generate(51, (i) => 80 + i),
+                  onChanged: (val) => setState(() => hips = val),
+                ),
+                SizedBox(height: 12),
+                _buildDropdownInput('Size'),
+                SizedBox(height: 30),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      // ปุ่มยืนยันติดล่างจอ
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: SizedBox(
+          height: 50,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: register,
+            child: const Text(
+              'ยืนยัน',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ),
         ),
       ),
@@ -317,261 +327,262 @@ class _RegisterPageState extends State<RegisterPage> {
         emailNoCt1.text.trim().isEmpty ||
         passwordNoCt1.text.trim().isEmpty ||
         conpasswordNoCt1.text.trim().isEmpty) {
-      log('กรอกข้อมูลไม่ครบทุกช่องหรือมีช่องว่าง');
-      showModalBottomSheet(
+      showModernDialog(
         context: context,
-        isDismissible: false,
-        enableDrag: false,
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (BuildContext context) {
-          return Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.warning_amber_rounded,
-                    color: Colors.orange, size: 40),
-                SizedBox(height: 10),
-                Text('กรุณากรอกข้อมูลให้ครบ',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center),
-                SizedBox(height: 5),
-                Text('ทุกช่องต้องไม่มีช่องว่าง',
-                    style: TextStyle(fontSize: 14, color: Colors.black87),
-                    textAlign: TextAlign.center),
-                SizedBox(height: 20),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.orange.shade800,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: Text('ตกลง', style: TextStyle(fontSize: 14)),
-                ),
-              ],
-            ),
-          );
-        },
+        icon: Icons.warning_amber_rounded,
+        iconColor: Colors.orange,
+        title: 'กรุณากรอกข้อมูลให้ครบ',
+        message: 'ทุกช่องต้องไม่มีช่องว่าง',
       );
       return;
     }
 
     if (passwordNoCt1.text != conpasswordNoCt1.text) {
-      log('Passwords do not match');
-      showDialog(
+      showModernDialog(
         context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.red, size: 40),
-                SizedBox(height: 10),
-                Text('รหัสผ่านไม่ตรงกัน',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ],
-            ),
-            actions: <Widget>[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FilledButton(
-                    child: Text('ตกลง'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.red.shade700,
-                      foregroundColor: Colors.white,
-                      textStyle: TextStyle(fontSize: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                      elevation: 5,
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
+        icon: Icons.error_outline,
+        iconColor: Colors.red,
+        title: 'รหัสผ่านไม่ตรงกัน',
+        message: 'โปรดตรวจสอบรหัสผ่านและลองใหม่อีกครั้ง',
       );
       return;
     }
 
-    // ตรวจสอบรูปแบบรหัสผ่านให้ตรงเงื่อนไขความปลอดภัย
     final password = passwordNoCt1.text.trim();
     final passwordRegex =
         RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
 
     if (!passwordRegex.hasMatch(password)) {
-      showDialog(
+      showModernDialog(
         context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.lock_outline, color: Colors.orange, size: 40),
-                SizedBox(height: 10),
-                Text('รหัสผ่านไม่ปลอดภัย',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    textAlign: TextAlign.center),
-              ],
-            ),
-            content: Text(
-              'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
-              style: TextStyle(fontSize: 14),
-            ),
-            actions: <Widget>[
-              Center(
-                child: FilledButton(
-                  child: Text('ตกลง'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.orange.shade800,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+        icon: Icons.lock_outline,
+        iconColor: Colors.orange,
+        title: 'รหัสผ่านไม่ปลอดภัย',
+        message:
+            'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
       );
       return;
     }
 
-    // ทำการสมัครสมาชิก
-    var model = RegisterUserRequest(
-      name: nameNoCt1.text,
-      email: emailNoCt1.text,
-      password: password,
-      height: height.toString(),
-      weight: weight.toString(),
-      shirtSize: selectedSize.toString(),
-      chest: chest.toString(),
-      waistCircumference: waist.toString(),
-      hip: hips.toString(),
+    // เก็บข้อมูลทั้งหมดลง GetStorage
+    final box = GetStorage();
+    await box.write('register_name', nameNoCt1.text.trim());
+    await box.write('register_email', emailNoCt1.text.trim());
+    await box.write('register_password', password);
+    await box.write('register_height', height ?? 0);
+    await box.write('register_weight', weight ?? 0);
+    await box.write('register_chest', chest ?? 0);
+    await box.write('register_waist', waist ?? 0);
+    await box.write('register_hips', hips ?? 0);
+    await box.write('register_shirtSize', selectedSize ?? '');
+
+    // ไปหน้า ChooseCategorypage
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const ChooseCategorypage()),
     );
+  }
 
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
+  // void register() async {
+  //   if (nameNoCt1.text.trim().isEmpty ||
+  //       emailNoCt1.text.trim().isEmpty ||
+  //       passwordNoCt1.text.trim().isEmpty ||
+  //       conpasswordNoCt1.text.trim().isEmpty) {
+  //     log('กรอกข้อมูลไม่ครบทุกช่องหรือมีช่องว่าง');
+  //     showModernDialog(
+  //       context: context,
+  //       icon: Icons.warning_amber_rounded,
+  //       iconColor: Colors.orange,
+  //       title: 'กรุณากรอกข้อมูลให้ครบ',
+  //       message: 'ทุกช่องต้องไม่มีช่องว่าง',
+  //     );
+  //     return;
+  //   }
 
-    try {
-      var response = await http.post(
-        Uri.parse("$url/user/register"),
-        headers: {"Content-Type": "application/json; charset=utf-8"},
-        body: registerUserRequestToJson(model),
-      );
+  //   if (passwordNoCt1.text != conpasswordNoCt1.text) {
+  //     log('Passwords do not match');
+  //     showModernDialog(
+  //       context: context,
+  //       icon: Icons.error_outline,
+  //       iconColor: Colors.red,
+  //       title: 'รหัสผ่านไม่ตรงกัน',
+  //       message: 'โปรดตรวจสอบรหัสผ่านและลองใหม่อีกครั้ง',
+  //     );
+  //     return;
+  //   }
 
-      log('Status code: ${response.statusCode}');
-      log('Response body: ${response.body}');
+  //   final password = passwordNoCt1.text.trim();
+  //   final passwordRegex =
+  //       RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
 
-      if (response.statusCode == 201) {
-        showModalBottomSheet(
-          context: context,
-          isDismissible: false,
-          enableDrag: false,
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          builder: (context) {
-            return Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle_outline,
-                      color: Colors.green, size: 40),
-                  SizedBox(height: 10),
-                  Text('สมัครสมาชิกสำเร็จแล้ว',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 10),
-                  Text('คุณสามารถเข้าสู่ระบบได้ทันที',
-                      style: TextStyle(color: Colors.grey[600])),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+  //   if (!passwordRegex.hasMatch(password)) {
+  //     showModernDialog(
+  //       context: context,
+  //       icon: Icons.lock_outline,
+  //       iconColor: Colors.orange,
+  //       title: 'รหัสผ่านไม่ปลอดภัย',
+  //       message:
+  //           'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
+  //     );
+  //     return;
+  //   }
+
+  //   // ทำการสมัครสมาชิก
+  //   var model = RegisterUserRequest(
+  //     name: nameNoCt1.text,
+  //     email: emailNoCt1.text,
+  //     password: password,
+  //     height: height.toString(),
+  //     weight: weight.toString(),
+  //     shirtSize: selectedSize.toString(),
+  //     chest: chest.toString(),
+  //     waistCircumference: waist.toString(),
+  //     hip: hips.toString(),
+  //   );
+
+  //   var config = await Configuration.getConfig();
+  //   var url = config['apiEndpoint'];
+
+  //   try {
+  //     var response = await http.post(
+  //       Uri.parse("$url/user/register"),
+  //       headers: {"Content-Type": "application/json; charset=utf-8"},
+  //       body: registerUserRequestToJson(model),
+  //     );
+
+  //     log('Status code: ${response.statusCode}');
+  //     log('Response body: ${response.body}');
+
+  //     if (response.statusCode == 201) {
+  //       showModernDialog(
+  //         context: context,
+  //         icon: Icons.check_circle_outline,
+  //         iconColor: Colors.green,
+  //         title: 'สมัครสมาชิกสำเร็จแล้ว',
+  //         message: 'คุณสามารถเข้าสู่ระบบได้ทันที',
+  //         onConfirm: () {
+  //           Navigator.pushReplacement(
+  //             context,
+  //             MaterialPageRoute(builder: (context) => const Loginpage()),
+  //           );
+  //         },
+  //         confirmText: 'เข้าสู่ระบบ',
+  //       );
+  //     } else {
+  //       final message = response.body.contains('error')
+  //           ? response.body
+  //           : 'เกิดข้อผิดพลาดในการสมัครสมาชิก';
+  //       log('สมัครไม่สำเร็จ: $message');
+
+  //       showModernDialog(
+  //         context: context,
+  //         icon: Icons.error,
+  //         iconColor: Colors.red,
+  //         title: 'สมัครสมาชิกไม่สำเร็จ',
+  //         message: message,
+  //       );
+  //     }
+  //   } catch (e) {
+  //     log('Error: $e');
+  //     showModernDialog(
+  //       context: context,
+  //       icon: Icons.wifi_off,
+  //       iconColor: Colors.red.shade700,
+  //       title: 'เกิดข้อผิดพลาดในการเชื่อมต่อ',
+  //       message: 'โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองใหม่อีกครั้ง',
+  //     );
+  //   }
+  // }
+
+  void showModernDialog({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String message,
+    VoidCallback? onConfirm,
+    String confirmText = 'ตกลง',
+  }) {
+    showGeneralDialog(
+      context: context,
+      barrierLabel: "CustomDialog",
+      barrierDismissible: false,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (_, animation, __, ___) {
+        return Transform.scale(
+          scale: Curves.easeOutBack.transform(animation.value),
+          child: Opacity(
+            opacity: animation.value,
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
                     ),
-                    child: Text('ตกลง'),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => Loginpage(),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: iconColor.withOpacity(0.1),
                         ),
-                      );
-                    },
-                  )
-                ],
-              ),
-            );
-          },
-        );
-      } else {
-        // รองรับการแสดง error message จาก API ถ้ามี
-        final message = response.body.contains('error')
-            ? response.body
-            : 'เกิดข้อผิดพลาดในการสมัครสมาชิก';
-        log('สมัครไม่สำเร็จ: $message');
-      }
-    } catch (e) {
-      log('Error: $e');
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Center(
-              child: Text(
-                'เกิดข้อผิดพลาดในการเชื่อมต่อ',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        padding: const EdgeInsets.all(16),
+                        child: Icon(icon, size: 40, color: iconColor),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        message,
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.black54),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          if (onConfirm != null) onConfirm();
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(confirmText),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            actions: <Widget>[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FilledButton(
-                    child: Text('ตกลง'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Color.fromARGB(255, 72, 0, 0),
-                      foregroundColor: Colors.white,
-                      textStyle: TextStyle(fontSize: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                      elevation: 5,
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
-      );
-    }
+          ),
+        );
+      },
+    );
   }
 }
