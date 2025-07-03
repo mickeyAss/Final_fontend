@@ -1,8 +1,8 @@
+import 'dart:convert';
 // To parse this JSON data, do
 //
 //     final getAllUser = getAllUserFromJson(jsonString);
 
-import 'dart:convert';
 
 List<GetAllUser> getAllUserFromJson(String str) => List<GetAllUser>.from(json.decode(str).map((x) => GetAllUser.fromJson(x)));
 

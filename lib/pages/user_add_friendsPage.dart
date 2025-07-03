@@ -1,9 +1,9 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/get_all_user.dart';
 import 'package:fontend_pro/models/get_user_uid.dart';
-import 'package:http/http.dart' as http;
 
 class UserAddFriendspage extends StatefulWidget {
 

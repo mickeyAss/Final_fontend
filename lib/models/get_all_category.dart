@@ -12,26 +12,52 @@ class GetAllCategory {
     int cid;
     String cname;
     String cimage;
-    String ctype;
+    Ctype ctype;
+    String cdescription;
 
     GetAllCategory({
         required this.cid,
         required this.cname,
         required this.cimage,
         required this.ctype,
+        required this.cdescription,
     });
 
     factory GetAllCategory.fromJson(Map<String, dynamic> json) => GetAllCategory(
         cid: json["cid"],
         cname: json["cname"],
         cimage: json["cimage"],
-        ctype: json["ctype"],
+        ctype: ctypeValues.map[json["ctype"]]!,
+        cdescription: json["cdescription"],
     );
 
     Map<String, dynamic> toJson() => {
         "cid": cid,
         "cname": cname,
         "cimage": cimage,
-        "ctype": ctype,
+        "ctype": ctypeValues.reverse[ctype],
+        "cdescription": cdescription,
     };
+}
+
+enum Ctype {
+    F,
+    M
+}
+
+final ctypeValues = EnumValues({
+    "F": Ctype.F,
+    "M": Ctype.M
+});
+
+class EnumValues<T> {
+    Map<String, T> map;
+    late Map<T, String> reverseMap;
+
+    EnumValues(this.map);
+
+    Map<T, String> get reverse {
+            reverseMap = map.map((k, v) => MapEntry(v, k));
+            return reverseMap;
+    }
 }

@@ -1,43 +1,39 @@
 import 'dart:convert';
-// To parse this JSON data, do
-//
-//     final getUserUid = getUserUidFromJson(jsonString);
-
 
 GetUserUid getUserUidFromJson(String str) => GetUserUid.fromJson(json.decode(str));
 
 String getUserUidToJson(GetUserUid data) => json.encode(data.toJson());
 
 class GetUserUid {
-    int uid;
-    String name;
-    String email;
-    String password;
-    String height;
-    String weight;
-    String shirtSize;
-    String chest;
-    String waistCircumference;
-    String hip;
-    String personalDescription;
-    String profileImage;
+  int uid;
+  String name;
+  String email;
+  String password;
+  String? height;
+  String? weight;
+  String? shirtSize;
+  String? chest;
+  String? waistCircumference;
+  String? hip;
+  String? personalDescription;
+  String? profileImage;
 
-    GetUserUid({
-        required this.uid,
-        required this.name,
-        required this.email,
-        required this.password,
-        required this.height,
-        required this.weight,
-        required this.shirtSize,
-        required this.chest,
-        required this.waistCircumference,
-        required this.hip,
-        required this.personalDescription,
-        required this.profileImage,
-    });
+  GetUserUid({
+    required this.uid,
+    required this.name,
+    required this.email,
+    required this.password,
+    this.height,
+    this.weight,
+    this.shirtSize,
+    this.chest,
+    this.waistCircumference,
+    this.hip,
+    this.personalDescription,
+    this.profileImage,
+  });
 
-    factory GetUserUid.fromJson(Map<String, dynamic> json) => GetUserUid(
+  factory GetUserUid.fromJson(Map<String, dynamic> json) => GetUserUid(
         uid: json["uid"],
         name: json["name"],
         email: json["email"],
@@ -50,9 +46,9 @@ class GetUserUid {
         hip: json["hip"],
         personalDescription: json["personal_description"],
         profileImage: json["profile_image"],
-    );
+      );
 
-    Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => {
         "uid": uid,
         "name": name,
         "email": email,
@@ -65,5 +61,5 @@ class GetUserUid {
         "hip": hip,
         "personal_description": personalDescription,
         "profile_image": profileImage,
-    };
+      };
 }
