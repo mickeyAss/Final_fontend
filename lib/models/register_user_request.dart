@@ -12,12 +12,14 @@ class RegisterUserRequest {
     String name;
     String email;
     String password;
-    String height;
-    String weight;
+    int height;
+    int weight;
     String shirtSize;
-    String chest;
-    String waistCircumference;
-    String hip;
+    int chest;
+    int waistCircumference;
+    int hip;
+    String personalDescription;
+    List<int> categoryIds;
 
     RegisterUserRequest({
         required this.name,
@@ -29,6 +31,8 @@ class RegisterUserRequest {
         required this.chest,
         required this.waistCircumference,
         required this.hip,
+        required this.personalDescription,
+        required this.categoryIds,
     });
 
     factory RegisterUserRequest.fromJson(Map<String, dynamic> json) => RegisterUserRequest(
@@ -41,6 +45,8 @@ class RegisterUserRequest {
         chest: json["chest"],
         waistCircumference: json["waist_circumference"],
         hip: json["hip"],
+        personalDescription: json["personal_description"],
+        categoryIds: List<int>.from(json["category_ids"].map((x) => x)),
     );
 
     Map<String, dynamic> toJson() => {
@@ -53,5 +59,7 @@ class RegisterUserRequest {
         "chest": chest,
         "waist_circumference": waistCircumference,
         "hip": hip,
+        "personal_description": personalDescription,
+        "category_ids": List<dynamic>.from(categoryIds.map((x) => x)),
     };
 }
