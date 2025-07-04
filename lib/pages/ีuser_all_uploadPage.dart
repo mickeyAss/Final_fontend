@@ -86,6 +86,95 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
     });
   }
 
+  void _showCategoryBottomSheet(BuildContext context) {
+    List<GetAllCategory> tempSelected = List.from(selectedCategories);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: FutureBuilder<List<GetAllCategory>>(
+            future: futureCategories,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return const Center(child: Text("เกิดข้อผิดพลาด"));
+              }
+
+              final categories = snapshot.data!;
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'สไตล์เสื้อผ้าของคุณเป็นอย่างไร?',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: categories.map((cate) {
+                          final isSelected = tempSelected
+                              .any((selected) => selected.cid == cate.cid);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            title: Text(cate.cname),
+                            activeColor: Colors.black, // สีพื้นกล่องเมื่อเลือก
+                            checkColor: Colors.white, // สีเครื่องหมายติ๊กถูก
+                            onChanged: (bool? value) {
+                              if (value == true) {
+                                tempSelected.add(cate);
+                              } else {
+                                tempSelected.removeWhere(
+                                    (item) => item.cid == cate.cid);
+                              }
+                              (context as Element).markNeedsBuild();
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        selectedCategories = tempSelected;
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: const Text('ตกลง'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -110,384 +199,350 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        height: 250,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: EdgeInsets.zero,
-                          itemCount: selectedAssets.length,
-                          itemBuilder: (context, index) {
-                            final asset = selectedAssets[index];
-                            return FutureBuilder<Uint8List?>(
-                              future: asset.thumbnailDataWithSize(
-                                const ThumbnailSize(300, 300),
-                              ),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState ==
-                                        ConnectionState.done &&
-                                    snapshot.hasData) {
-                                  return GestureDetector(
-                                    onTap: () async {
-                                      await showDialog(
-                                        context: context,
-                                        barrierDismissible: true,
-                                        builder: (context) {
-                                          return Dialog(
-                                            backgroundColor: Colors.transparent,
-                                            insetPadding:
-                                                const EdgeInsets.all(16),
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              child: InteractiveViewer(
-                                                child: Image.memory(
-                                                  snapshot.data!,
-                                                  fit: BoxFit.contain,
-                                                  width: MediaQuery.of(context)
-                                                          .size
-                                                          .width *
-                                                      0.8,
-                                                  height: MediaQuery.of(context)
-                                                          .size
-                                                          .height *
-                                                      0.6,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          height: 250,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: EdgeInsets.zero,
+                            itemCount: selectedAssets.length,
+                            itemBuilder: (context, index) {
+                              final asset = selectedAssets[index];
+                              return FutureBuilder<Uint8List?>(
+                                future: asset.thumbnailDataWithSize(
+                                  const ThumbnailSize(300, 300),
+                                ),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                          ConnectionState.done &&
+                                      snapshot.hasData) {
+                                    return GestureDetector(
+                                      onTap: () async {
+                                        await showDialog(
+                                          context: context,
+                                          barrierDismissible: true,
+                                          builder: (context) {
+                                            return Dialog(
+                                              backgroundColor:
+                                                  Colors.transparent,
+                                              insetPadding:
+                                                  const EdgeInsets.all(16),
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                child: InteractiveViewer(
+                                                  child: Image.memory(
+                                                    snapshot.data!,
+                                                    fit: BoxFit.contain,
+                                                    width:
+                                                        MediaQuery.of(context)
+                                                                .size
+                                                                .width *
+                                                            0.8,
+                                                    height:
+                                                        MediaQuery.of(context)
+                                                                .size
+                                                                .height *
+                                                            0.6,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                    child: Container(
-                                      margin: const EdgeInsets.only(right: 12),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black12,
-                                            blurRadius: 8,
-                                            offset: const Offset(2, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(top: 12),
-                                        child: ClipRRect(
+                                            );
+                                          },
+                                        );
+                                      },
+                                      child: Container(
+                                        margin:
+                                            const EdgeInsets.only(right: 12),
+                                        decoration: BoxDecoration(
                                           borderRadius:
                                               BorderRadius.circular(16),
-                                          child: Image.memory(
-                                            snapshot.data!,
-                                            fit: BoxFit.cover,
-                                            width: 200,
-                                            height: 200,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                                return Container(
-                                  width: 200,
-                                  height: 200,
-                                  margin: const EdgeInsets.only(right: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                      SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              height: 10,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                padding: EdgeInsets.zero,
-                                itemCount: selectedAssets.length,
-                                itemBuilder: (context, index) {
-                                  // รูปภาพเหมือนเดิม
-                                  return const SizedBox.shrink();
-                                },
-                              ),
-                            ),
-                            Text(
-                              'หัวเรื่องที่น่าสนใจ',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey.shade900,
-                                    letterSpacing: 0.5,
-                                  ),
-                            ),
-                            const SizedBox(height: 10),
-                            TextField(
-                              controller: _topicController,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'Poppins',
-                                height: 1.3,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'พิมพ์หัวเรื่องที่นี่...',
-                                floatingLabelBehavior:
-                                    FloatingLabelBehavior.never,
-                                filled: true,
-                                fillColor: Colors.grey.shade100,
-                                prefixIcon: Container(
-                                  margin: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Colors.black,
-                                        Colors.grey,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(Icons.title,
-                                      color: Colors.white),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 12),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: const BorderSide(
-                                    color: Color.fromARGB(255, 0, 0, 0),
-                                    width: 2,
-                                  ),
-                                ),
-                                hintStyle:
-                                    TextStyle(color: Colors.grey.shade600),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'คำบรรยาย',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey.shade900,
-                                    letterSpacing: 0.5,
-                                  ),
-                            ),
-                            const SizedBox(height: 10),
-                            TextField(
-                              controller: _descriptionController,
-                              maxLines: 4,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontFamily: 'Poppins',
-                                height: 1.4,
-                              ),
-                              decoration: InputDecoration(
-                                hintText:
-                                    'เขียนคำบรรยายหรือเพิ่มแฮชแท็ก(#) เกี่ยวกับไลฟ์สไตล์ของคุณ...',
-                                floatingLabelBehavior:
-                                    FloatingLabelBehavior.never,
-                                filled: true,
-                                fillColor: Colors.grey.shade100,
-                                prefixIcon: Container(
-                                  margin: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Colors.black,
-                                        Colors.grey,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(Icons.edit_note,
-                                      color: Colors.white),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 12),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: const BorderSide(
-                                    color: Color.fromARGB(255, 0, 0, 0),
-                                    width: 2,
-                                  ),
-                                ),
-                                hintStyle:
-                                    TextStyle(color: Colors.grey.shade600),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Container(
-                              height: 44,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.shade400),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _postPrivacy,
-                                  isExpanded: true,
-                                  icon: const Icon(Icons.arrow_drop_down,
-                                      color: Colors.black54),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  items: privacyOptions.entries.map((entry) {
-                                    final isSelected =
-                                        entry.key == _postPrivacy;
-                                    return DropdownMenuItem<String>(
-                                      value: entry.key,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 6),
-                                        decoration: isSelected
-                                            ? BoxDecoration(
-                                                color: Colors.black
-                                                    .withOpacity(0.05),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              )
-                                            : null,
-                                        child: Row(
-                                          children: [
-                                            Icon(entry.value['icon'],
-                                                color: Colors.black87,
-                                                size: 18),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              entry.value['label'],
-                                              style: TextStyle(
-                                                fontWeight: isSelected
-                                                    ? FontWeight.bold
-                                                    : FontWeight.w400,
-                                                color: isSelected
-                                                    ? Colors.black
-                                                    : Colors.grey[800],
-                                              ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black12,
+                                              blurRadius: 8,
+                                              offset: const Offset(2, 4),
                                             ),
                                           ],
                                         ),
+                                        child: Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 12),
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            child: Image.memory(
+                                              snapshot.data!,
+                                              fit: BoxFit.cover,
+                                              width: 200,
+                                              height: 200,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    if (value != null &&
-                                        value != _postPrivacy) {
-                                      _postPrivacy = value;
-                                      if (mounted) setState(() {});
-                                    }
+                                  }
+                                  return Container(
+                                    width: 200,
+                                    height: 200,
+                                    margin: const EdgeInsets.only(right: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[300],
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                height: 10,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: EdgeInsets.zero,
+                                  itemCount: selectedAssets.length,
+                                  itemBuilder: (context, index) {
+                                    // รูปภาพเหมือนเดิม
+                                    return const SizedBox.shrink();
                                   },
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () async {
-                          final result = await showDialog<List<GetAllCategory>>(
-                            context: context,
-                            builder: (context) {
-                              // สร้างตัวแปรชั่วคราวเพื่อเก็บหมวดหมู่ที่เลือก
-                              List<GetAllCategory> tempSelected =
-                                  List.from(selectedCategories);
-
-                              return AlertDialog(
-                                title: Text('เลือกหมวดหมู่'),
-                                content: FutureBuilder<List<GetAllCategory>>(
-                                  future: futureCategories,
-                                  builder: (context, snapshot) {
-                                    if (snapshot.connectionState ==
-                                        ConnectionState.waiting) {
-                                      return Center(
-                                          child: CircularProgressIndicator());
-                                    } else if (snapshot.hasError) {
-                                      return Text("เกิดข้อผิดพลาด");
-                                    }
-
-                                    final categories = snapshot.data!;
-
-                                    return SingleChildScrollView(
-                                      child: Column(
-                                        children: categories.map((cate) {
-                                          final isSelected = tempSelected.any(
-                                              (selected) =>
-                                                  selected.cid == cate.cid);
-                                          return CheckboxListTile(
-                                            value: isSelected,
-                                            title: Text(cate.cname),
-                                            onChanged: (bool? value) {
-                                              setState(() {
-                                                if (value == true) {
-                                                  tempSelected.add(cate);
-                                                } else {
-                                                  tempSelected.removeWhere(
-                                                      (item) =>
-                                                          item.cid == cate.cid);
-                                                }
-                                              });
-                                            },
-                                          );
-                                        }).toList(),
-                                      ),
-                                    );
-                                  },
+                              Text(
+                                'หัวเรื่องที่น่าสนใจ',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade900,
+                                      letterSpacing: 0.5,
+                                    ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextField(
+                                controller: _topicController,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Poppins',
+                                  height: 1.3,
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, null),
-                                    child: Text('ยกเลิก'),
+                                decoration: InputDecoration(
+                                  hintText: 'พิมพ์หัวเรื่องที่นี่...',
+                                  floatingLabelBehavior:
+                                      FloatingLabelBehavior.never,
+                                  filled: true,
+                                  fillColor: Colors.grey.shade100,
+                                  prefixIcon: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Colors.black,
+                                          Colors.grey,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.title,
+                                        color: Colors.white),
                                   ),
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, tempSelected),
-                                    child: Text('ตกลง'),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
                                   ),
-                                ],
-                              );
-                            },
-                          );
-
-                          if (result != null) {
-                            setState(() {
-                              selectedCategories = result;
-                            });
-                          }
-                        },
-                        child: Text(
-                            "เลือกหมวดหมู่ (${selectedCategories.length})"),
-                      ),
-                    ],
-                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: const BorderSide(
+                                      color: Color.fromARGB(255, 0, 0, 0),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  hintStyle:
+                                      TextStyle(color: Colors.grey.shade600),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'คำบรรยาย',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade900,
+                                      letterSpacing: 0.5,
+                                    ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextField(
+                                controller: _descriptionController,
+                                maxLines: 4,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontFamily: 'Poppins',
+                                  height: 1.4,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'เขียนคำบรรยายหรือเพิ่มแฮชแท็ก(#) เกี่ยวกับไลฟ์สไตล์ของคุณ...',
+                                  floatingLabelBehavior:
+                                      FloatingLabelBehavior.never,
+                                  filled: true,
+                                  fillColor: Colors.grey.shade100,
+                                  prefixIcon: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Colors.black,
+                                          Colors.grey,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.edit_note,
+                                        color: Colors.white),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: const BorderSide(
+                                      color: Color.fromARGB(255, 0, 0, 0),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  hintStyle:
+                                      TextStyle(color: Colors.grey.shade600),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 20),
+                                child: TextButton(
+                                  onPressed: () {
+                                    _showCategoryBottomSheet(context);
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets
+                                        .zero, // เอาระยะขอบออกให้เหมือนข้อความปกติ
+                                    minimumSize: Size(0, 0), // ลดขนาดให้เล็กสุด
+                                    tapTargetSize: MaterialTapTargetSize
+                                        .shrinkWrap, // ลดพื้นที่แตะ
+                                    alignment: Alignment
+                                        .centerLeft, // จัดข้อความชิดซ้าย
+                                    foregroundColor:
+                                        Colors.black, // สีข้อความดำ
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.category_outlined,
+                                              size: 20),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                              "เลือกสไตล์ในโพสต์ของคุณ (${selectedCategories.length})"),
+                                        ],
+                                      ),
+                                      const Icon(Icons.keyboard_arrow_right),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Container(
+                                height: 44,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border:
+                                      Border.all(color: Colors.grey.shade400),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _postPrivacy,
+                                    isExpanded: true,
+                                    icon: const Icon(Icons.arrow_drop_down,
+                                        color: Colors.black54),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    items: privacyOptions.entries.map((entry) {
+                                      final isSelected =
+                                          entry.key == _postPrivacy;
+                                      return DropdownMenuItem<String>(
+                                        value: entry.key,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 6),
+                                          decoration: isSelected
+                                              ? BoxDecoration(
+                                                  color: Colors.black
+                                                      .withOpacity(0.05),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                )
+                                              : null,
+                                          child: Row(
+                                            children: [
+                                              Icon(entry.value['icon'],
+                                                  color: Colors.black87,
+                                                  size: 18),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                entry.value['label'],
+                                                style: TextStyle(
+                                                  fontWeight: isSelected
+                                                      ? FontWeight.bold
+                                                      : FontWeight.w400,
+                                                  color: isSelected
+                                                      ? Colors.black
+                                                      : Colors.grey[800],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      if (value != null &&
+                                          value != _postPrivacy) {
+                                        _postPrivacy = value;
+                                        if (mounted) setState(() {});
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ]),
                 ),
       bottomNavigationBar: Container(
         color: Colors.white,
