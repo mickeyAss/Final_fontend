@@ -110,6 +110,13 @@ class _RegisterPageState extends State<RegisterPage> {
                   suggestedValues: List.generate(41, (i) => 150 + i),
                   onChanged: (val) => setState(() => height = val),
                 ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('*ไม่จำเป็นต้องระบุ',
+                        style: TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
+                ),
                 _buildInputWithDropdown(
                   label: 'น้ำหนัก',
                   unit: 'กก.',
@@ -117,26 +124,54 @@ class _RegisterPageState extends State<RegisterPage> {
                   suggestedValues: List.generate(51, (i) => 40 + i),
                   onChanged: (val) => setState(() => weight = val),
                 ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('*ไม่จำเป็นต้องระบุ',
+                        style: TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
+                ),
                 _buildInputWithDropdown(
                   label: 'รอบอก',
-                  unit: 'ซม.',
+                  unit: 'นิ้ว',
                   value: chest,
-                  suggestedValues: List.generate(51, (i) => 70 + i),
+                  suggestedValues: List.generate(51, (i) => 20 + i),
                   onChanged: (val) => setState(() => chest = val),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('*ไม่จำเป็นต้องระบุ',
+                        style: TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
                 ),
                 _buildInputWithDropdown(
                   label: 'รอบเอว',
-                  unit: 'ซม.',
+                  unit: 'นิ้ว',
                   value: waist,
-                  suggestedValues: List.generate(51, (i) => 60 + i),
+                  suggestedValues: List.generate(51, (i) => 15 + i),
                   onChanged: (val) => setState(() => waist = val),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('*ไม่จำเป็นต้องระบุ',
+                        style: TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
                 ),
                 _buildInputWithDropdown(
                   label: 'สะโพก',
-                  unit: 'ซม.',
+                  unit: 'นิ้ว',
                   value: hips,
-                  suggestedValues: List.generate(51, (i) => 80 + i),
+                  suggestedValues: List.generate(51, (i) => 20 + i),
                   onChanged: (val) => setState(() => hips = val),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('*ไม่จำเป็นต้องระบุ',
+                        style: TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
                 ),
                 SizedBox(height: 12),
                 _buildDropdownInput('Size'),
@@ -159,7 +194,10 @@ class _RegisterPageState extends State<RegisterPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: register,
+            onPressed: () {
+              Get.to(ChooseCategorypage());
+              // register(); // เรียกใช้ฟังก์ชัน register() ที่คุณต้องการ
+            },
             child: const Text(
               'ยืนยัน',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -242,7 +280,8 @@ class _RegisterPageState extends State<RegisterPage> {
         obscureText: obscure,
         cursorColor: Colors.grey,
         decoration: InputDecoration(
-          labelText: label,
+          hintText: label,
+          hintStyle: TextStyle(color: Colors.grey),
           filled: true,
           fillColor: Colors.white,
           enabledBorder: OutlineInputBorder(
@@ -287,9 +326,14 @@ class _RegisterPageState extends State<RegisterPage> {
             onChanged: (value) => setState(() => selectedSize = value),
           ),
         ),
-        SizedBox(height: 4),
-        Text('*ไม่จำเป็นต้องระบุ',
-            style: TextStyle(color: Colors.red, fontSize: 12)),
+        SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text('*ไม่จำเป็นต้องระบุ',
+                style: TextStyle(color: Colors.red, fontSize: 12)),
+          ],
+        ),
       ],
     );
   }
@@ -385,117 +429,6 @@ class _RegisterPageState extends State<RegisterPage> {
       MaterialPageRoute(builder: (context) => const ChooseCategorypage()),
     );
   }
-
-  // void register() async {
-  //   if (nameNoCt1.text.trim().isEmpty ||
-  //       emailNoCt1.text.trim().isEmpty ||
-  //       passwordNoCt1.text.trim().isEmpty ||
-  //       conpasswordNoCt1.text.trim().isEmpty) {
-  //     log('กรอกข้อมูลไม่ครบทุกช่องหรือมีช่องว่าง');
-  //     showModernDialog(
-  //       context: context,
-  //       icon: Icons.warning_amber_rounded,
-  //       iconColor: Colors.orange,
-  //       title: 'กรุณากรอกข้อมูลให้ครบ',
-  //       message: 'ทุกช่องต้องไม่มีช่องว่าง',
-  //     );
-  //     return;
-  //   }
-
-  //   if (passwordNoCt1.text != conpasswordNoCt1.text) {
-  //     log('Passwords do not match');
-  //     showModernDialog(
-  //       context: context,
-  //       icon: Icons.error_outline,
-  //       iconColor: Colors.red,
-  //       title: 'รหัสผ่านไม่ตรงกัน',
-  //       message: 'โปรดตรวจสอบรหัสผ่านและลองใหม่อีกครั้ง',
-  //     );
-  //     return;
-  //   }
-
-  //   final password = passwordNoCt1.text.trim();
-  //   final passwordRegex =
-  //       RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
-
-  //   if (!passwordRegex.hasMatch(password)) {
-  //     showModernDialog(
-  //       context: context,
-  //       icon: Icons.lock_outline,
-  //       iconColor: Colors.orange,
-  //       title: 'รหัสผ่านไม่ปลอดภัย',
-  //       message:
-  //           'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
-  //     );
-  //     return;
-  //   }
-
-  //   // ทำการสมัครสมาชิก
-  //   var model = RegisterUserRequest(
-  //     name: nameNoCt1.text,
-  //     email: emailNoCt1.text,
-  //     password: password,
-  //     height: height.toString(),
-  //     weight: weight.toString(),
-  //     shirtSize: selectedSize.toString(),
-  //     chest: chest.toString(),
-  //     waistCircumference: waist.toString(),
-  //     hip: hips.toString(),
-  //   );
-
-  //   var config = await Configuration.getConfig();
-  //   var url = config['apiEndpoint'];
-
-  //   try {
-  //     var response = await http.post(
-  //       Uri.parse("$url/user/register"),
-  //       headers: {"Content-Type": "application/json; charset=utf-8"},
-  //       body: registerUserRequestToJson(model),
-  //     );
-
-  //     log('Status code: ${response.statusCode}');
-  //     log('Response body: ${response.body}');
-
-  //     if (response.statusCode == 201) {
-  //       showModernDialog(
-  //         context: context,
-  //         icon: Icons.check_circle_outline,
-  //         iconColor: Colors.green,
-  //         title: 'สมัครสมาชิกสำเร็จแล้ว',
-  //         message: 'คุณสามารถเข้าสู่ระบบได้ทันที',
-  //         onConfirm: () {
-  //           Navigator.pushReplacement(
-  //             context,
-  //             MaterialPageRoute(builder: (context) => const Loginpage()),
-  //           );
-  //         },
-  //         confirmText: 'เข้าสู่ระบบ',
-  //       );
-  //     } else {
-  //       final message = response.body.contains('error')
-  //           ? response.body
-  //           : 'เกิดข้อผิดพลาดในการสมัครสมาชิก';
-  //       log('สมัครไม่สำเร็จ: $message');
-
-  //       showModernDialog(
-  //         context: context,
-  //         icon: Icons.error,
-  //         iconColor: Colors.red,
-  //         title: 'สมัครสมาชิกไม่สำเร็จ',
-  //         message: message,
-  //       );
-  //     }
-  //   } catch (e) {
-  //     log('Error: $e');
-  //     showModernDialog(
-  //       context: context,
-  //       icon: Icons.wifi_off,
-  //       iconColor: Colors.red.shade700,
-  //       title: 'เกิดข้อผิดพลาดในการเชื่อมต่อ',
-  //       message: 'โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองใหม่อีกครั้ง',
-  //     );
-  //   }
-  // }
 
   void showModernDialog({
     required BuildContext context,

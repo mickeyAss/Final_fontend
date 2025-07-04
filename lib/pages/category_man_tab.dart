@@ -47,7 +47,13 @@ class _CategoryManTabState extends State<CategoryManTab> {
             future: futureCategories,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return  Center(
+                  child: Image.asset(
+                    'assets/images/Logo.png',
+                    width: 60,
+                    height: 60,
+                  ),
+                );
               } else if (snapshot.hasError) {
                 return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -141,44 +147,55 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                 showGeneralDialog(
                                   context: context,
                                   barrierDismissible: true,
-                                  barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+                                  barrierLabel:
+                                      MaterialLocalizations.of(context)
+                                          .modalBarrierDismissLabel,
                                   barrierColor: Colors.black54,
-                                  transitionDuration: const Duration(milliseconds: 300),
-                                  pageBuilder: (context, animation, secondaryAnimation) {
+                                  transitionDuration:
+                                      const Duration(milliseconds: 300),
+                                  pageBuilder:
+                                      (context, animation, secondaryAnimation) {
                                     return Center(
                                       child: Material(
                                         color: Colors.transparent,
                                         child: Container(
                                           constraints: BoxConstraints(
-                                            maxHeight: MediaQuery.of(context).size.height * 0.55,
+                                            maxHeight: MediaQuery.of(context)
+                                                    .size
+                                                    .height *
+                                                0.55,
                                             maxWidth: 360,
                                           ),
                                           decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(24),
+                                            borderRadius:
+                                                BorderRadius.circular(24),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(0.25),
+                                                color: Colors.black
+                                                    .withOpacity(0.25),
                                                 blurRadius: 20,
                                                 offset: Offset(0, 8),
                                               ),
                                             ],
                                           ),
-                                          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 24, horizontal: 24),
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               // Header Icon
                                               Container(
                                                 decoration: BoxDecoration(
-                                                  color: Colors.blue.shade50,
+                                                  color: Colors.grey.shade200,
                                                   shape: BoxShape.circle,
                                                 ),
-                                                padding: const EdgeInsets.all(16),
-                                                child: Icon(
-                                                  Icons.info_rounded,
+                                                padding:
+                                                    const EdgeInsets.all(16),
+                                                child: const Icon(
+                                                  Icons.info_outline,
                                                   size: 48,
-                                                  color: Colors.blueAccent,
+                                                  color: Colors.black87,
                                                 ),
                                               ),
 
@@ -188,10 +205,10 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                               Text(
                                                 item.cname,
                                                 textAlign: TextAlign.center,
-                                                style: TextStyle(
+                                                style: const TextStyle(
                                                   fontSize: 26,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.blueAccent.shade700,
+                                                  color: Colors.black87,
                                                   letterSpacing: 0.5,
                                                 ),
                                               ),
@@ -205,10 +222,12 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                     item.cdescription,
                                                     style: TextStyle(
                                                       fontSize: 16,
-                                                      color: Colors.grey.shade800,
+                                                      color:
+                                                          Colors.grey.shade800,
                                                       height: 1.5,
                                                     ),
-                                                    textAlign: TextAlign.justify,
+                                                    textAlign:
+                                                        TextAlign.justify,
                                                   ),
                                                 ),
                                               ),
@@ -219,19 +238,33 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                               SizedBox(
                                                 width: double.infinity,
                                                 child: ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.blueAccent,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(16),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.black87,
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              16),
                                                     ),
-                                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical: 14),
                                                     elevation: 5,
-                                                    shadowColor: Colors.blueAccent.shade200,
+                                                    shadowColor: Colors.black45,
                                                   ),
-                                                  onPressed: () => Navigator.of(context).pop(),
+                                                  onPressed: () =>
+                                                      Navigator.of(context)
+                                                          .pop(),
                                                   child: const Text(
                                                     'ปิด',
-                                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                                                    style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.white,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -241,7 +274,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                       ),
                                     );
                                   },
-                                  transitionBuilder: (context, animation, secondaryAnimation, child) {
+                                  transitionBuilder: (context, animation,
+                                      secondaryAnimation, child) {
                                     return ScaleTransition(
                                       scale: CurvedAnimation(
                                         parent: animation,
@@ -254,7 +288,6 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                     );
                                   },
                                 );
-
                               },
                               child: Container(
                                 decoration: BoxDecoration(
@@ -269,7 +302,7 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                 ),
                               ),
                             ),
-                          ),
+                          )
                         ],
                       ),
                     );
@@ -335,7 +368,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
       final allCategories = getAllCategoryFromJson(response.body);
 
       // กรองเฉพาะรายการที่ ctype == Ctype.M (enum)
-      final filtered = allCategories.where((item) => item.ctype == Ctype.M).toList();
+      final filtered =
+          allCategories.where((item) => item.ctype == Ctype.M).toList();
 
       log("โหลดข้อมูล category สำเร็จ (${filtered.length} รายการที่ ctype = M)");
       return filtered;

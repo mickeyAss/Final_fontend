@@ -131,6 +131,171 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                               ),
                             ),
                           ),
+                          // ไอคอนตกใจสำหรับแสดงรายละเอียด
+                          Positioned(
+                            bottom: 8,
+                            right: 8,
+                            child: GestureDetector(
+                              onTap: () {
+                                showGeneralDialog(
+                                  context: context,
+                                  barrierDismissible: true,
+                                  barrierLabel:
+                                      MaterialLocalizations.of(context)
+                                          .modalBarrierDismissLabel,
+                                  barrierColor: Colors.black54,
+                                  transitionDuration:
+                                      const Duration(milliseconds: 300),
+                                  pageBuilder:
+                                      (context, animation, secondaryAnimation) {
+                                    return Center(
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: Container(
+                                          constraints: BoxConstraints(
+                                            maxHeight: MediaQuery.of(context)
+                                                    .size
+                                                    .height *
+                                                0.55,
+                                            maxWidth: 360,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(24),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black
+                                                    .withOpacity(0.25),
+                                                blurRadius: 20,
+                                                offset: Offset(0, 8),
+                                              ),
+                                            ],
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 24, horizontal: 24),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // Header Icon
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade200,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.all(16),
+                                                child: const Icon(
+                                                  Icons.info_outline,
+                                                  size: 48,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+
+                                              const SizedBox(height: 20),
+
+                                              // Title
+                                              Text(
+                                                item.cname,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  fontSize: 26,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black87,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+
+                                              const SizedBox(height: 16),
+
+                                              // Description with scroll
+                                              Expanded(
+                                                child: SingleChildScrollView(
+                                                  child: Text(
+                                                    item.cdescription,
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      color:
+                                                          Colors.grey.shade800,
+                                                      height: 1.5,
+                                                    ),
+                                                    textAlign:
+                                                        TextAlign.justify,
+                                                  ),
+                                                ),
+                                              ),
+
+                                              const SizedBox(height: 24),
+
+                                              // Close button
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: ElevatedButton(
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.black87,
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              16),
+                                                    ),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical: 14),
+                                                    elevation: 5,
+                                                    shadowColor: Colors.black45,
+                                                  ),
+                                                  onPressed: () =>
+                                                      Navigator.of(context)
+                                                          .pop(),
+                                                  child: const Text(
+                                                    'ปิด',
+                                                    style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  transitionBuilder: (context, animation,
+                                      secondaryAnimation, child) {
+                                    return ScaleTransition(
+                                      scale: CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOutBack,
+                                      ),
+                                      child: FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.black.withOpacity(0.6),
+                                ),
+                                padding: const EdgeInsets.all(6),
+                                child: const Icon(
+                                  Icons.info_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          )
                         ],
                       ),
                     );

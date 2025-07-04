@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:fontend_pro/models/get_all_category.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
@@ -24,6 +25,9 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
   List<AssetEntity> selectedAssets = [];
   bool isLoading = true;
 
+  List<GetAllCategory> selectedCategories = [];
+  late Future<List<GetAllCategory>> futureCategories;
+
   String _postPrivacy = 'Public'; // ค่าเริ่มต้น
 
   final TextEditingController _topicController = TextEditingController();
@@ -44,6 +48,7 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
   void initState() {
     super.initState();
     _loadSelectedAssets();
+    futureCategories = loadCategories();
   }
 
   Future<void> _loadSelectedAssets() async {
@@ -296,7 +301,7 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
                               ),
                               decoration: InputDecoration(
                                 hintText:
-                                    'เขียนคำบรรยายเกี่ยวกับไลฟ์สไตล์ของคุณ...',
+                                    'เขียนคำบรรยายหรือเพิ่มแฮชแท็ก(#) เกี่ยวกับไลฟ์สไตล์ของคุณ...',
                                 floatingLabelBehavior:
                                     FloatingLabelBehavior.never,
                                 filled: true,
@@ -405,7 +410,82 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
                             ),
                           ],
                         ),
-                      )
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final result = await showDialog<List<GetAllCategory>>(
+                            context: context,
+                            builder: (context) {
+                              // สร้างตัวแปรชั่วคราวเพื่อเก็บหมวดหมู่ที่เลือก
+                              List<GetAllCategory> tempSelected =
+                                  List.from(selectedCategories);
+
+                              return AlertDialog(
+                                title: Text('เลือกหมวดหมู่'),
+                                content: FutureBuilder<List<GetAllCategory>>(
+                                  future: futureCategories,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return Center(
+                                          child: CircularProgressIndicator());
+                                    } else if (snapshot.hasError) {
+                                      return Text("เกิดข้อผิดพลาด");
+                                    }
+
+                                    final categories = snapshot.data!;
+
+                                    return SingleChildScrollView(
+                                      child: Column(
+                                        children: categories.map((cate) {
+                                          final isSelected = tempSelected.any(
+                                              (selected) =>
+                                                  selected.cid == cate.cid);
+                                          return CheckboxListTile(
+                                            value: isSelected,
+                                            title: Text(cate.cname),
+                                            onChanged: (bool? value) {
+                                              setState(() {
+                                                if (value == true) {
+                                                  tempSelected.add(cate);
+                                                } else {
+                                                  tempSelected.removeWhere(
+                                                      (item) =>
+                                                          item.cid == cate.cid);
+                                                }
+                                              });
+                                            },
+                                          );
+                                        }).toList(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, null),
+                                    child: Text('ยกเลิก'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, tempSelected),
+                                    child: Text('ตกลง'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (result != null) {
+                            setState(() {
+                              selectedCategories = result;
+                            });
+                          }
+                        },
+                        child: Text(
+                            "เลือกหมวดหมู่ (${selectedCategories.length})"),
+                      ),
                     ],
                   ),
                 ),
@@ -441,28 +521,28 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
       ),
     );
   }
+
   Future<String?> uploadToFirebase(AssetEntity asset) async {
-  final file = await asset.file;
-  if (file == null) return null;
+    final file = await asset.file;
+    if (file == null) return null;
 
-  final fileName = "${DateTime.now().millisecondsSinceEpoch}_${asset.id}.jpg";
-  final ref = FirebaseStorage.instance.ref().child("final_image/$fileName");
+    final fileName = "${DateTime.now().millisecondsSinceEpoch}_${asset.id}.jpg";
+    final ref = FirebaseStorage.instance.ref().child("final_image/$fileName");
 
-  try {
-    final uploadTask = await ref.putFile(file);
-    final url = await uploadTask.ref.getDownloadURL();
-    return url;
-  } catch (e) {
-    log('Firebase upload error: $e');
-    return null;
+    try {
+      final uploadTask = await ref.putFile(file);
+      final url = await uploadTask.ref.getDownloadURL();
+      return url;
+    } catch (e) {
+      log('Firebase upload error: $e');
+      return null;
+    }
   }
-}
 
   Future<void> submitPost() async {
     final topic = _topicController.text.trim();
     final description = _descriptionController.text.trim();
     final user = gs.read('user').toString();
-    
 
     if (selectedAssets.isEmpty || user == null) {
       // แสดงแจ้งเตือนถ้าไม่เลือกภาพหรือไม่มี uid
@@ -500,64 +580,64 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
     showLoadingDialog(context);
 
     try {
-    // อัปโหลดรูปขึ้น Firebase Storage
-    List<String> imageUrls = [];
+      // อัปโหลดรูปขึ้น Firebase Storage
+      List<String> imageUrls = [];
 
-    for (final asset in selectedAssets) {
-      final imageUrl = await uploadToFirebase(asset);
-      if (imageUrl != null) {
-        imageUrls.add(imageUrl);
+      for (final asset in selectedAssets) {
+        final imageUrl = await uploadToFirebase(asset);
+        if (imageUrl != null) {
+          imageUrls.add(imageUrl);
+        }
       }
-    }
 
-    if (imageUrls.isEmpty) {
+      if (imageUrls.isEmpty) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('อัปโหลดรูปภาพไม่สำเร็จ')),
+        );
+        return;
+      }
+
+      final postModel = Insertpost(
+        postTopic: topic,
+        postDescription: description,
+        postFkUid: user.toString(),
+        images: imageUrls, // ส่ง URL ที่อัปโหลดแล้ว
+      );
+
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      var postResponse = await http.post(
+        Uri.parse("$url/image_post/post/add"),
+        headers: {"Content-Type": "application/json; charset=utf-8"},
+        body: insertpostToJson(postModel),
+      );
+
+      if (postResponse.statusCode == 201) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('โพสต์เรียบร้อย')),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => Mainpage()),
+        );
+      } else {
+        log('Error inserting post: ${postResponse.body}');
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เกิดข้อผิดพลาดในการโพสต์')),
+        );
+      }
+    } catch (e) {
+      log('Exception: $e');
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('อัปโหลดรูปภาพไม่สำเร็จ')),
-      );
-      return;
-    }
-
-    final postModel = Insertpost(
-      postTopic: topic,
-      postDescription: description,
-      postFkUid: user.toString(),
-      images: imageUrls, // ส่ง URL ที่อัปโหลดแล้ว
-    );
-
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    var postResponse = await http.post(
-      Uri.parse("$url/image_post/post/add"),
-      headers: {"Content-Type": "application/json; charset=utf-8"},
-      body: insertpostToJson(postModel),
-    );
-
-    if (postResponse.statusCode == 201) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('โพสต์เรียบร้อย')),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Mainpage()),
-      );
-    } else {
-      log('Error inserting post: ${postResponse.body}');
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('เกิดข้อผิดพลาดในการโพสต์')),
+        const SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ')),
       );
     }
-  } catch (e) {
-    log('Exception: $e');
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ')),
-    );
   }
-}
 
   void showLoadingDialog(BuildContext context) {
     showDialog(
@@ -573,6 +653,28 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
         );
       },
     );
+  }
+
+  Future<List<GetAllCategory>> loadCategories() async {
+    final config = await Configuration.getConfig();
+    final url = config['apiEndpoint'];
+    log("กำลังโหลดข้อมูล category จาก: $url/category/get");
+
+    final response = await http.get(Uri.parse("$url/category/get"));
+
+    if (response.statusCode == 200) {
+      final allCategories = getAllCategoryFromJson(response.body);
+
+      // กรองเฉพาะรายการที่ ctype == Ctype.M (enum)
+      final filtered =
+          allCategories.where((item) => item.ctype == Ctype.M).toList();
+
+      log("โหลดข้อมูล category สำเร็จ (${filtered.length} รายการที่ ctype = M)");
+      return filtered;
+    } else {
+      log("โหลดข้อมูล category ไม่สำเร็จ: ${response.statusCode}");
+      throw Exception('โหลดข้อมูล category ไม่สำเร็จ');
+    }
   }
 }
 

@@ -89,7 +89,7 @@ class _LoginpageState extends State<Loginpage> {
                   children: [
                     TextButton(
                       onPressed: () {},
-                      child: Text("ลืมรหัสผ่าน ?"),
+                      child: Text("ลืมรหัสผ่าน ?",style:TextStyle(color: Colors.black),),
                     ),
                   ],
                 ),
@@ -159,7 +159,7 @@ class _LoginpageState extends State<Loginpage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('ยังไม่มีบัญชีใช่หรือไม่?'),
+                    Text('ยังไม่มีบัญชีใช่หรือไม่?',style:TextStyle(color: Colors.black54),),
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -168,7 +168,7 @@ class _LoginpageState extends State<Loginpage> {
                               builder: (context) => RegisterPage()),
                         );
                       },
-                      child: Text("สร้างบัญชีใหม่"),
+                      child: Text("สร้างบัญชีใหม่",style:TextStyle(color: Colors.black),),
                     ),
                   ],
                 ),
@@ -191,7 +191,8 @@ class _LoginpageState extends State<Loginpage> {
       controller: controller,
       obscureText: obscure,
       decoration: InputDecoration(
-        labelText: label,
+        hintText: label,
+        hintStyle: TextStyle(color: Colors.grey),
         prefixIcon: Icon(icon),
         filled: true,
         fillColor: Colors.grey[100],
