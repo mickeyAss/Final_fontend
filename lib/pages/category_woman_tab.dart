@@ -1,8 +1,11 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:fontend_pro/pages/login.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/get_all_category.dart';
+import 'package:fontend_pro/models/register_user_request.dart';
 
 class CategoryWomanTab extends StatefulWidget {
   const CategoryWomanTab({super.key});
@@ -26,7 +29,7 @@ class StyleItem {
 }
 
 class _CategoryWomanTabState extends State<CategoryWomanTab> {
-   late Future<List<GetAllCategory>> futureCategories;
+  late Future<List<GetAllCategory>> futureCategories;
   List<bool> selected = [];
 
   @override
@@ -41,7 +44,6 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ใช้ FutureBuilder ตรงนี้
         Expanded(
           child: FutureBuilder<List<GetAllCategory>>(
             future: futureCategories,
@@ -54,15 +56,16 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                 return const Center(child: Text('ไม่พบข้อมูลสไตล์'));
               }
 
-              final categories = snapshot.data!;
-              if (selected.length != categories.length) {
-                selected = List.generate(categories.length, (_) => false);
+              final snapshotCategories = snapshot.data!;
+              if (selected.length != snapshotCategories.length) {
+                selected = List.generate(snapshotCategories.length, (_) => false);
               }
+              categories = snapshotCategories; // อัปเดตตัวแปร global
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: GridView.builder(
-                  itemCount: categories.length,
+                  itemCount: snapshotCategories.length,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 6,
@@ -70,7 +73,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                     childAspectRatio: 1,
                   ),
                   itemBuilder: (context, index) {
-                    final item = categories[index];
+                    final item = snapshotCategories[index];
                     final isSelected = selected[index];
 
                     return GestureDetector(
@@ -320,7 +323,8 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {
-                    Navigator.of(context).pop();
+                    // กดข้าม สมัครเลย ไม่ต้องเลือก category
+                    submitRegister(skipCategory: true);
                   },
                   child: const Text('ข้าม'),
                 ),
@@ -334,12 +338,8 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                     side: const BorderSide(color: Colors.black),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: selectedCount > 0
-                      ? () {
-                          print('เลือก $selectedCount สไตล์');
-                        }
-                      : null,
-                  child: Text('ถัดไป ($selectedCount)'),
+                  onPressed: selectedCount > 0 ? () => submitRegister() : null,
+                  child: Text('ยืนยัน ($selectedCount)'),
                 ),
               ),
             ],
@@ -351,24 +351,119 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
 
   // ดึงข้อมูลจาก API
   Future<List<GetAllCategory>> loadCategories() async {
-  final config = await Configuration.getConfig();
-  final url = config['apiEndpoint'];
-  log("กำลังโหลดข้อมูล category จาก: $url/category/get");
+    final config = await Configuration.getConfig();
+    final url = config['apiEndpoint'];
+    log("กำลังโหลดข้อมูล category จาก: $url/category/get");
 
-  final response = await http.get(Uri.parse("$url/category/get"));
+    final response = await http.get(Uri.parse("$url/category/get"));
 
-  if (response.statusCode == 200) {
-    final allCategories = getAllCategoryFromJson(response.body);
+    if (response.statusCode == 200) {
+      final allCategories = getAllCategoryFromJson(response.body);
 
-    // กรองเฉพาะรายการที่ ctype == Ctype.M (enum)
-    final filtered = allCategories.where((item) => item.ctype == Ctype.F).toList();
+      // กรองเฉพาะรายการที่ ctype == Ctype.F (enum)
+      final filtered = allCategories.where((item) => item.ctype == Ctype.F).toList();
 
-    log("โหลดข้อมูล category สำเร็จ (${filtered.length} รายการที่ ctype = F)");
-    return filtered;
-  } else {
-    log("โหลดข้อมูล category ไม่สำเร็จ: ${response.statusCode}");
-    throw Exception('โหลดข้อมูล category ไม่สำเร็จ');
+      log("โหลดข้อมูล category สำเร็จ (${filtered.length} รายการที่ ctype = F)");
+      return filtered;
+    } else {
+      log("โหลดข้อมูล category ไม่สำเร็จ: ${response.statusCode}");
+      throw Exception('โหลดข้อมูล category ไม่สำเร็จ');
+    }
   }
-}
 
+  void submitRegister({bool skipCategory = false}) async {
+    if (!skipCategory) {
+      if (categories.isEmpty || selected.length != categories.length) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("ข้อมูลหมวดหมู่ยังไม่สมบูรณ์")),
+        );
+        return;
+      }
+
+      final selectedCategoryIds = <int>[];
+      for (int i = 0; i < selected.length; i++) {
+        if (selected[i]) {
+          selectedCategoryIds.add(categories[i].cid);
+        }
+      }
+
+      if (selectedCategoryIds.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("กรุณาเลือกอย่างน้อย 1 หมวดหมู่")),
+        );
+        return;
+      }
+
+      await _registerUser(selectedCategoryIds);
+    } else {
+      // กรณีข้าม ไม่เลือก category ส่งเป็น list ว่าง
+      await _registerUser([]);
+    }
+  }
+
+  Future<void> _registerUser(List<int> categoryIds) async {
+    final gs = GetStorage();
+    final model = RegisterUserRequest(
+      name: gs.read('register_name') ?? '',
+      email: gs.read('register_email') ?? '',
+      password: gs.read('register_password') ?? '',
+      height: gs.read('register_height') ?? 0,
+      weight: gs.read('register_weight') ?? 0,
+      shirtSize: gs.read('register_shirtSize') ?? '',
+      chest: gs.read('register_chest') ?? 0,
+      waistCircumference: gs.read('register_waist') ?? 0,
+      hip: gs.read('register_hips') ?? 0,
+      personalDescription: '', // สมมุติค่าคงที่
+      categoryIds: categoryIds,
+    );
+
+    final config = await Configuration.getConfig();
+    final url = "${config['apiEndpoint']}/user/register";
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: registerUserRequestToJson(model),
+      );
+
+      log("Register response: ${response.statusCode} ${response.body}");
+
+      if (response.statusCode == 201) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const Loginpage()),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("สมัครไม่สำเร็จ"),
+            content: Text("รหัสสถานะ: ${response.statusCode}\n${response.body}"),
+            actions: [
+              TextButton(
+                child: const Text("ตกลง"),
+                onPressed: () => Navigator.pop(context),
+              )
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      log("Register error: $e");
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("ข้อผิดพลาด"),
+          content: Text("เกิดข้อผิดพลาดระหว่างสมัครสมาชิก\n$e"),
+          actions: [
+            TextButton(
+              child: const Text("ตกลง"),
+              onPressed: () => Navigator.pop(context),
+            )
+          ],
+        ),
+      );
+    }
+  }
 }

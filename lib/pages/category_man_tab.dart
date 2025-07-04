@@ -1,8 +1,11 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:fontend_pro/pages/login.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/get_all_category.dart';
+import 'package:fontend_pro/models/register_user_request.dart';
 
 class CategoryManTab extends StatefulWidget {
   const CategoryManTab({super.key});
@@ -150,7 +153,14 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                   barrierLabel:
                                       MaterialLocalizations.of(context)
                                           .modalBarrierDismissLabel,
+                                  barrierLabel:
+                                      MaterialLocalizations.of(context)
+                                          .modalBarrierDismissLabel,
                                   barrierColor: Colors.black54,
+                                  transitionDuration:
+                                      const Duration(milliseconds: 300),
+                                  pageBuilder:
+                                      (context, animation, secondaryAnimation) {
                                   transitionDuration:
                                       const Duration(milliseconds: 300),
                                   pageBuilder:
@@ -164,14 +174,22 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                     .size
                                                     .height *
                                                 0.55,
+                                            maxHeight: MediaQuery.of(context)
+                                                    .size
+                                                    .height *
+                                                0.55,
                                             maxWidth: 360,
                                           ),
                                           decoration: BoxDecoration(
                                             color: Colors.white,
                                             borderRadius:
                                                 BorderRadius.circular(24),
+                                            borderRadius:
+                                                BorderRadius.circular(24),
                                             boxShadow: [
                                               BoxShadow(
+                                                color: Colors.black
+                                                    .withOpacity(0.25),
                                                 color: Colors.black
                                                     .withOpacity(0.25),
                                                 blurRadius: 20,
@@ -179,6 +197,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                               ),
                                             ],
                                           ),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 24, horizontal: 24),
                                           padding: const EdgeInsets.symmetric(
                                               vertical: 24, horizontal: 24),
                                           child: Column(
@@ -190,6 +210,10 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                   color: Colors.grey.shade200,
                                                   shape: BoxShape.circle,
                                                 ),
+                                                padding:
+                                                    const EdgeInsets.all(16),
+                                                child: Icon(
+                                                  Icons.info_rounded,
                                                 padding:
                                                     const EdgeInsets.all(16),
                                                 child: const Icon(
@@ -208,6 +232,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                 style: const TextStyle(
                                                   fontSize: 26,
                                                   fontWeight: FontWeight.bold,
+                                                  color: Colors
+                                                      .blueAccent.shade700,
                                                   color: Colors.black87,
                                                   letterSpacing: 0.5,
                                                 ),
@@ -224,8 +250,12 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                       fontSize: 16,
                                                       color:
                                                           Colors.grey.shade800,
+                                                      color:
+                                                          Colors.grey.shade800,
                                                       height: 1.5,
                                                     ),
+                                                    textAlign:
+                                                        TextAlign.justify,
                                                     textAlign:
                                                         TextAlign.justify,
                                                   ),
@@ -241,6 +271,15 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                   style:
                                                       ElevatedButton.styleFrom(
                                                     backgroundColor:
+                                                        Colors.blueAccent,
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              16),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
                                                         Colors.black87,
                                                     shape:
                                                         RoundedRectangleBorder(
@@ -251,14 +290,26 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                     padding: const EdgeInsets
                                                         .symmetric(
                                                         vertical: 14),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical: 14),
                                                     elevation: 5,
+                                                    shadowColor: Colors
+                                                        .blueAccent.shade200,
                                                     shadowColor: Colors.black45,
                                                   ),
                                                   onPressed: () =>
                                                       Navigator.of(context)
                                                           .pop(),
+                                                  onPressed: () =>
+                                                      Navigator.of(context)
+                                                          .pop(),
                                                   child: const Text(
                                                     'ปิด',
+                                                    style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight:
+                                                            FontWeight.w600),
                                                     style: TextStyle(
                                                       fontSize: 18,
                                                       fontWeight:
@@ -274,6 +325,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                       ),
                                     );
                                   },
+                                  transitionBuilder: (context, animation,
+                                      secondaryAnimation, child) {
                                   transitionBuilder: (context, animation,
                                       secondaryAnimation, child) {
                                     return ScaleTransition(
@@ -327,7 +380,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {
-                    Navigator.of(context).pop();
+                    // กดข้าม => สมัครเลย โดยไม่ต้องเลือก category
+                    submitRegister(skipCategory: true);
                   },
                   child: const Text('ข้าม'),
                 ),
@@ -341,12 +395,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
                     side: const BorderSide(color: Colors.black),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: selectedCount > 0
-                      ? () {
-                          print('เลือก $selectedCount สไตล์');
-                        }
-                      : null,
-                  child: Text('ถัดไป ($selectedCount)'),
+                  onPressed: selectedCount > 0 ? submitRegister : null,
+                  child: Text('ยืนยัน ($selectedCount)'),
                 ),
               ),
             ],
@@ -370,12 +420,111 @@ class _CategoryManTabState extends State<CategoryManTab> {
       // กรองเฉพาะรายการที่ ctype == Ctype.M (enum)
       final filtered =
           allCategories.where((item) => item.ctype == Ctype.M).toList();
+      final filtered =
+          allCategories.where((item) => item.ctype == Ctype.M).toList();
 
       log("โหลดข้อมูล category สำเร็จ (${filtered.length} รายการที่ ctype = M)");
       return filtered;
     } else {
       log("โหลดข้อมูล category ไม่สำเร็จ: ${response.statusCode}");
       throw Exception('โหลดข้อมูล category ไม่สำเร็จ');
+    }
+  }
+
+  void submitRegister({bool skipCategory = false}) async {
+    if (!skipCategory) {
+      if (categories.isEmpty || selected.length != categories.length) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("ข้อมูลหมวดหมู่ยังไม่สมบูรณ์")),
+        );
+        return;
+      }
+
+      final selectedCategoryIds = <int>[];
+      for (int i = 0; i < selected.length; i++) {
+        if (selected[i]) {
+          selectedCategoryIds.add(categories[i].cid);
+        }
+      }
+
+      if (selectedCategoryIds.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("กรุณาเลือกอย่างน้อย 1 หมวดหมู่")),
+        );
+        return;
+      }
+
+      await _registerUser(selectedCategoryIds);
+    } else {
+      // กรณีข้าม ไม่เลือก category ส่งเป็น list ว่างได้เลย
+      await _registerUser([]);
+    }
+  }
+
+  Future<void> _registerUser(List<int> categoryIds) async {
+    final gs = GetStorage();
+    final model = RegisterUserRequest(
+      name: gs.read('register_name') ?? '',
+      email: gs.read('register_email') ?? '',
+      password: gs.read('register_password') ?? '',
+      height: gs.read('register_height') ?? 0,
+      weight: gs.read('register_weight') ?? 0,
+      shirtSize: gs.read('register_shirtSize') ?? '',
+      chest: gs.read('register_chest') ?? 0,
+      waistCircumference: gs.read('register_waist') ?? 0,
+      hip: gs.read('register_hips') ?? 0,
+      personalDescription: '', // สมมุติค่าคงที่
+      categoryIds: categoryIds,
+    );
+
+    final config = await Configuration.getConfig();
+    final url = "${config['apiEndpoint']}/user/register";
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: registerUserRequestToJson(model),
+      );
+
+      log("Register response: ${response.statusCode} ${response.body}");
+
+      if (response.statusCode == 201) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const Loginpage()),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("สมัครไม่สำเร็จ"),
+            content:
+                Text("รหัสสถานะ: ${response.statusCode}\n${response.body}"),
+            actions: [
+              TextButton(
+                child: const Text("ตกลง"),
+                onPressed: () => Navigator.pop(context),
+              )
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      log("Register error: $e");
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("ข้อผิดพลาด"),
+          content: Text("เกิดข้อผิดพลาดระหว่างสมัครสมาชิก\n$e"),
+          actions: [
+            TextButton(
+              child: const Text("ตกลง"),
+              onPressed: () => Navigator.pop(context),
+            )
+          ],
+        ),
+      );
     }
   }
 }
