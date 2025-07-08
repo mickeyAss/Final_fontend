@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:fontend_pro/pages/%E0%B8%B5user_all_uploadPage.dart';
+import 'package:fontend_pro/pages/user_all_uploadPage.dart';
 
 class UserUploadPhotopage extends StatefulWidget {
   const UserUploadPhotopage({super.key});
