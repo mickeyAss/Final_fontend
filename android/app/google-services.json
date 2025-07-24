@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "976182138807-2fv6tprn9cctggknp37m0d6alt353umm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.firebaseapp",
+            "certificate_hash": "d0b343a5467fd00ea39eafaa78e24abbf259bdd5"
+          }
+        },
+        {
           "client_id": "976182138807-bsa4herqt3b1hmbld6ullqjrecnpdfsq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -37,6 +45,13 @@
             {
               "client_id": "976182138807-k8jig532dvr9u9pgtlr1e269jmrupo3r.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "976182138807-ut75s2v6vh6par3j7qfu1h8cq25hh1ke.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.fontendPro"
+              }
             }
           ]
         }
@@ -66,6 +81,13 @@
             {
               "client_id": "976182138807-k8jig532dvr9u9pgtlr1e269jmrupo3r.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "976182138807-ut75s2v6vh6par3j7qfu1h8cq25hh1ke.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.fontendPro"
+              }
             }
           ]
         }

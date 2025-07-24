@@ -1,11 +1,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
-import 'package:fontend_pro/pages/login.dart';
-import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/pages/choose_categoryPage.dart';
-import 'package:fontend_pro/models/register_user_request.dart'; // import หน้า ChooseCategorypage
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -62,7 +58,6 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ... ส่วนเนื้อหาทั้งหมดเหมือนเดิม ยกเว้นปุ่มยืนยัน
                 const SizedBox(height: 10),
                 Center(
                   child: AnimatedOpacity(
@@ -91,11 +86,13 @@ class _RegisterPageState extends State<RegisterPage> {
                     style:
                         TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 SizedBox(height: 10),
+
+                // ลบการตั้ง readOnly ออก
                 _buildTextField('ชื่อผู้ใช้', nameNoCt1),
                 _buildTextField('อีเมล', emailNoCt1),
                 _buildTextField('รหัสผ่าน', passwordNoCt1, obscure: true),
-                _buildTextField('ยืนยันรหัสผ่าน', conpasswordNoCt1,
-                    obscure: true),
+                _buildTextField('ยืนยันรหัสผ่าน', conpasswordNoCt1, obscure: true),
+
                 SizedBox(height: 20),
                 _buildSectionHeader('สัดส่วนของคุณ',
                     'เราจะใช้ข้อมูลสัดส่วนของคุณเพื่อแนะนำเสื้อผ้าและไลฟ์สไตล์ที่เหมาะกับรูปร่างของคุณที่สุด'),
@@ -231,17 +228,18 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Widget _buildTextField(String label, TextEditingController controller,
-      {bool obscure = false}) {
+      {bool obscure = false, bool readOnly = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: TextField(
         controller: controller,
         obscureText: obscure,
+        readOnly: readOnly, // คุณจะเห็นว่าค่าดีฟอลต์เป็น false
         cursorColor: Colors.grey,
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: Colors.white,
+          fillColor: readOnly ? Colors.grey.shade200 : Colors.white,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
@@ -383,7 +381,6 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  
   void showModernDialog({
     required BuildContext context,
     required IconData icon,

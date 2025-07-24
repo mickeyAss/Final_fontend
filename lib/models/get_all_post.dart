@@ -118,7 +118,9 @@ class Post {
   String? postDescription;
   DateTime postDate;
   int postFkUid;
-  int amountOfLike; // ✅ เพิ่มตรงนี้
+  int amountOfLike;
+  int amountOfComment;     // ✅ เพิ่ม
+  int amountOfSave;        // ✅ เพิ่ม
 
   Post({
     required this.postId,
@@ -126,7 +128,9 @@ class Post {
     required this.postDescription,
     required this.postDate,
     required this.postFkUid,
-    required this.amountOfLike, // ✅ เพิ่มใน constructor
+    required this.amountOfLike,
+    required this.amountOfComment,    // ✅ เพิ่ม
+    required this.amountOfSave,       // ✅ เพิ่ม
   });
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
@@ -135,7 +139,9 @@ class Post {
         postDescription: json["post_description"],
         postDate: DateTime.parse(json["post_date"]),
         postFkUid: json["post_fk_uid"],
-        amountOfLike: json["amount_of_like"] ?? 0, // ✅ รองรับ null
+        amountOfLike: json["amount_of_like"] ?? 0,
+        amountOfComment: json["amount_of_comment"] ?? 0,  // ✅ รองรับ null
+        amountOfSave: json["amount_of_save"] ?? 0,        // ✅ รองรับ null
       );
 
   Map<String, dynamic> toJson() => {
@@ -144,9 +150,12 @@ class Post {
         "post_description": postDescription,
         "post_date": postDate.toIso8601String(),
         "post_fk_uid": postFkUid,
-        "amount_of_like": amountOfLike, // ✅ ส่งกลับ
+        "amount_of_like": amountOfLike,
+        "amount_of_comment": amountOfComment,   // ✅ ส่งกลับ
+        "amount_of_save": amountOfSave,         // ✅ ส่งกลับ
       };
 }
+
 
 class User {
     int uid;

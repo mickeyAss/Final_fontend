@@ -193,41 +193,48 @@ class _RecommendedTabState extends State<RecommendedTab> {
   }
 
   void likePost(int postId) async {
-  final uid = gs.read('user'); // อ่าน user id จาก GetStorage
-  final isLiked = likedMap[postId] ?? false;
+    final uid = gs.read('user'); // อ่าน user id จาก GetStorage
+    final isLiked = likedMap[postId] ?? false;
 
-  try {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
 
-    final uri = Uri.parse('$url/image_post/like');
+      // ✅ สลับ endpoint ตามสถานะ like/unlike
+      final endpoint = isLiked ? '/image_post/unlike' : '/image_post/like';
+      final uri = Uri.parse('$url$endpoint');
 
-    // ✅ สร้าง model แล้วแปลงเป็น JSON
-    final likeModel = LikePost(userId: uid, postId: postId);
-    final bodyJson = likePostToJson(likeModel);
+      final likeModel = LikePost(userId: uid, postId: postId);
+      final bodyJson = likePostToJson(likeModel);
 
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: bodyJson,
-    );
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: bodyJson,
+      );
 
-    if (response.statusCode == 200) {
-      setState(() {
-        likedMap[postId] = !isLiked;
-        if (!isLiked) {
-          likeCountMap[postId] = (likeCountMap[postId] ?? 0) + 1;
-        } else {
-          likeCountMap[postId] = (likeCountMap[postId] ?? 1) - 1;
-        }
-      });
-    } else {
-      dev.log("Like API failed: ${response.body}");
+      if (response.statusCode == 200) {
+        setState(() {
+          likedMap[postId] = !isLiked;
+
+          if (!isLiked) {
+            // กดไลก์
+            likeCountMap[postId] = (likeCountMap[postId] ?? 0) + 1;
+          } else {
+            // กดยกเลิกไลก์
+            likeCountMap[postId] = (likeCountMap[postId] ?? 1) - 1;
+            if (likeCountMap[postId]! < 0) {
+              likeCountMap[postId] = 0; // ป้องกันติดลบ
+            }
+          }
+        });
+      } else {
+        dev.log("Like/Unlike API failed: ${response.body}");
+      }
+    } catch (e) {
+      dev.log("Error like/unlike post: $e");
     }
-  } catch (e) {
-    dev.log("Error liking post: $e");
   }
-}
 
   Widget _buildLoadingWidget() {
     return Center(
@@ -265,197 +272,197 @@ class _RecommendedTabState extends State<RecommendedTab> {
         children: [
           // Enhanced Category Filter Section
           Container(
-  decoration: BoxDecoration(
-    color: const Color(0xFFF8F9FA),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.03),
-        blurRadius: 20,
-        offset: const Offset(0, 4),
-      ),
-      BoxShadow(
-        color: Colors.black.withOpacity(0.01),
-        blurRadius: 5,
-        offset: const Offset(0, 1),
-      ),
-    ],
-  ),
-  padding: const EdgeInsets.symmetric(vertical: 20),
-  child: SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    physics: const BouncingScrollPhysics(),
-    child: Row(
-      children: [
-        const SizedBox(width: 24),
-        // "ทั้งหมด" button with modern gradient
-        GestureDetector(
-          onTap: () => filterPostsByCategory(null),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOutCubic,
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              gradient: selectedCid == null
-                  ? LinearGradient(
-                      colors: [
-                        const Color(0xFF2C2C2C),
-                        const Color(0xFF1A1A1A),
-                        const Color(0xFF000000),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      stops: const [0.0, 0.5, 1.0],
-                    )
-                  : null,
-              color: selectedCid == null ? null : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: selectedCid == null
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.05),
-                        blurRadius: 1,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (selectedCid == null)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: Icon(
-                      Icons.apps_rounded,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                Text(
-                  'ทั้งหมด',
-                  style: TextStyle(
-                    color: selectedCid == null
-                        ? Colors.white
-                        : const Color(0xFF6B7280),
-                    fontWeight: selectedCid == null
-                        ? FontWeight.w700
-                        : FontWeight.w600,
-                    fontSize: 13,
-                    letterSpacing: 0.3,
-                  ),
+              color: const Color(0xFFF8F9FA),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.01),
+                  blurRadius: 5,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        // Category buttons with modern styling
-        ...category.map((cate) {
-          final cid = cate.cid;
-          final isSelected = selectedCid == cid;
-          return Container(
-            margin: const EdgeInsets.only(right: 16),
-            child: GestureDetector(
-              onTap: () => filterPostsByCategory(cid),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOutCubic,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? LinearGradient(
-                          colors: [
-                            const Color(0xFF2C2C2C),
-                            const Color(0xFF1A1A1A),
-                            const Color(0xFF000000),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          stops: const [0.0, 0.5, 1.0],
-                        )
-                      : null,
-                  color: isSelected ? null : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
-                            blurRadius: 12,
-                            offset: const Offset(0, 6),
-                          ),
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 2,
-                            offset: const Offset(0, 1),
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.05),
-                            blurRadius: 1,
-                            offset: const Offset(0, 1),
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  const SizedBox(width: 24),
+                  // "ทั้งหมด" button with modern gradient
+                  GestureDetector(
+                    onTap: () => filterPostsByCategory(null),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: selectedCid == null
+                            ? LinearGradient(
+                                colors: [
+                                  const Color(0xFF2C2C2C),
+                                  const Color(0xFF1A1A1A),
+                                  const Color(0xFF000000),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                stops: const [0.0, 0.5, 1.0],
+                              )
+                            : null,
+                        color: selectedCid == null ? null : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: selectedCid == null
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.25),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 2,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ]
+                            : [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.05),
+                                  blurRadius: 1,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (selectedCid == null)
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              child: Icon(
+                                Icons.apps_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          Text(
+                            'ทั้งหมด',
+                            style: TextStyle(
+                              color: selectedCid == null
+                                  ? Colors.white
+                                  : const Color(0xFF6B7280),
+                              fontWeight: selectedCid == null
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              fontSize: 13,
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isSelected)
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        child: Icon(
-                          Icons.check_circle_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
-                    Text(
-                      cate.cname,
-                      style: TextStyle(
-                        color: isSelected 
-                            ? Colors.white 
-                            : const Color(0xFF6B7280),
-                        fontWeight: isSelected
-                            ? FontWeight.w700
-                            : FontWeight.w600,
-                        fontSize: 13,
-                        letterSpacing: 0.3,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Category buttons with modern styling
+                  ...category.map((cate) {
+                    final cid = cate.cid;
+                    final isSelected = selectedCid == cid;
+                    return Container(
+                      margin: const EdgeInsets.only(right: 16),
+                      child: GestureDetector(
+                        onTap: () => filterPostsByCategory(cid),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOutCubic,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: isSelected
+                                ? LinearGradient(
+                                    colors: [
+                                      const Color(0xFF2C2C2C),
+                                      const Color(0xFF1A1A1A),
+                                      const Color(0xFF000000),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    stops: const [0.0, 0.5, 1.0],
+                                  )
+                                : null,
+                            color: isSelected ? null : Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.25),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 2,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ]
+                                : [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.08),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.05),
+                                      blurRadius: 1,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isSelected)
+                                Container(
+                                  margin: const EdgeInsets.only(right: 8),
+                                  child: Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              Text(
+                                cate.cname,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF6B7280),
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                  fontSize: 13,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(width: 24),
+                ],
               ),
             ),
-          );
-        }).toList(),
-        const SizedBox(width: 24),
-      ],
-    ),
-  ),
-),
+          ),
 
           // Enhanced Posts List
           Expanded(
@@ -946,43 +953,48 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                     child: Row(
                                       children: [
                                         // Like button
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: likedMap[
-                                                        postItem.post.postId] ==
-                                                    true
-                                                ? Colors.red[50]
-                                                : Colors.transparent,
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: IconButton(
-                                            onPressed: () => likePost(postItem
-                                                .post
-                                                .postId), // เรียกฟังก์ชันกดไลก์
-                                            icon: Icon(
-                                              likedMap[postItem.post.postId] ==
-                                                      true
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              color: likedMap[postItem
-                                                          .post.postId] ==
-                                                      true
-                                                  ? Colors.red
-                                                  : Colors.grey[600],
-                                              size: 20,
+                                        Row(
+                                          children: [
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                color: likedMap[postItem
+                                                            .post.postId] ==
+                                                        true
+                                                    ? Colors.red[50]
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: IconButton(
+                                                onPressed: () => likePost(
+                                                    postItem.post.postId),
+                                                icon: Icon(
+                                                  likedMap[postItem
+                                                              .post.postId] ==
+                                                          true
+                                                      ? Icons.favorite
+                                                      : Icons.favorite_border,
+                                                  color: likedMap[postItem
+                                                              .post.postId] ==
+                                                          true
+                                                      ? Colors.red
+                                                      : Colors.grey[600],
+                                                  size: 20,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        ),
-
-                                        // จำนวนไลก์แสดงข้างๆ ไอคอน
-                                        Text(
-                                          '${likeCountMap[postItem.post.postId] ?? 0}',
-                                          style: TextStyle(
-                                            color: Colors.grey[700],
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
+                                            const SizedBox(
+                                                width:
+                                                    4), // เว้นระยะระหว่างไอคอนกับตัวเลข
+                                            Text(
+                                              '${likeCountMap[postItem.post.postId] ?? 0}',
+                                              style: TextStyle(
+                                                color: Colors.grey[700],
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
                                         ),
 
                                         const SizedBox(width: 16),

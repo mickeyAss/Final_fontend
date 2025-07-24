@@ -18,10 +18,10 @@ Future <void> main() async {
   var user = gs.read('user');
   print('user ---> $user');
 
-  String firstPage = (user == null) ? '/login' : '/mainPage';
+  String firstPage = (user == null) ? '/login' : '/mainPage'; 
 
   runApp(MyApp(initialRoute: firstPage));
-}
+}  
 
 class MyApp extends StatelessWidget {
   final String initialRoute;  
