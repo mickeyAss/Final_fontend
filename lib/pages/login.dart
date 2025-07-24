@@ -225,7 +225,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                         ),
                       ),
 
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 10),
 
                       Container(
                         width: double.infinity,
@@ -368,7 +368,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 10),
 
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

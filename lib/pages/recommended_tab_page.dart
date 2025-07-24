@@ -38,6 +38,11 @@ class _RecommendedTabState extends State<RecommendedTab> {
   // เพิ่มตัวแปรสำหรับ real-time update
   Timer? _timer;
 
+  late int loggedInUid;
+
+  // เก็บ uid ของผู้ใช้ที่ติดตามอยู่ (สถานะติดตาม)
+  Set<int> followingUserIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +52,15 @@ class _RecommendedTabState extends State<RecommendedTab> {
 
     // เริ่มต้น timer สำหรับ update เวลาทุก 30 วินาที
     _startTimer();
+
+    dynamic rawUid = gs.read('user');
+    if (rawUid is int) {
+      loggedInUid = rawUid;
+    } else if (rawUid is String) {
+      loggedInUid = int.tryParse(rawUid) ?? 0;
+    } else {
+      loggedInUid = 0;
+    }
   }
 
   @override
@@ -117,11 +131,50 @@ class _RecommendedTabState extends State<RecommendedTab> {
     }
   }
 
+  // เพิ่มฟังก์ชันใหม่สำหรับโหลดสถานะการติดตาม
+  Future<void> loadFollowingStatus() async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      // เคลียร์ข้อมูลเก่า
+      followingUserIds.clear();
+
+      // ตรวจสอบสถานะการติดตามสำหรับทุกคนในโพสต์
+      Set<int> uniqueUserIds = allPosts.map((post) => post.user.uid).toSet();
+
+      for (int targetUserId in uniqueUserIds) {
+        if (targetUserId != loggedInUid) {
+          // ไม่ตรวจสอบตัวเอง
+          final response = await http.get(
+            Uri.parse(
+                '$url/user/is-following?follower_id=$loggedInUid&following_id=$targetUserId'),
+          );
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['isFollowing'] == true) {
+              followingUserIds.add(targetUserId);
+            }
+          }
+        }
+      }
+
+      // อัพเดต UI
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      dev.log('Error loading following status: $e');
+    }
+  }
+
+  // แก้ไขฟังก์ชัน loadAllPosts เพื่อโหลดสถานะการติดตามด้วย
   Future<void> loadAllPosts() async {
     try {
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
-      final uid = gs.read('user'); // GetStorage: เก็บ uid ไว้ก่อน
+      final uid = gs.read('user');
 
       final postResponse = await http.get(Uri.parse("$url/image_post/get"));
       final likedResponse =
@@ -145,11 +198,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
         // 3. กำหนดค่า likedMap และ likeCountMap ตามโพสต์ที่โหลดมา
         for (var postItem in allPosts) {
           final postId = postItem.post.postId;
-
-          // ใส่ข้อมูล like count จาก post model
           likeCountMap[postId] = postItem.post.amountOfLike;
-
-          // ใช้ likedSet จาก API เพื่อตรวจสอบว่าโพสต์นี้เคยถูกไลก์โดย user หรือยัง
           likedMap[postId] = likedSet.contains(postId);
         }
 
@@ -157,6 +206,9 @@ class _RecommendedTabState extends State<RecommendedTab> {
         for (int i = 0; i < filteredPosts.length; i++) {
           showHeartMap[i] = false;
         }
+
+        // 5. โหลดสถานะการติดตาม
+        await loadFollowingStatus();
       } else {
         throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
       }
@@ -167,6 +219,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
       likedMap.clear();
       likeCountMap.clear();
       showHeartMap.clear();
+      followingUserIds.clear();
     }
   }
 
@@ -234,6 +287,212 @@ class _RecommendedTabState extends State<RecommendedTab> {
     } catch (e) {
       dev.log("Error like/unlike post: $e");
     }
+  }
+
+  // แก้ไขฟังก์ชัน followUser
+  Future<void> followUser(int targetUserId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final response = await http.post(
+        Uri.parse('$url/user/follow'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'follower_id': loggedInUid,
+          'following_id': targetUserId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        dev.log('ติดตามผู้ใช้ $targetUserId สำเร็จ: ${data['message']}');
+
+        setState(() {
+          followingUserIds.add(targetUserId);
+        });
+      } else {
+        final errorData = jsonDecode(response.body);
+        dev.log(
+            'เกิดข้อผิดพลาดในการติดตาม: ${errorData['error'] ?? errorData['message']}');
+
+        // แสดง snackbar หรือ dialog แจ้งเตือนผู้ใช้
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorData['error'] ?? 'เกิดข้อผิดพลาดในการติดตาม'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      dev.log('Error following user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // แก้ไขฟังก์ชัน unfollowUser
+  Future<void> unfollowUser(int targetUserId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final uri = Uri.parse('$url/user/unfollow');
+      final request = http.Request('DELETE', uri);
+      request.headers['Content-Type'] = 'application/json';
+      request.body = jsonEncode({
+        'follower_id': loggedInUid,
+        'following_id': targetUserId,
+      });
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        dev.log('เลิกติดตามผู้ใช้ $targetUserId สำเร็จ: ${data['message']}');
+
+        setState(() {
+          followingUserIds.remove(targetUserId);
+        });
+      } else {
+        final errorData = jsonDecode(response.body);
+        dev.log(
+            'เกิดข้อผิดพลาดในการเลิกติดตาม: ${errorData['error'] ?? errorData['message']}');
+
+        // แจ้งเตือนผู้ใช้ถ้าไม่พบข้อมูลการติดตาม หรือเกิดข้อผิดพลาดอื่นๆ
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorData['error'] ??
+                  errorData['message'] ??
+                  'เกิดข้อผิดพลาดในการเลิกติดตาม'),
+              backgroundColor:
+                  response.statusCode == 404 ? Colors.orange : Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      dev.log('Error unfollowing user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // เพิ่มฟังก์ชันตรวจสอบสถานะการติดตามแบบเฉพาะเจาะจง (ถ้าต้องการใช้)
+  Future<bool> checkFollowingStatus(int targetUserId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+            '$url/user/is-following?follower_id=$loggedInUid&following_id=$targetUserId'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['isFollowing'] ?? false;
+      }
+    } catch (e) {
+      dev.log('Error checking following status: $e');
+    }
+
+    return false;
+  }
+
+  // เพิ่มฟังก์ชัน buildFollowButton สำหรับจัดการปุ่มติดตาม
+  Widget buildFollowButton(model.GetAllPost postItem) {
+    final isFollowing = followingUserIds.contains(postItem.user.uid);
+    final isSelf = postItem.user.uid == loggedInUid;
+
+    if (isSelf) {
+      return const SizedBox.shrink();
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (isFollowing) {
+              unfollowUser(postItem.user.uid);
+            } else {
+              followUser(postItem.user.uid);
+            }
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding: EdgeInsets.symmetric(
+              horizontal: isFollowing ? 9 : 9,
+              vertical: 7,
+            ),
+            decoration: BoxDecoration(
+              color: isFollowing ? Colors.grey[50] : Colors.black87,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isFollowing ? Colors.grey[300]! : Colors.black87,
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    isFollowing
+                        ? Icons.check_rounded
+                        : Icons.person_add_rounded,
+                    key: ValueKey(isFollowing),
+                    size: 15,
+                    color: isFollowing ? Colors.green[600] : Colors.white,
+                  ),
+                ),
+                if (!isFollowing) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    'ติดตาม',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildLoadingWidget() {
@@ -464,7 +723,6 @@ class _RecommendedTabState extends State<RecommendedTab> {
             ),
           ),
 
-          // Enhanced Posts List
           Expanded(
             child: filteredPosts.isEmpty
                 ? Center(
@@ -504,146 +762,102 @@ class _RecommendedTabState extends State<RecommendedTab> {
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.zero,
                     itemCount: filteredPosts.length,
                     itemBuilder: (context, index) {
                       final postItem = filteredPosts[index];
                       final pageController = PageController();
 
                       return Container(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
+                        margin: const EdgeInsets.only(bottom: 1),
+                        decoration: const BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Enhanced Header Section
+                            // Instagram-style Header
                             Padding(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
+                                  // Profile image
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.purple,
+                                          Colors.pink,
+                                          Colors.orange,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.all(2),
+                                    child: Container(
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      padding: const EdgeInsets.all(2),
+                                      child: CircleAvatar(
+                                        backgroundImage: NetworkImage(
+                                            postItem.user.profileImage),
+                                        radius: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+
+                                  // Username and time
                                   Expanded(
-                                    child: Row(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: Colors.grey[200]!,
-                                              width: 2,
-                                            ),
+                                        Text(
+                                          postItem.user.name,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                          child: CircleAvatar(
-                                            backgroundImage: NetworkImage(
-                                                postItem.user.profileImage),
-                                            radius: 20,
-                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                postItem.user.name,
-                                                style: const TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                _formatTimeAgo(
-                                                    postItem.post.postDate),
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
+                                        Text(
+                                          _formatTimeAgo(
+                                              postItem.post.postDate),
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
+
+                                  // Follow button and menu
                                   Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 16, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              Colors.black,
-                                              Colors.grey[800]!
-                                            ],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color:
-                                                  Colors.black.withOpacity(0.2),
-                                              blurRadius: 6,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
+                                      buildFollowButton(postItem),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        onPressed: () {
+                                          // Show menu
+                                        },
+                                        icon: Icon(
+                                          Icons.more_vert,
+                                          color: Colors.black,
+                                          size: 20,
                                         ),
-                                        child: const Text(
-                                          "ติดตาม",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 24,
+                                          minHeight: 24,
                                         ),
-                                      ),
-                                      PopupMenuButton<String>(
-                                        icon: Icon(Icons.more_vert,
-                                            color: Colors.grey[500], size: 20),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        itemBuilder: (context) => [
-                                          const PopupMenuItem(
-                                            value: 'report',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.flag_outlined,
-                                                    size: 16),
-                                                SizedBox(width: 8),
-                                                Text('รายงาน'),
-                                              ],
-                                            ),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'block',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.block_outlined,
-                                                    size: 16),
-                                                SizedBox(width: 8),
-                                                Text('บล็อก'),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
                                       ),
                                     ],
                                   ),
@@ -651,204 +865,98 @@ class _RecommendedTabState extends State<RecommendedTab> {
                               ),
                             ),
 
-                            // Enhanced Content Section
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (postItem.post.postTopic != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Text(
-                                        postItem.post.postTopic!,
-                                        style: const TextStyle(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.3,
-                                        ),
-                                      ),
-                                    ),
-                                  if (postItem.post.postDescription != null &&
-                                      postItem.post.postDescription!
-                                          .trim()
-                                          .isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Text(
-                                        postItem.post.postDescription!,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          color: Colors.grey[800],
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ),
-                                  if (postItem.hashtags.isNotEmpty)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
-                                      child: Wrap(
-                                        spacing: 8,
-                                        runSpacing: 4,
-                                        children: postItem.hashtags.map((tag) {
-                                          return Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.blue[50],
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              '#${tag.tagName}',
-                                              style: TextStyle(
-                                                color: Colors.blue[700],
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-
-                            // Enhanced Image Section
+                            // Image Section (Instagram style - full width)
                             if (postItem.images.isNotEmpty)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Column(
+                              SizedBox(
+                                height: 400, // Fixed Instagram-like height
+                                width: double.infinity,
+                                child: Stack(
                                   children: [
-                                    Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Container(
-                                          height: 400,
-                                          width: double.infinity,
-                                          decoration: BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black
-                                                    .withOpacity(0.1),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ],
-                                          ),
-                                          child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                            child: PageView(
-                                              controller: pageController,
-                                              children:
-                                                  postItem.images.map((img) {
-                                                return GestureDetector(
-                                                  onDoubleTap: () async {
-                                                    likePost(
-                                                        postItem.post.postId);
-                                                    setState(() =>
-                                                        showHeartMap[index] =
-                                                            true);
-                                                    await Future.delayed(
-                                                        const Duration(
-                                                            seconds: 1));
-                                                    setState(() =>
-                                                        showHeartMap[index] =
-                                                            false);
-                                                  },
-                                                  child: Image.network(
-                                                    img.image,
-                                                    fit: BoxFit.cover,
-                                                    width: double.infinity,
-                                                    loadingBuilder: (context,
-                                                        child,
-                                                        loadingProgress) {
-                                                      if (loadingProgress ==
-                                                          null) return child;
-                                                      return Container(
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color:
-                                                              Colors.grey[100],
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(16),
-                                                        ),
-                                                        child: Center(
-                                                          child:
-                                                              CircularProgressIndicator(
-                                                            color: Colors.black,
-                                                            strokeWidth: 2,
-                                                            value: loadingProgress
-                                                                        .expectedTotalBytes !=
-                                                                    null
-                                                                ? loadingProgress
-                                                                        .cumulativeBytesLoaded /
-                                                                    loadingProgress
-                                                                        .expectedTotalBytes!
-                                                                : null,
-                                                          ),
-                                                        ),
-                                                      );
-                                                    },
-                                                    errorBuilder: (context,
-                                                        error, stackTrace) {
-                                                      return Container(
-                                                        height: 400,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color:
-                                                              Colors.grey[100],
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(16),
-                                                        ),
-                                                        child: Center(
-                                                          child: Column(
-                                                            mainAxisAlignment:
-                                                                MainAxisAlignment
-                                                                    .center,
-                                                            children: [
-                                                              Icon(
-                                                                  Icons
-                                                                      .error_outline,
-                                                                  color: Colors
-                                                                          .grey[
-                                                                      400],
-                                                                  size: 32),
-                                                              const SizedBox(
-                                                                  height: 8),
-                                                              Text(
-                                                                'ไม่สามารถโหลดรูปภาพได้',
-                                                                style:
-                                                                    TextStyle(
-                                                                  color: Colors
-                                                                          .grey[
-                                                                      600],
-                                                                  fontSize: 14,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      );
-                                                    },
+                                    PageView(
+                                      controller: pageController,
+                                      children: postItem.images.map((img) {
+                                        return GestureDetector(
+                                          onDoubleTap: () async {
+                                            likePost(postItem.post.postId);
+                                            setState(() =>
+                                                showHeartMap[index] = true);
+                                            await Future.delayed(
+                                                const Duration(seconds: 1));
+                                            setState(() =>
+                                                showHeartMap[index] = false);
+                                          },
+                                          child: Image.network(
+                                            img.image,
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                            loadingBuilder: (context, child,
+                                                loadingProgress) {
+                                              if (loadingProgress == null)
+                                                return child;
+                                              return Container(
+                                                color: Colors.grey[100],
+                                                child: Center(
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    color: Colors.black,
+                                                    strokeWidth: 2,
+                                                    value: loadingProgress
+                                                                .expectedTotalBytes !=
+                                                            null
+                                                        ? loadingProgress
+                                                                .cumulativeBytesLoaded /
+                                                            loadingProgress
+                                                                .expectedTotalBytes!
+                                                        : null,
                                                   ),
-                                                );
-                                              }).toList(),
-                                            ),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                              return Container(
+                                                height: 400,
+                                                color: Colors.grey[100],
+                                                child: Center(
+                                                  child: Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      Icon(Icons.error_outline,
+                                                          color:
+                                                              Colors.grey[400],
+                                                          size: 32),
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        'ไม่สามารถโหลดรูปภาพได้',
+                                                        style: TextStyle(
+                                                          color:
+                                                              Colors.grey[600],
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            },
                                           ),
-                                        ),
-                                        // Enhanced heart animation
-                                        AnimatedScale(
-                                          scale: showHeartMap[index] == true
+                                        );
+                                      }).toList(),
+                                    ),
+
+                                    // Heart animation
+                                    Center(
+                                      child: AnimatedScale(
+                                        scale: showHeartMap[index] == true
+                                            ? 1.2
+                                            : 0.0,
+                                        duration:
+                                            const Duration(milliseconds: 300),
+                                        curve: Curves.elasticOut,
+                                        child: AnimatedOpacity(
+                                          opacity: showHeartMap[index] == true
                                               ? 1.0
                                               : 0.0,
                                           duration:
@@ -857,41 +965,48 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                             padding: const EdgeInsets.all(12),
                                             decoration: BoxDecoration(
                                               color:
-                                                  Colors.white.withOpacity(0.9),
+                                                  Colors.black.withOpacity(0.8),
                                               shape: BoxShape.circle,
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: Colors.red
+                                                  color: Colors.black
                                                       .withOpacity(0.3),
-                                                  blurRadius: 16,
-                                                  spreadRadius: 3,
+                                                  blurRadius: 20,
+                                                  spreadRadius: 2,
                                                 ),
                                               ],
                                             ),
                                             child: const Icon(
                                               Icons.favorite,
-                                              color: Colors.red,
-                                              size: 40,
+                                              color: Colors.white,
+                                              size: 36,
                                             ),
                                           ),
                                         ),
-                                      ],
+                                      ),
                                     ),
 
-                                    // Enhanced page indicator
+                                    // Page indicator (Instagram style - top right)
                                     if (postItem.images.length > 1)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 12),
-                                        child: SmoothPageIndicator(
-                                          controller: pageController,
-                                          count: postItem.images.length,
-                                          effect: ExpandingDotsEffect(
-                                            activeDotColor: Colors.black,
-                                            dotColor: Colors.grey[300]!,
-                                            dotHeight: 6,
-                                            dotWidth: 6,
-                                            spacing: 4,
-                                            expansionFactor: 2,
+                                      Positioned(
+                                        top: 12,
+                                        right: 12,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                Colors.black.withOpacity(0.6),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            '1/${postItem.images.length}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -899,171 +1014,168 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                 ),
                               ),
 
-                            const SizedBox(height: 16),
-
-                            // Enhanced Footer Section
+                            // Action buttons (Instagram style)
                             Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              child: Row(
                                 children: [
-                                  // Enhanced Categories
-                                  if (postItem.categories.isNotEmpty)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
-                                      child: SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        child: Row(
-                                          children:
-                                              postItem.categories.map((cat) {
-                                            return Container(
-                                              margin: const EdgeInsets.only(
-                                                  right: 8),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 6),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[50],
-                                                border: Border.all(
-                                                    color: Colors.grey[300]!),
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                              child: Text(
-                                                cat.cname,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[700],
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ),
+                                  // Like button
+                                  GestureDetector(
+                                    onTap: () => likePost(postItem.post.postId),
+                                    child: Icon(
+                                      likedMap[postItem.post.postId] == true
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color:
+                                          likedMap[postItem.post.postId] == true
+                                              ? const Color.fromARGB(255, 0, 0, 0)
+                                              : Colors.black,
+                                      size: 24,
                                     ),
+                                  ),
+                                  const SizedBox(width: 16),
 
-                                  // Enhanced Action Bar
-                                  Container(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                    child: Row(
-                                      children: [
-                                        // Like button
-                                        Row(
-                                          children: [
-                                            Container(
-                                              decoration: BoxDecoration(
-                                                color: likedMap[postItem
-                                                            .post.postId] ==
-                                                        true
-                                                    ? Colors.red[50]
-                                                    : Colors.transparent,
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: IconButton(
-                                                onPressed: () => likePost(
-                                                    postItem.post.postId),
-                                                icon: Icon(
-                                                  likedMap[postItem
-                                                              .post.postId] ==
-                                                          true
-                                                      ? Icons.favorite
-                                                      : Icons.favorite_border,
-                                                  color: likedMap[postItem
-                                                              .post.postId] ==
-                                                          true
-                                                      ? Colors.red
-                                                      : Colors.grey[600],
-                                                  size: 20,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(
-                                                width:
-                                                    4), // เว้นระยะระหว่างไอคอนกับตัวเลข
-                                            Text(
-                                              '${likeCountMap[postItem.post.postId] ?? 0}',
-                                              style: TextStyle(
-                                                color: Colors.grey[700],
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                  // Comment button
+                                  GestureDetector(
+                                    onTap: () {
+                                      // Handle comment
+                                    },
+                                    child: const Icon(
+                                      Icons.chat_bubble_outline,
+                                      color: Colors.black,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
 
-                                        const SizedBox(width: 16),
+                                  // Share button
+                                  GestureDetector(
+                                    onTap: () {
+                                      // Handle share
+                                    },
+                                    child: const Icon(
+                                      Icons.send_outlined,
+                                      color: Colors.black,
+                                      size: 24,
+                                    ),
+                                  ),
 
-                                        // ปุ่มคอมเมนต์ (ยังไม่ทำงาน)
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[50],
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: IconButton(
-                                            onPressed: () {
-                                              // TODO: handle comment tap
-                                            },
-                                            icon: Icon(
-                                              Icons.comment_outlined,
-                                              color: Colors.grey[600],
-                                              size: 20,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '0', // ถ้ามีจำนวนคอมเมนต์ให้แทนที่ตรงนี้
-                                          style: TextStyle(
-                                            color: Colors.grey[700],
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
+                                  const Spacer(),
 
-                                        const SizedBox(width: 16),
-
-                                        // ปุ่มบันทึก (ยังไม่ทำงาน)
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[50],
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: IconButton(
-                                            onPressed: () {
-                                              // TODO: handle save tap
-                                            },
-                                            icon: Icon(
-                                              Icons.bookmark_border,
-                                              color: Colors.grey[600],
-                                              size: 20,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '0', // ถ้ามีจำนวนบันทึกให้แทนที่ตรงนี้
-                                          style: TextStyle(
-                                            color: Colors.grey[700],
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
+                                  // Save button
+                                  GestureDetector(
+                                    onTap: () {
+                                      // Handle save
+                                    },
+                                    child: const Icon(
+                                      Icons.bookmark_border,
+                                      color: Colors.black,
+                                      size: 24,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
 
-                            const SizedBox(height: 8),
+                            // Likes count
+                            if ((likeCountMap[postItem.post.postId] ?? 0) > 0)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                child: Text(
+                                  '${likeCountMap[postItem.post.postId]} คนถูกใจ',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+
+                            // Caption
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (postItem.post.postTopic != null)
+                                    RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black,
+                                          height: 1.3,
+                                        ),
+                                        children: [
+                                          TextSpan(
+                                            text: '${postItem.user.name} ',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: postItem.post.postTopic!,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  if (postItem.post.postDescription != null &&
+                                      postItem.post.postDescription!
+                                          .trim()
+                                          .isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        postItem.post.postDescription!,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                            // Hashtags
+                            if (postItem.hashtags.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                child: Wrap(
+                                  spacing: 4,
+                                  children: postItem.hashtags.map((tag) {
+                                    return Text(
+                                      '#${tag.tagName}',
+                                      style: TextStyle(
+                                        color: Colors.blue[700],
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+
+                            // Categories (simplified)
+                            if (postItem.categories.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                child: Text(
+                                  postItem.categories
+                                      .map((cat) => cat.cname)
+                                      .join(' • '),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+
+                            const SizedBox(height: 12),
                           ],
                         ),
                       );
