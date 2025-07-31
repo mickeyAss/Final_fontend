@@ -9,7 +9,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/pages/edit_profile.dart';
 import 'package:fontend_pro/models/get_user_uid.dart';
 import 'package:fontend_pro/pages/user_detail_post.dart';
+import 'package:fontend_pro/pages/user_my_likes_tab.dart';
 import 'package:fontend_pro/models/get_post_user.dart' as model;
+import 'package:fontend_pro/models/get_post_like.dart' as modelp;
 
 class Profilepage extends StatefulWidget {
   const Profilepage({super.key});
@@ -24,6 +26,7 @@ class _ProfilepageState extends State<Profilepage> {
   final GetStorage gs = GetStorage();
   late Future<void> _loadUserFuture;
   late Future<List<model.GetPostUser>> userPostsFuture;
+  late Future<List<modelp.GetPostLike>> likedPostsFuture;
   bool _isLoading = false;
 
   int followersCount = 0;
@@ -35,6 +38,7 @@ class _ProfilepageState extends State<Profilepage> {
     super.initState();
     _loadUserFuture = loadDataUser();
     userPostsFuture = loadUserPosts();
+    likedPostsFuture = fetchLikedPosts(gs.read('user'));
   }
 
   Future<void> loadDataUser() async {
@@ -60,9 +64,8 @@ class _ProfilepageState extends State<Profilepage> {
           _isLoading = false;
         });
         log("โหลดข้อมูลสำเร็จ: ${response.body}");
-        
+
         await _loadFollowCounts();
-        
       } else {
         log('โหลดข้อมูลไม่สำเร็จ: ${response.statusCode}');
         setState(() {
@@ -83,7 +86,7 @@ class _ProfilepageState extends State<Profilepage> {
       _loadUserFuture = loadDataUser();
       userPostsFuture = loadUserPosts();
     });
-    
+
     _loadPostsCount();
   }
 
@@ -119,6 +122,19 @@ class _ProfilepageState extends State<Profilepage> {
     return posts;
   }
 
+  Future<List<modelp.GetPostLike>> fetchLikedPosts(int userId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final uri = Uri.parse('$url/image_post/liked-posts/full/$userId');
+    final response = await http.get(uri);
+
+    if (response.statusCode == 200) {
+      return modelp.getPostLikeFromJson(response.body);
+    } else {
+      throw Exception('Failed to load liked posts');
+    }
+  }
+
   Future<void> _loadPostsCount() async {
     try {
       final posts = await loadUserPosts();
@@ -129,12 +145,44 @@ class _ProfilepageState extends State<Profilepage> {
       log('Error loading posts count: $e');
     }
   }
+  
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: _buildAppBar(),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: Text(
+          user?.name ?? "username",
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.add_box_outlined,
+              color: Colors.black,
+              size: 28,
+            ),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.menu,
+              color: Colors.black,
+              size: 28,
+            ),
+            onPressed: _showSettingsBottomSheet,
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           FutureBuilder(
@@ -142,9 +190,42 @@ class _ProfilepageState extends State<Profilepage> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   user == null) {
-                return _buildLoadingWidget();
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.black,
+                    strokeWidth: 2,
+                  ),
+                );
+                
               } else if (snapshot.hasError && user == null) {
-                return _buildErrorWidget();
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline,
+                          size: 48, color: Colors.grey[600]),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'เกิดข้อผิดพลาด',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _loadUserFuture = loadDataUser();
+                          });
+                        },
+                        child: const Text('ลองใหม่',
+                            style: TextStyle(color: Colors.blue)),
+                      ),
+                    ],
+                  ),
+                );
               }
 
               return RefreshIndicator(
@@ -153,513 +234,455 @@ class _ProfilepageState extends State<Profilepage> {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    SliverToBoxAdapter(child: _buildProfileHeader()),
-                    SliverToBoxAdapter(child: _buildActionButtons()),
-                    SliverToBoxAdapter(child: _buildPostsSection()),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 86,
+                                  height: 86,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.grey[300]!, width: 1),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 42,
+                                    backgroundColor: Colors.grey[200],
+                                    backgroundImage: user?.profileImage != null
+                                        ? NetworkImage(user!.profileImage!)
+                                        : null,
+                                    child: user?.profileImage == null
+                                        ? Icon(Icons.person,
+                                            size: 40, color: Colors.grey[600])
+                                        : null,
+                                  ),
+                                ),
+                                const SizedBox(width: 28),
+                                Expanded(
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      Column(
+                                        children: [
+                                          Text(postsCount.toString(),
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black,
+                                              )),
+                                          const SizedBox(height: 2),
+                                          Text('โพส',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey[600],
+                                              )),
+                                        ],
+                                      ),
+                                      Column(
+                                        children: [
+                                          Text(followersCount.toString(),
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black,
+                                              )),
+                                          const SizedBox(height: 2),
+                                          Text('ผู้ติดตาม',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey[600],
+                                              )),
+                                        ],
+                                      ),
+                                      Column(
+                                        children: [
+                                          Text(followingCount.toString(),
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black,
+                                              )),
+                                          const SizedBox(height: 2),
+                                          Text('กำลังติดตาม',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey[600],
+                                              )),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            if (user?.personalDescription != null &&
+                                user!.personalDescription!.trim().isNotEmpty)
+                              Text(
+                                user!.personalDescription!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              )
+                            else
+                              GestureDetector(
+                                onTap: () =>
+                                    Get.to(() => const EditProfilePage()),
+                                child: Text(
+                                  'เพิ่มชื่อและคำอธิบาย',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Container(
+                          width: double.infinity,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: () =>
+                                  Get.to(() => const EditProfilePage()),
+                              child: const Center(
+                                child: Text(
+                                  "แก้ไขโปรไฟล์",
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 20),
+                          Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              border: Border(
+                                top: BorderSide(
+                                    color: Colors.grey[300]!, width: 0.5),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: selectedIndex == 0
+                                              ? Colors.black
+                                              : Colors.transparent,
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            selectedIndex = 0;
+                                          });
+                                        },
+                                        child: Icon(
+                                          Icons.grid_on_outlined,
+                                          color: selectedIndex == 0
+                                              ? Colors.black
+                                              : Colors.grey[400],
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Container(
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: selectedIndex == 1
+                                              ? Colors.black
+                                              : Colors.transparent,
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            selectedIndex = 1;
+                                          });
+                                        },
+                                        child: Icon(
+                                          Icons.bookmark_border,
+                                          color: selectedIndex == 1
+                                              ? Colors.black
+                                              : Colors.grey[400],
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Container(
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: selectedIndex == 2
+                                              ? Colors.black
+                                              : Colors.transparent,
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            selectedIndex = 2;
+                                          });
+                                        },
+                                        child: Icon(
+                                          Icons.favorite_border,
+                                          color: selectedIndex == 2
+                                              ? Colors.black
+                                              : Colors.grey[400],
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          FutureBuilder(
+                            future: selectedIndex == 2
+                                ? likedPostsFuture
+                                : userPostsFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return Container(
+                                  height: 200,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                        color: Colors.black, strokeWidth: 2),
+                                  ),
+                                );
+                              } else if (snapshot.hasError) {
+                                return Container(
+                                  height: 200,
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.error_outline,
+                                            size: 48, color: Colors.grey[400]),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          selectedIndex == 2
+                                              ? 'ไม่สามารถโหลดโพสต์ที่ถูกใจได้'
+                                              : 'ไม่สามารถโหลดโพสต์ได้',
+                                          style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 14),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              } else if (!snapshot.hasData ||
+                                  snapshot.data!.isEmpty) {
+                                return Container(
+                                  height: 300,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 62,
+                                        height: 62,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                              color: Colors.black, width: 2),
+                                        ),
+                                        child: Icon(
+                                          selectedIndex == 2
+                                              ? Icons.favorite_border
+                                              : Icons.camera_alt_outlined,
+                                          size: 24,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        selectedIndex == 2
+                                            ? 'ยังไม่มีโพสต์ที่ถูกใจ'
+                                            : 'แชร์ภาพถ่าย',
+                                        style: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w300,
+                                            color: Colors.black),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        selectedIndex == 2
+                                            ? 'เมื่อคุณกดใจภาพถ่ายและวิดีโอ\nภาพเหล่านั้นจะปรากฏที่นี่'
+                                            : 'เมื่อคุณแชร์ภาพถ่ายและวิดีโอ ภาพเหล่านั้น\nจะปรากฏในโปรไฟล์ของคุณ',
+                                        style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black54),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              // สร้าง GridView ตามข้อมูลที่ได้ (ไม่ว่าจะโพสต์หรือโพสต์ถูกใจ)
+                              final posts = snapshot.data!;
+                              return GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                padding: EdgeInsets.zero,
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 3,
+                                        crossAxisSpacing: 2,
+                                        mainAxisSpacing: 2,
+                                        childAspectRatio: 1),
+                                itemCount: posts.length,
+                                itemBuilder: (context, index) {
+                                  final post = posts[index];
+                                  String? imageUrl;
+
+                                  if (selectedIndex == 2) {
+                                    // สำหรับโพสต์ที่ถูกใจ ใช้ modelp.GetPostLike
+                                    final likedPost =
+                                        post as modelp.GetPostLike;
+                                    imageUrl = likedPost.images.isNotEmpty
+                                        ? likedPost.images.first.image
+                                        : null;
+                                  } else {
+                                    // สำหรับโพสต์ของผู้ใช้ ใช้ model.GetPostUser
+                                    final userPost = post as model.GetPostUser;
+                                    imageUrl = userPost.images.isNotEmpty
+                                        ? userPost.images.first.image
+                                        : null;
+                                  }
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      // ถ้าอยากเพิ่มหน้ารายละเอียดโพสต์ที่ถูกใจ กำหนดเพิ่มตรงนี้ได้เลย
+                                      if (selectedIndex == 0) {
+                                        final userPost =
+                                            post as model.GetPostUser;
+                                        Get.to(() =>
+                                            UserDetailPost(postUser: userPost));
+                                      }
+                                      // สำหรับ selectedIndex == 2 อาจจะมีหน้า detail เหมือนกันหรือไม่ก็แล้วแต่
+                                    },
+                                    child: Container(
+                                      color: Colors.grey[100],
+                                      child: imageUrl != null
+                                          ? Image.network(
+                                              imageUrl,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error,
+                                                      stackTrace) =>
+                                                  Icon(
+                                                Icons.broken_image,
+                                                color: Colors.grey[400],
+                                                size: 40,
+                                              ),
+                                              loadingBuilder: (context, child,
+                                                  loadingProgress) {
+                                                if (loadingProgress == null)
+                                                  return child;
+                                                return Center(
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    value: loadingProgress
+                                                                .expectedTotalBytes !=
+                                                            null
+                                                        ? loadingProgress
+                                                                .cumulativeBytesLoaded /
+                                                            loadingProgress
+                                                                .expectedTotalBytes!
+                                                        : null,
+                                                    strokeWidth: 2,
+                                                    color: Colors.grey,
+                                                  ),
+                                                );
+                                              },
+                                            )
+                                          : Icon(
+                                              Icons.image_outlined,
+                                              color: Colors.grey[400],
+                                              size: 40,
+                                            ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               );
             },
           ),
-          if (_isLoading) _buildLoadingOverlay(),
-        ],
-      ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
-      automaticallyImplyLeading: false,
-      title: Text(
-        user?.name ?? "username",
-        style: const TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-        ),
-      ),
-      centerTitle: false,
-      actions: [
-        IconButton(
-          icon: const Icon(
-            Icons.add_box_outlined,
-            color: Colors.black,
-            size: 28,
-          ),
-          onPressed: () {},
-        ),
-        IconButton(
-          icon: const Icon(
-            Icons.menu,
-            color: Colors.black,
-            size: 28,
-          ),
-          onPressed: _showSettingsBottomSheet,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfileHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Profile picture
-              Container(
-                width: 86,
-                height: 86,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.grey[300]!,
-                    width: 1,
-                  ),
-                ),
-                child: CircleAvatar(
-                  radius: 42,
-                  backgroundColor: Colors.grey[200],
-                  backgroundImage: user?.profileImage != null
-                      ? NetworkImage(user!.profileImage!)
-                      : null,
-                  child: user?.profileImage == null
-                      ? Icon(
-                          Icons.person,
-                          size: 40,
-                          color: Colors.grey[600],
-                        )
-                      : null,
-                ),
-              ),
-
-              const SizedBox(width: 28),
-
-              // Stats
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildStatColumn(postsCount.toString(), "โพส"),
-                    _buildStatColumn(followersCount.toString(), "ผู้ติดตาม"),
-                    _buildStatColumn(followingCount.toString(), "กำลังติดตาม"),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          // Name and bio
-          if (user?.personalDescription != null &&
-              user!.personalDescription!.trim().isNotEmpty)
-            Text(
-              user!.personalDescription!,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
-              ),
-            )
-          else
-            GestureDetector(
-              onTap: () => Get.to(() => const EditProfilePage()),
-              child: Text(
-                'เพิ่มชื่อและคำอธิบาย',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  
-
-  Widget _buildStatColumn(String count, String label) {
-    return Column(
-      children: [
-        Text(
-          count,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Container(
-        width: double.infinity,
-        height: 32,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(6),
-            onTap: () => Get.to(() => const EditProfilePage()),
-            child: const Center(
-              child: Text(
-                "แก้ไขโปรไฟล์",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPostsSection() {
-    return Column(
-      children: [
-        const SizedBox(height: 20),
-
-        // Tab bar
-        Container(
-          height: 44,
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: Colors.grey[300]!, width: 0.5),
-            ),
-          ),
-          child: Row(
-            children: [
-              _buildTab(Icons.grid_on_outlined, 0),
-              _buildTab(Icons.bookmark_border, 1),
-              _buildTab(Icons.favorite_border, 2),
-            ],
-          ),
-        ),
-
-        // Posts content
-        FutureBuilder<List<model.GetPostUser>>(
-          future: userPostsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildPostsLoadingWidget();
-            } else if (snapshot.hasError) {
-              return _buildPostsErrorWidget();
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildEmptyPostsWidget();
-            }
-
-            return _buildPostsGrid(snapshot.data!);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTab(IconData icon, int index) {
-    final isSelected = selectedIndex == index;
-    return Expanded(
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isSelected ? Colors.black : Colors.transparent,
-              width: 1,
-            ),
-          ),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              setState(() {
-                selectedIndex = index;
-              });
-            },
-            child: Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.grey[400],
-              size: 24,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPostsGrid(List<model.GetPostUser> posts) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-        childAspectRatio: 1,
-      ),
-      itemCount: posts.length,
-      itemBuilder: (context, index) {
-        final postUser = posts[index];
-        final imageUrl =
-            postUser.images.isNotEmpty ? postUser.images.first.image : null;
-
-        return GestureDetector(
-          onTap: () {
-            Get.to(() => UserDetailPost(postUser: postUser));
-          },
-          child: Container(
-            color: Colors.grey[100],
-            child: imageUrl != null
-                ? Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.broken_image,
-                        color: Colors.grey[400],
-                        size: 40,
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                          strokeWidth: 2,
-                          color: Colors.grey,
-                        ),
-                      );
-                    },
-                  )
-                : Icon(
-                    Icons.image_outlined,
-                    color: Colors.grey[400],
-                    size: 40,
-                  ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEmptyPostsWidget() {
-    if (selectedIndex == 0) {
-      return Container(
-        height: 300,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+          if (_isLoading)
             Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black, width: 2),
-              ),
-              child: const Icon(
-                Icons.camera_alt_outlined,
-                size: 24,
-                color: Colors.black,
+              color: Colors.white.withOpacity(0.8),
+              child: const Center(
+                child: CircularProgressIndicator(
+                    color: Colors.black, strokeWidth: 2),
               ),
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'แชร์ภาพถ่าย',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w300,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'เมื่อคุณแชร์ภาพถ่ายและวิดีโอ ภาพเหล่านั้น\nจะปรากฏในโปรไฟล์ของคุณ',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.black54,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: () {},
-              child: const Text(
-                'แชร์ภาพถ่ายแรกของคุณ',
-                style: TextStyle(
-                  color: Colors.blue,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      height: 300,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.black, width: 2),
-            ),
-            child: Icon(
-              selectedIndex == 1 ? Icons.bookmark_border : Icons.favorite_border,
-              size: 24,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            selectedIndex == 1 ? 'ภาพที่บันทึกไว้' : 'ภาพที่ชื่นชอบ',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w300,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            selectedIndex == 1 
-                ? 'เมื่อคุณบันทึกภาพถ่ายและวิดีโอ\nภาพเหล่านั้นจะปรากฏที่นี่'
-                : 'เมื่อคุณกดใจภาพถ่ายและวิดีโอ\nภาพเหล่านั้นจะปรากฏที่นี่',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-            ),
-            textAlign: TextAlign.center,
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingWidget() {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: Colors.black,
-        strokeWidth: 2,
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: Colors.grey[600],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'เกิดข้อผิดพลาด',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _loadUserFuture = loadDataUser();
-              });
-            },
-            child: const Text(
-              'ลองใหม่',
-              style: TextStyle(color: Colors.blue),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingOverlay() {
-    return Container(
-      color: Colors.black.withOpacity(0.3),
-      child: const Center(
-        child: CircularProgressIndicator(
-          color: Colors.white,
-          strokeWidth: 2,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPostsLoadingWidget() {
-    return Container(
-      height: 200,
-      child: const Center(
-        child: CircularProgressIndicator(
-          color: Colors.black,
-          strokeWidth: 2,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPostsErrorWidget() {
-    return Container(
-      height: 200,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'ไม่สามารถโหลดโพสต์ได้',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -733,60 +756,59 @@ class _ProfilepageState extends State<Profilepage> {
   }
 
   void _showLogoutDialog() {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: const [
-            Icon(Icons.logout, color: Colors.black),
-            SizedBox(width: 8),
-            Text(
-              'ออกจากระบบ',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: const [
+              Icon(Icons.logout, color: Colors.black),
+              SizedBox(width: 8),
+              Text(
+                'ออกจากระบบ',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+            ],
+          ),
+          content: const Text(
+            'คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ?',
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 15,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.black,
+              ),
+              child: const Text('ยกเลิก'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await logoutUser();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('ออกจากระบบ'),
             ),
           ],
-        ),
-        content: const Text(
-          'คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ?',
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 15,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.black,
-            ),
-            child: const Text('ยกเลิก'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await logoutUser();
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
-            child: const Text('ออกจากระบบ'),
-          ),
-        ],
-      );
-    },
-  );
-}
-
+        );
+      },
+    );
+  }
 
   Future<void> logoutUser() async {
     try {
@@ -816,7 +838,7 @@ class _ProfilepageState extends State<Profilepage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         log('Parsed data (followers): $data');
-        
+
         int count = 0;
         if (data is Map<String, dynamic>) {
           if (data.containsKey('followers')) {
@@ -825,7 +847,7 @@ class _ProfilepageState extends State<Profilepage> {
             count = data['COUNT(*)'] ?? 0;
           }
         }
-        
+
         log('Final followers count: $count');
         return count;
       } else {
@@ -852,7 +874,7 @@ class _ProfilepageState extends State<Profilepage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         log('Parsed data (following): $data');
-        
+
         int count = 0;
         if (data is Map<String, dynamic>) {
           if (data.containsKey('following')) {
@@ -861,7 +883,7 @@ class _ProfilepageState extends State<Profilepage> {
             count = data['COUNT(*)'] ?? 0;
           }
         }
-        
+
         log('Final following count: $count');
         return count;
       } else {

@@ -100,17 +100,13 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                         ),
                         prefixIcon: Container(
                           padding: const EdgeInsets.all(12),
-                          child: Icon(Icons.search_rounded, 
-                            color: Colors.grey[600], 
-                            size: 22
-                          ),
+                          child: Icon(Icons.search_rounded,
+                              color: Colors.grey[600], size: 22),
                         ),
                         suffixIcon: searchController.text.isNotEmpty
                             ? IconButton(
-                                icon: Icon(Icons.clear_rounded, 
-                                  color: Colors.grey[600], 
-                                  size: 20
-                                ),
+                                icon: Icon(Icons.clear_rounded,
+                                    color: Colors.grey[600], size: 20),
                                 onPressed: () {
                                   searchController.clear();
                                   filterUsers('');
@@ -119,9 +115,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                             : null,
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
-                          vertical: 16, 
-                          horizontal: 20
-                        ),
+                            vertical: 16, horizontal: 20),
                       ),
                       style: const TextStyle(
                         fontSize: 16,
@@ -134,16 +128,14 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                       },
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Stats Row
                   Row(
                     children: [
-                      Icon(Icons.people_outline_rounded, 
-                        size: 20, 
-                        color: Colors.grey[600]
-                      ),
+                      Icon(Icons.people_outline_rounded,
+                          size: 20, color: Colors.grey[600]),
                       const SizedBox(width: 8),
                       Text(
                         'พบผู้ใช้ ${filteredUsers.length} คน',
@@ -165,38 +157,10 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                 future: loadData_user,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                            child: const CircularProgressIndicator(
-                              strokeWidth: 3,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'กำลังโหลดข้อมูล...',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.black,
+                        strokeWidth: 2,
                       ),
                     );
                   } else if (snapshot.hasError) {
@@ -242,18 +206,18 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Icon(
-                              searchController.text.isNotEmpty 
-                                ? Icons.search_off_rounded 
-                                : Icons.people_outline_rounded,
+                              searchController.text.isNotEmpty
+                                  ? Icons.search_off_rounded
+                                  : Icons.people_outline_rounded,
                               size: 48,
                               color: Colors.grey[500],
                             ),
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            searchController.text.isNotEmpty 
-                              ? 'ไม่พบผู้ใช้ที่ค้นหา' 
-                              : 'ไม่มีผู้ใช้งานให้แนะนำ',
+                            searchController.text.isNotEmpty
+                                ? 'ไม่พบผู้ใช้ที่ค้นหา'
+                                : 'ไม่มีผู้ใช้งานให้แนะนำ',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[600],
@@ -266,7 +230,8 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                   }
 
                   return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     itemCount: filteredUsers.length,
                     itemBuilder: (context, index) {
                       final users = filteredUsers[index];
@@ -299,25 +264,30 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                         width: 56,
                                         height: 56,
                                         decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
                                           border: Border.all(
                                             color: Colors.grey[200]!,
                                             width: 2,
                                           ),
                                         ),
                                         child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(14),
+                                          borderRadius:
+                                              BorderRadius.circular(14),
                                           child: Image.network(
                                             users.profileImage ?? '',
                                             width: 56,
                                             height: 56,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => Container(
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    Container(
                                               width: 56,
                                               height: 56,
                                               decoration: BoxDecoration(
                                                 color: Colors.grey[100],
-                                                borderRadius: BorderRadius.circular(14),
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
                                               ),
                                               child: Icon(
                                                 Icons.person_rounded,
@@ -337,8 +307,11 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                             height: 18,
                                             decoration: BoxDecoration(
                                               color: Colors.green[500],
-                                              borderRadius: BorderRadius.circular(10),
-                                              border: Border.all(color: Colors.white, width: 2),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              border: Border.all(
+                                                  color: Colors.white,
+                                                  width: 2),
                                             ),
                                             child: const Icon(
                                               Icons.check,
@@ -352,7 +325,8 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           users.name,
@@ -364,10 +338,14 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          isFollowing ? 'คุณติดตามผู้ใช้นี้แล้ว' : 'แนะนำสำหรับคุณ',
+                                          isFollowing
+                                              ? 'คุณติดตามผู้ใช้นี้แล้ว'
+                                              : 'แนะนำสำหรับคุณ',
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: isFollowing ? Colors.green[600] : Colors.grey[600],
+                                            color: isFollowing
+                                                ? Colors.green[600]
+                                                : Colors.grey[600],
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -376,9 +354,9 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                   ),
                                 ],
                               ),
-                              
+
                               const SizedBox(height: 16),
-                              
+
                               // บรรทัดที่สอง: ปุ่มติดตาม
                               SizedBox(
                                 width: double.infinity,
@@ -386,19 +364,27 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                   duration: const Duration(milliseconds: 200),
                                   child: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: isFollowing ? Colors.grey[100] : Colors.black87,
-                                      foregroundColor: isFollowing ? Colors.black87 : Colors.white,
+                                      backgroundColor: isFollowing
+                                          ? Colors.grey[100]
+                                          : Colors.black87,
+                                      foregroundColor: isFollowing
+                                          ? Colors.black87
+                                          : Colors.white,
                                       elevation: 0,
                                       shadowColor: Colors.transparent,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(10),
                                         side: BorderSide(
-                                          color: isFollowing ? Colors.grey[300]! : Colors.transparent,
+                                          color: isFollowing
+                                              ? Colors.grey[300]!
+                                              : Colors.transparent,
                                           width: 1.5,
                                         ),
                                       ),
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      minimumSize: const Size(double.infinity, 40),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 12),
+                                      minimumSize:
+                                          const Size(double.infinity, 40),
                                     ),
                                     onPressed: () {
                                       if (isFollowing) {
@@ -408,10 +394,13 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                       }
                                     },
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Icon(
-                                          isFollowing ? Icons.person_remove_rounded : Icons.person_add_rounded,
+                                          isFollowing
+                                              ? Icons.person_remove_rounded
+                                              : Icons.person_add_rounded,
                                           size: 16,
                                         ),
                                         const SizedBox(width: 8),
@@ -446,7 +435,8 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
 
-    final response = await http.get(Uri.parse("$url/user/users-except?uid=$loggedInUid"));
+    final response =
+        await http.get(Uri.parse("$url/user/users-except?uid=$loggedInUid"));
 
     if (response.statusCode == 200) {
       user = getAllUserFromJson(response.body);

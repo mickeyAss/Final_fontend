@@ -495,33 +495,17 @@ class _RecommendedTabState extends State<RecommendedTab> {
     );
   }
 
-  Widget _buildLoadingWidget() {
-    return Center(
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.grey.shade800, Colors.grey.shade600],
-          ),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            strokeWidth: 3,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (isInitialLoading) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
-        body: _buildLoadingWidget(),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: Colors.black,
+            strokeWidth: 2,
+          ),
+        ),
       );
     }
 
@@ -1027,10 +1011,10 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                       likedMap[postItem.post.postId] == true
                                           ? Icons.favorite
                                           : Icons.favorite_border,
-                                      color:
-                                          likedMap[postItem.post.postId] == true
-                                              ? const Color.fromARGB(255, 0, 0, 0)
-                                              : Colors.black,
+                                      color: likedMap[postItem.post.postId] ==
+                                              true
+                                          ? const Color.fromARGB(255, 0, 0, 0)
+                                          : Colors.black,
                                       size: 24,
                                     ),
                                   ),
