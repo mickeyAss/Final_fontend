@@ -37,29 +37,7 @@ class _SearchpageState extends State<Searchpage> {
     }
   }
 
-  Widget _buildLoadingWidget() {
-    return Center(
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.grey.shade800,
-              Colors.grey.shade600,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            strokeWidth: 3,
-          ),
-        ),
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +46,12 @@ class _SearchpageState extends State<Searchpage> {
         future: loadData_user,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting && user.isEmpty) {
-            return _buildLoadingWidget();
+            return const Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.black,
+                    strokeWidth: 2,
+                  ),
+                );
           } else if (snapshot.hasError) {
             return Center(child: Text('Error loading user data'));
           }

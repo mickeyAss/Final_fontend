@@ -1,21 +1,21 @@
 import 'dart:convert';
 // To parse this JSON data, do
 //
-//     final getAllPost = getAllPostFromJson(jsonString);
+//     final getPostLike = getPostLikeFromJson(jsonString);
 
 
-List<GetAllPost> getAllPostFromJson(String str) => List<GetAllPost>.from(json.decode(str).map((x) => GetAllPost.fromJson(x)));
+List<GetPostLike> getPostLikeFromJson(String str) => List<GetPostLike>.from(json.decode(str).map((x) => GetPostLike.fromJson(x)));
 
-String getAllPostToJson(List<GetAllPost> data) => json.encode(List<dynamic>.from(data.map((x) => x.toJson())));
+String getPostLikeToJson(List<GetPostLike> data) => json.encode(List<dynamic>.from(data.map((x) => x.toJson())));
 
-class GetAllPost {
+class GetPostLike {
     Post post;
     User user;
     List<Image> images;
     List<Category> categories;
     List<Hashtag> hashtags;
 
-    GetAllPost({
+    GetPostLike({
         required this.post,
         required this.user,
         required this.images,
@@ -23,7 +23,7 @@ class GetAllPost {
         required this.hashtags,
     });
 
-    factory GetAllPost.fromJson(Map<String, dynamic> json) => GetAllPost(
+    factory GetPostLike.fromJson(Map<String, dynamic> json) => GetPostLike(
         post: Post.fromJson(json["post"]),
         user: User.fromJson(json["user"]),
         images: List<Image>.from(json["images"].map((x) => Image.fromJson(x))),
@@ -113,49 +113,48 @@ class Image {
 }
 
 class Post {
-  int postId;
-  String? postTopic;
-  String? postDescription;
-  DateTime postDate;
-  int postFkUid;
-  int amountOfLike;
-  int amountOfComment;     // ✅ เพิ่ม
-  int amountOfSave;        // ✅ เพิ่ม
+    int postId;
+    String? postTopic;
+    String? postDescription;
+    DateTime postDate;
+    int postFkUid;
+    int amountOfLike;
+    int amountOfSave;
+    int amountOfComment;
 
-  Post({
-    required this.postId,
-    required this.postTopic,
-    required this.postDescription,
-    required this.postDate,
-    required this.postFkUid,
-    required this.amountOfLike,
-    required this.amountOfComment,    // ✅ เพิ่ม
-    required this.amountOfSave,       // ✅ เพิ่ม
-  });
+    Post({
+        required this.postId,
+        required this.postTopic,
+        required this.postDescription,
+        required this.postDate,
+        required this.postFkUid,
+        required this.amountOfLike,
+        required this.amountOfSave,
+        required this.amountOfComment,
+    });
 
-  factory Post.fromJson(Map<String, dynamic> json) => Post(
+    factory Post.fromJson(Map<String, dynamic> json) => Post(
         postId: json["post_id"],
         postTopic: json["post_topic"],
         postDescription: json["post_description"],
         postDate: DateTime.parse(json["post_date"]),
         postFkUid: json["post_fk_uid"],
-        amountOfLike: json["amount_of_like"] ?? 0,
-        amountOfComment: json["amount_of_comment"] ?? 0,  // ✅ รองรับ null
-        amountOfSave: json["amount_of_save"] ?? 0,        // ✅ รองรับ null
-      );
+        amountOfLike: json["amount_of_like"],
+        amountOfSave: json["amount_of_save"],
+        amountOfComment: json["amount_of_comment"],
+    );
 
-  Map<String, dynamic> toJson() => {
+    Map<String, dynamic> toJson() => {
         "post_id": postId,
         "post_topic": postTopic,
         "post_description": postDescription,
         "post_date": postDate.toIso8601String(),
         "post_fk_uid": postFkUid,
         "amount_of_like": amountOfLike,
-        "amount_of_comment": amountOfComment,   // ✅ ส่งกลับ
-        "amount_of_save": amountOfSave,         // ✅ ส่งกลับ
-      };
+        "amount_of_save": amountOfSave,
+        "amount_of_comment": amountOfComment,
+    };
 }
-
 
 class User {
     int uid;

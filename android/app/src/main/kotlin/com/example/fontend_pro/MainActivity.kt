@@ -1,5 +1,6 @@
-package com.example.fontend_pro
+package com.example.firebaseapp
 
 import io.flutter.embedding.android.FlutterActivity
 
-class MainActivity: FlutterActivity()
+class MainActivity : FlutterActivity() {
+}

@@ -13,15 +13,15 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await GetStorage.init();
-
+  
   final gs = GetStorage();
   var user = gs.read('user');
   print('user ---> $user');
 
-  String firstPage = (user == null) ? '/login' : '/mainPage';
+  String firstPage = (user == null) ? '/login' : '/mainPage'; 
 
   runApp(MyApp(initialRoute: firstPage));
-}
+}  
 
 class MyApp extends StatelessWidget {
   final String initialRoute;  
