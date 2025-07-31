@@ -79,69 +79,94 @@ class _MainpageState extends State<Mainpage> {
         padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85), // สีเข้มขึ้น
+            color: Colors.white,
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
-                offset: Offset(0, 10),
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 25,
+                offset: const Offset(0, 8),
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+              // Inner shadow effect
+              BoxShadow(
+                color: Colors.white.withOpacity(0.9),
+                blurRadius: 1,
+                offset: const Offset(0, 1),
+                spreadRadius: -1,
               ),
             ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
-            child: BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              currentIndex: _currentIndex,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              selectedItemColor: Colors.white,
-              unselectedItemColor: Colors.white60,
-              selectedFontSize: 0,
-              unselectedFontSize: 0,
-              showSelectedLabels: false,
-              showUnselectedLabels: false,
-              onTap: (index) {
-                if (index == 2) {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.white,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20)),
-                    ),
-                    builder: (context) => const UserUploadPhotopage(),
-                  );
-                } else {
-                  setState(() {
-                    _currentIndex = index;
-                  });
-                }
-              },
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.home_filled),
-                  label: 'Home',
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white,
+                    Colors.grey.shade50,
+                  ],
                 ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.search),
-                  label: 'Search',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.add_circle_outline),
-                  label: 'Upload',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.group),
-                  label: 'Friends',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label: 'Profile',
-                ),
-              ],
+              ),
+              child: BottomNavigationBar(
+                type: BottomNavigationBarType.fixed,
+                currentIndex: _currentIndex,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                selectedItemColor: Colors.black87,
+                unselectedItemColor: Colors.grey.shade600,
+                selectedFontSize: 0,
+                unselectedFontSize: 0,
+                showSelectedLabels: false,
+                showUnselectedLabels: false,
+                onTap: (index) {
+                  if (index == 2) {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (context) => const UserUploadPhotopage(),
+                    );
+                  } else {
+                    setState(() {
+                      _currentIndex = index;
+                    });
+                  }
+                },
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.home_filled),
+                    label: 'Home',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.search),
+                    label: 'Search',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.add_circle_outline),
+                    label: 'Upload',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.group),
+                    label: 'Friends',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.person),
+                    label: 'Profile',
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -11,14 +11,18 @@ String insertpostToJson(Insertpost data) => json.encode(data.toJson());
 class Insertpost {
     String postTopic;
     String postDescription;
-    String postFkUid;
+    int postFkUid;
     List<String> images;
+    List<int> categoryIdFk;
+    List<int> hashtags;
 
     Insertpost({
         required this.postTopic,
         required this.postDescription,
         required this.postFkUid,
         required this.images,
+        required this.categoryIdFk,
+        required this.hashtags,
     });
 
     factory Insertpost.fromJson(Map<String, dynamic> json) => Insertpost(
@@ -26,6 +30,8 @@ class Insertpost {
         postDescription: json["post_description"],
         postFkUid: json["post_fk_uid"],
         images: List<String>.from(json["images"].map((x) => x)),
+        categoryIdFk: List<int>.from(json["category_id_fk"].map((x) => x)),
+        hashtags: List<int>.from(json["hashtags"].map((x) => x)),
     );
 
     Map<String, dynamic> toJson() => {
@@ -33,5 +39,7 @@ class Insertpost {
         "post_description": postDescription,
         "post_fk_uid": postFkUid,
         "images": List<dynamic>.from(images.map((x) => x)),
+        "category_id_fk": List<dynamic>.from(categoryIdFk.map((x) => x)),
+        "hashtags": List<dynamic>.from(hashtags.map((x) => x)),
     };
 }

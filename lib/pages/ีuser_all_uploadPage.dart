@@ -656,8 +656,10 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
       final postModel = Insertpost(
         postTopic: topic,
         postDescription: description,
-        postFkUid: user.toString(),
-        images: imageUrls, // ส่ง URL ที่อัปโหลดแล้ว
+        postFkUid: int.parse(user),
+        images: imageUrls,
+        categoryIdFk: selectedCategories.map((c) => c.cid).toList(),
+        hashtags: [], // แฮชแท็กยังไม่รองรับ
       );
 
       var config = await Configuration.getConfig();

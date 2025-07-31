@@ -430,6 +430,7 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
+  
   void showModernDialog({
     required BuildContext context,
     required IconData icon,

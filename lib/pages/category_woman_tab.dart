@@ -1,9 +1,10 @@
+import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:fontend_pro/pages/login.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
+import 'package:fontend_pro/pages/mainPage.dart';
 import 'package:fontend_pro/models/get_all_category.dart';
 import 'package:fontend_pro/models/register_user_request.dart';
 
@@ -15,18 +16,6 @@ class CategoryWomanTab extends StatefulWidget {
 }
 
 List<GetAllCategory> categories = [];
-
-class StyleItem {
-  final String imagePath;
-  final String title;
-  bool isSelected;
-
-  StyleItem({
-    required this.imagePath,
-    required this.title,
-    this.isSelected = false,
-  });
-}
 
 class _CategoryWomanTabState extends State<CategoryWomanTab> {
   late Future<List<GetAllCategory>> futureCategories;
@@ -60,7 +49,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
               if (selected.length != snapshotCategories.length) {
                 selected = List.generate(snapshotCategories.length, (_) => false);
               }
-              categories = snapshotCategories; // อัปเดตตัวแปร global
+              categories = snapshotCategories;
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -128,8 +117,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                               child: Padding(
                                 padding: const EdgeInsets.all(2.0),
                                 child: isSelected
-                                    ? const Icon(Icons.check,
-                                        size: 18, color: Colors.white)
+                                    ? const Icon(Icons.check, size: 18, color: Colors.white)
                                     : const SizedBox(width: 18, height: 18),
                               ),
                             ),
@@ -323,7 +311,6 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {
-                    // กดข้าม สมัครเลย ไม่ต้องเลือก category
                     submitRegister(skipCategory: true);
                   },
                   child: const Text('ข้าม'),
@@ -349,7 +336,6 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
     );
   }
 
-  // ดึงข้อมูลจาก API
   Future<List<GetAllCategory>> loadCategories() async {
     final config = await Configuration.getConfig();
     final url = config['apiEndpoint'];
@@ -359,10 +345,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
 
     if (response.statusCode == 200) {
       final allCategories = getAllCategoryFromJson(response.body);
-
-      // กรองเฉพาะรายการที่ ctype == Ctype.F (enum)
       final filtered = allCategories.where((item) => item.ctype == Ctype.F).toList();
-
       log("โหลดข้อมูล category สำเร็จ (${filtered.length} รายการที่ ctype = F)");
       return filtered;
     } else {
@@ -387,6 +370,8 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
         }
       }
 
+      log("🟢 Category IDs ที่เลือก: $selectedCategoryIds");
+
       if (selectedCategoryIds.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("กรุณาเลือกอย่างน้อย 1 หมวดหมู่")),
@@ -396,7 +381,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
 
       await _registerUser(selectedCategoryIds);
     } else {
-      // กรณีข้าม ไม่เลือก category ส่งเป็น list ว่าง
+      log("🟡 ข้ามการเลือก Category, ส่งค่าว่าง []");
       await _registerUser([]);
     }
   }
@@ -413,7 +398,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
       chest: gs.read('register_chest') ?? 0,
       waistCircumference: gs.read('register_waist') ?? 0,
       hip: gs.read('register_hips') ?? 0,
-      personalDescription: '', // สมมุติค่าคงที่
+      personalDescription: '',
       categoryIds: categoryIds,
     );
 
@@ -427,12 +412,23 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
         body: registerUserRequestToJson(model),
       );
 
-      log("Register response: ${response.statusCode} ${response.body}");
+      log("📨 Register response: ${response.statusCode} ${response.body}");
 
       if (response.statusCode == 201) {
+        final responseBody = response.body;
+        final Map<String, dynamic> data = responseBody.isNotEmpty
+            ? Map<String, dynamic>.from(jsonDecode(responseBody))
+            : {};
+
+        final uid = data['uid'];
+        if (uid != null) {
+          gs.write('user', uid);
+          log("✅ เก็บ UID ลง GetStorage: $uid");
+        }
+
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const Loginpage()),
+          MaterialPageRoute(builder: (_) => const Mainpage()),
         );
       } else {
         showDialog(
@@ -450,7 +446,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
         );
       }
     } catch (e) {
-      log("Register error: $e");
+      log("❗ Register error: $e");
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
