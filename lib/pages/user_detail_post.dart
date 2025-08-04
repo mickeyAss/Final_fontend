@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:get_storage/get_storage.dart';
+import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/get_post_user.dart' as model;
 
 class UserDetailPost extends StatefulWidget {
   final model.GetPostUser postUser;
-
-  const UserDetailPost({super.key, required this.postUser});
+  const UserDetailPost({Key? key, required this.postUser}) : super(key: key);
 
   @override
   State<UserDetailPost> createState() => _UserDetailPostState();
@@ -12,446 +15,267 @@ class UserDetailPost extends StatefulWidget {
 
 class _UserDetailPostState extends State<UserDetailPost>
     with TickerProviderStateMixin {
-  int _currentImageIndex = 0;
-  bool _isLiked = false;
-  bool _isSaved = false;
+  // ---------------- state ----------------
+  int currentImageIndex = 0;
+  bool isLiked = false;
+  bool isBookmarked = false;
+  bool isLoading = false;
+  int likeCount = 0;
 
-  late AnimationController _likeAnimationController;
-  late AnimationController _saveAnimationController;
-  late Animation<double> _likeAnimation;
-  late Animation<double> _saveAnimation;
+  // ---------------- animation ----------------
+  late final AnimationController _heartCtrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
 
+  // ---------------- storage ----------------
+  final GetStorage gs = GetStorage();
+
+  // ==================== LIFE CYCLE ====================
   @override
   void initState() {
     super.initState();
-    _likeAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _saveAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _likeAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(parent: _likeAnimationController, curve: Curves.elasticOut),
-    );
-    _saveAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(parent: _saveAnimationController, curve: Curves.elasticOut),
-    );
+    likeCount = widget.postUser.post.amountOfLike ?? 0;
+    _initHeartAnimation();
+    _checkIfLiked();
   }
 
   @override
   void dispose() {
-    _likeAnimationController.dispose();
-    _saveAnimationController.dispose();
+    _heartCtrl.dispose();
     super.dispose();
   }
 
+  // ==================== ANIMATION SETUP ====================
+  void _initHeartAnimation() {
+    _heartCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    _scale = Tween<double>(begin: 0.2, end: 1.3).animate(
+      CurvedAnimation(parent: _heartCtrl, curve: Curves.elasticOut),
+    );
+    _opacity = Tween<double>(begin: 1, end: 0).animate(
+      CurvedAnimation(parent: _heartCtrl, curve: const Interval(0.4, 1)),
+    );
+
+    _heartCtrl.addStatusListener((s) {
+      if (s == AnimationStatus.completed) {
+        _heartCtrl.reset();
+        setState(() => _showCenterHeart = false);
+      }
+    });
+  }
+
+  // ==================== HELPERS ====================
+  bool _showCenterHeart = false;
+
+  String _timeAgo(DateTime dt) {
+    final d = DateTime.now().difference(dt);
+    if (d.inSeconds < 60) return 'เมื่อสักครู่';
+    if (d.inMinutes < 60) return '${d.inMinutes} นาทีที่แล้ว';
+    if (d.inHours < 24) return '${d.inHours} ชั่วโมงที่แล้ว';
+    if (d.inDays < 7) return '${d.inDays} วันที่แล้ว';
+    if (d.inDays < 30) return '${(d.inDays / 7).floor()} สัปดาห์ที่แล้ว';
+    if (d.inDays < 365) return '${(d.inDays / 30).floor()} เดือนที่แล้ว';
+    return '${(d.inDays / 365).floor()} ปีที่แล้ว';
+  }
+
+  Future<void> _checkIfLiked() async {
+    try {
+      final uid = gs.read('user');
+      if (uid == null) return;
+      final cfg = await Configuration.getConfig();
+      final res = await http.get(
+        Uri.parse('${cfg['apiEndpoint']}/image_post/liked-posts/$uid'),
+      );
+      if (res.statusCode == 200) {
+        final ids = List<int>.from(json.decode(res.body)['likedPostIds']);
+        setState(() => isLiked = ids.contains(widget.postUser.post.postId));
+      }
+    } catch (_) {}
+  }
+
+  // ==================== LIKE / UNLIKE ====================
+  Future<void> _toggleLike() async {
+    if (isLoading) return;
+    final previousIsLiked = isLiked;
+    final previousLikeCount = likeCount;
+
+    // อัปเดต UI ทันที
+    setState(() {
+      isLoading = true;
+      isLiked = !isLiked;
+      likeCount += isLiked ? 1 : -1;
+    });
+
+    try {
+      final uid = gs.read('user');
+      final cfg = await Configuration.getConfig();
+      final url = isLiked
+          ? '${cfg['apiEndpoint']}/image_post/like'
+          : '${cfg['apiEndpoint']}/image_post/unlike';
+
+      final res = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'user_id': uid,
+          'post_id': widget.postUser.post.postId,
+        }),
+      );
+
+      // หาก API ล้มเหลว ให้ย้อนสถานะกลับ
+      if (res.statusCode != 200) {
+        setState(() {
+          isLiked = previousIsLiked;
+          likeCount = previousLikeCount;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เกิดข้อผิดพลาด, โปรดลองอีกครั้ง')),
+        );
+      }
+    } catch (e) {
+      // หากเกิดข้อผิดพลาดในการเชื่อมต่อ ให้ย้อนสถานะกลับ
+      setState(() {
+        isLiked = previousIsLiked;
+        likeCount = previousLikeCount;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้')),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _doubleTapLike() {
+    if (!isLiked) {
+      _toggleLike();
+    }
+    setState(() => _showCenterHeart = true);
+    _heartCtrl.forward();
+  }
+
+  // ==================== UI ====================
   @override
   Widget build(BuildContext context) {
-    final post = widget.postUser.post;
-    final images = widget.postUser.images;
-    final categories = widget.postUser.categories;
+    final p = widget.postUser.post;
+    final img = widget.postUser.images;
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 0,
-            floating: false,
-            pinned: true,
-            elevation: 0,
-            backgroundColor: Colors.white,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: const Text(
-              'โพสต์',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.more_vert, color: Colors.black),
-                onPressed: () {},
-              ),
-            ],
-          ),
-
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(title: const Text('โพสต์')),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ------------ IMAGE & DOUBLE-TAP ------------
+            Stack(
+              alignment: Alignment.center,
               children: [
-                _buildProfileHeader(),
-
-                _buildImageCarousel(images),
-
-                _buildInstagramActions(),
-
-                _buildCaptionSection(post),
-
-                if (categories.isNotEmpty) _buildHashtagSection(categories),
-
-                // เอาส่วน comments ออกตามคำขอ
-
-                Container(
-                  height: 1,
-                  color: Colors.grey[300],
-                  margin: const EdgeInsets.symmetric(vertical: 20),
-                ),
-
-                _buildRelatedSection(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: Colors.white,
-      child: Row(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF404040), Color(0xFF808080), Color(0xFF404040)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            padding: const EdgeInsets.all(2),
-            child: CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white,
-              child: CircleAvatar(
-                radius: 18,
-                backgroundImage: NetworkImage(
-                  'https://via.placeholder.com/150',
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'ผู้ใช้งาน',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'ประเทศไทย',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageCarousel(List<dynamic> images) {
-    if (images.isEmpty) {
-      return Container(
-        height: 400,
-        color: Colors.grey[100],
-        child: const Center(
-          child: Icon(
-            Icons.image_not_supported,
-            size: 80,
-            color: Colors.grey,
-          ),
-        ),
-      );
-    }
-
-    return Stack(
-      children: [
-        SizedBox(
-          height: 400,
-          child: PageView.builder(
-            itemCount: images.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentImageIndex = index;
-              });
-            },
-            itemBuilder: (context, index) {
-              return Image.network(
-                images[index].image,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return Container(
-                    color: Colors.grey[100],
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                GestureDetector(
+                  onDoubleTap: _doubleTapLike,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: PageView.builder(
+                      itemCount: img.length,
+                      onPageChanged: (i) => setState(() => currentImageIndex = i),
+                      itemBuilder: (_, i) => Image.network(
+                        img[i].image,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (_, c, lp) =>
+                            lp == null ? c : const Center(child: CircularProgressIndicator()),
+                        errorBuilder: (_, __, ___) =>
+                            const Center(child: Icon(Icons.broken_image, size: 48)),
                       ),
                     ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[100],
-                    child: const Center(
-                      child: Icon(Icons.broken_image, size: 80, color: Colors.grey),
+                  ),
+                ),
+                if (_showCenterHeart)
+                  AnimatedBuilder(
+                    animation: _heartCtrl,
+                    builder: (_, __) => Opacity(
+                      opacity: _opacity.value,
+                      child: Transform.scale(
+                        scale: _scale.value,
+                        child: const Icon(Icons.favorite, color: Colors.white, size: 100),
+                      ),
                     ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-
-        if (images.length > 1)
-          Positioned(
-            bottom: 12,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(images.length, (index) {
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: index == _currentImageIndex ? 8 : 6,
-                  height: index == _currentImageIndex ? 8 : 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: index == _currentImageIndex
-                        ? Colors.grey[800]
-                        : Colors.grey.withOpacity(0.4),
                   ),
-                );
-              }),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildInstagramActions() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _isLiked = !_isLiked;
-              });
-              if (_isLiked) {
-                _likeAnimationController.forward().then((_) {
-                  _likeAnimationController.reverse();
-                });
-              }
-            },
-            child: AnimatedBuilder(
-              animation: _likeAnimation,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _likeAnimation.value,
-                  child: Icon(
-                    _isLiked ? Icons.favorite : Icons.favorite_border,
-                    size: 28,
-                    color: _isLiked ? Colors.red : Colors.black,
+                if (img.length > 1)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                      child: Text('${currentImageIndex + 1}/${img.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    ),
                   ),
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(width: 20),
-
-          GestureDetector(
-            onTap: () {},
-            child: const Icon(
-              Icons.mode_comment_outlined,
-              size: 28,
-              color: Colors.black,
-            ),
-          ),
-
-          const SizedBox(width: 20),
-
-          GestureDetector(
-            onTap: () {},
-            child: const Icon(
-              Icons.send_outlined,
-              size: 28,
-              color: Colors.black,
-            ),
-          ),
-
-          const Spacer(),
-
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _isSaved = !_isSaved;
-              });
-              if (_isSaved) {
-                _saveAnimationController.forward().then((_) {
-                  _saveAnimationController.reverse();
-                });
-              }
-            },
-            child: AnimatedBuilder(
-              animation: _saveAnimation,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _saveAnimation.value,
-                  child: Icon(
-                    _isSaved ? Icons.bookmark : Icons.bookmark_border,
-                    size: 28,
-                    color: _isSaved ? Colors.amber : Colors.black,
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCaptionSection(dynamic post) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (post.postTopic != null)
-            Text(
-              post.postTopic!,
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-              ),
-            ),
-
-          const SizedBox(height: 8),
-
-          RichText(
-            text: TextSpan(
-              children: [
-                const TextSpan(
-                  text: 'ผู้ใช้งาน ',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
-                TextSpan(
-                  text: post.postDescription ?? 'ไม่มีรายละเอียด',
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 16,
-                    height: 1.4,
-                  ),
-                ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildHashtagSection(List<dynamic> categories) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: categories.map((cat) {
-          return GestureDetector(
-            onTap: () {},
-            child: Text(
-              '#${cat.cname}',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+            // ------------ ACTION BAR ------------
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(children: [
+                    GestureDetector(
+                      onTap: _toggleLike,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          isLiked ? Icons.favorite : Icons.favorite_border,
+                          key: ValueKey(isLiked),
+                          size: 28,
+                          color: isLiked ? Colors.red : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Icon(Icons.chat_bubble_outline, size: 28),
+                    const SizedBox(width: 16),
+                    const Icon(Icons.send, size: 28),
+                  ]),
+                  GestureDetector(
+                    onTap: () => setState(() => isBookmarked = !isBookmarked),
+                    child: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border, size: 28),
+                  ),
+                ],
               ),
             ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 
-  Widget _buildRelatedSection() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'โพสต์ที่เกี่ยวข้อง',
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
+            // ------------ LIKE COUNT ------------
+            if (likeCount > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text('$likeCount คนถูกใจ',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+
+            // ------------ CAPTION & TIME ------------
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (p.postTopic != null)
+                    Text(p.postTopic!, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  if (p.postDescription != null) ...[
+                    const SizedBox(height: 4),
+                    Text(p.postDescription!),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(_timeAgo(p.postDate), style: const TextStyle(color: Colors.grey)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: 5,
-              itemBuilder: (context, index) {
-                return Container(
-                  width: 120,
-                  margin: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.grey[300]!,
-                      width: 1,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      'https://via.placeholder.com/120',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
