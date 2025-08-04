@@ -16,22 +16,51 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
   List<AssetEntity> images = [];
   Set<AssetEntity> selectedImages = {};
   bool isLoading = false;
+  bool isLoadingMore = false;
   final int maxSelection = 5;
+  final int pageSize = 50; // จำนวนรูปที่โหลดต่อครั้ง
+  int currentPage = 0;
+  bool hasMore = true;
+  AssetPathEntity? currentAlbum;
 
   final Map<AssetEntity, Uint8List?> thumbnailCache = {};
   final GetStorage gs = GetStorage();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _loadImages();
+    _setupScrollListener();
     var user = gs.read('user');
     log('user id: ${user.toString()}');
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _setupScrollListener() {
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        // โหลดรูปเพิ่มเมื่อเหลือ 200 pixels จากท้าย
+        if (!isLoadingMore && hasMore) {
+          _loadMoreImages();
+        }
+      }
+    });
   }
 
   Future<void> _loadImages() async {
     setState(() {
       isLoading = true;
+      currentPage = 0;
+      hasMore = true;
+      images.clear();
+      thumbnailCache.clear();
     });
 
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
@@ -49,26 +78,75 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
     );
 
     if (albums.isNotEmpty) {
-      List<AssetEntity> media = await albums[0].getAssetListPaged(
-        page: 0,
-        size: 100,
+      currentAlbum = albums[0];
+      await _loadPageImages();
+    }
+
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  Future<void> _loadPageImages() async {
+    if (currentAlbum == null) return;
+
+    try {
+      List<AssetEntity> newMedia = await currentAlbum!.getAssetListPaged(
+        page: currentPage,
+        size: pageSize,
       );
 
-      for (final asset in media) {
-        final thumbData =
-            await asset.thumbnailDataWithSize(const ThumbnailSize(200, 200));
-        thumbnailCache[asset] = thumbData;
+      if (newMedia.isEmpty) {
+        setState(() {
+          hasMore = false;
+        });
+        return;
+      }
+
+      // โหลด thumbnail สำหรับรูปใหม่
+      for (final asset in newMedia) {
+        try {
+          final thumbData = await asset.thumbnailDataWithSize(
+            const ThumbnailSize(200, 200),
+          );
+          thumbnailCache[asset] = thumbData;
+        } catch (e) {
+          log('Error loading thumbnail for ${asset.id}: $e');
+          thumbnailCache[asset] = null;
+        }
       }
 
       setState(() {
-        images = media;
-        isLoading = false;
+        images.addAll(newMedia);
+        currentPage++;
+        if (newMedia.length < pageSize) {
+          hasMore = false;
+        }
       });
-    } else {
+    } catch (e) {
+      log('Error loading page images: $e');
       setState(() {
-        isLoading = false;
+        hasMore = false;
       });
     }
+  }
+
+  Future<void> _loadMoreImages() async {
+    if (isLoadingMore || !hasMore) return;
+
+    setState(() {
+      isLoadingMore = true;
+    });
+
+    await _loadPageImages();
+
+    setState(() {
+      isLoadingMore = false;
+    });
+  }
+
+  Future<void> _refreshImages() async {
+    await _loadImages();
   }
 
   void _onImageTap(AssetEntity image) {
@@ -80,7 +158,14 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
           selectedImages.add(image);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('เลือกได้สูงสุด $maxSelection รูปเท่านั้น')),
+            SnackBar(
+              content: Text('เลือกได้สูงสุด $maxSelection รูปเท่านั้น'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
           );
         }
       }
@@ -90,7 +175,11 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
   Future<void> _onNextPressed() async {
     if (selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('โปรดเลือกภาพก่อนกดถัดไป')),
+        const SnackBar(
+          content: Text('โปรดเลือกภาพก่อนกดถัดไป'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
@@ -134,7 +223,16 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
                 fit: BoxFit.cover,
               )
             else
-              Container(color: Colors.grey[900]),
+              Container(
+                color: Colors.grey[900],
+                child: const Center(
+                  child: Icon(
+                    Icons.image,
+                    color: Colors.grey,
+                    size: 40,
+                  ),
+                ),
+              ),
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               color: isSelected
@@ -157,15 +255,48 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
                       )
                     ],
                   ),
+                  padding: const EdgeInsets.all(5),
                   child: const Icon(
                     Icons.check,
                     color: Colors.white70,
                     size: 28,
                   ),
-                  padding: const EdgeInsets.all(5),
+                ),
+              ),
+            // แสดงหมายเลขการเลือกถ้าเลือกแล้ว
+            if (isSelected)
+              Positioned(
+                bottom: 8,
+                left: 8,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade700.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(
+                    '${selectedImages.toList().indexOf(image) + 1}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: const Center(
+        child: CircularProgressIndicator(
+          color: Colors.blueGrey,
+          strokeWidth: 2,
         ),
       ),
     );
@@ -187,40 +318,144 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
             letterSpacing: 0.5,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white70),
+            onPressed: _refreshImages,
+            tooltip: 'รีเฟรชรูปภาพ',
+          ),
+        ],
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.blueGrey))
+              child: CircularProgressIndicator(color: Colors.blueGrey),
+            )
           : images.isEmpty
-              ? const Center(
-                  child: Text(
-                    'ไม่พบรูปภาพในเครื่อง',
-                    style: TextStyle(color: Colors.white54, fontSize: 16),
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.photo_library_outlined,
+                        size: 64,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'ไม่พบรูปภาพในเครื่อง',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: _refreshImages,
+                        child: const Text(
+                          'รีเฟรช',
+                          style: TextStyle(color: Colors.blueGrey),
+                        ),
+                      ),
+                    ],
                   ),
                 )
-              : Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: GridView.builder(
-                    itemCount: images.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                      childAspectRatio: 1,
+              : RefreshIndicator(
+                  onRefresh: _refreshImages,
+                  color: Colors.blueGrey,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: CustomScrollView(
+                      controller: _scrollController,
+                      slivers: [
+                        SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 14,
+                            childAspectRatio: 1,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => _buildGridItem(images[index]),
+                            childCount: images.length,
+                          ),
+                        ),
+                        if (isLoadingMore)
+                          SliverToBoxAdapter(
+                            child: _buildLoadingIndicator(),
+                          ),
+                        if (!hasMore && images.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              child: Center(
+                                child: Text(
+                                  'แสดงรูปภาพทั้งหมดแล้ว (${images.length} รูป)',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    itemBuilder: (context, index) =>
-                        _buildGridItem(images[index]),
                   ),
                 ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _onNextPressed,
-        icon: const Icon(Icons.arrow_forward),
-        label: const Text('ถัดไป'),
-        backgroundColor: Colors.blueGrey.shade700,
-        foregroundColor: Colors.white70,
-        elevation: 8,
-      ),
+      floatingActionButton: selectedImages.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _onNextPressed,
+              icon: const Icon(Icons.arrow_forward),
+              label: Text('ถัดไป (${selectedImages.length})'),
+              backgroundColor: Colors.blueGrey.shade700,
+              foregroundColor: Colors.white70,
+              elevation: 8,
+            )
+          : null,
+      bottomNavigationBar: selectedImages.isNotEmpty
+          ? Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F1F1F),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'เลือกแล้ว ${selectedImages.length} รูป',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (selectedImages.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            selectedImages.clear();
+                          });
+                        },
+                        child: const Text(
+                          'ล้างทั้งหมด',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
