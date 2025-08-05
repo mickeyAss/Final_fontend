@@ -33,6 +33,9 @@ class _FollowingTabState extends State<FollowingTab> {
   Map<int, int> likeCountMap = {};
   Map<int, bool> likedMap = {};
 
+   Map<int, int> currentPageMap = {};
+  Map<int, PageController> pageControllers = {};
+
   bool isInitialLoading = true;
   bool isRefreshing = false;
 
@@ -840,9 +843,9 @@ Future<void> loadAllPosts() async {
                                         shape: BoxShape.circle,
                                         gradient: LinearGradient(
                                           colors: [
-                                            Colors.purple,
-                                            Colors.pink,
-                                            Colors.orange,
+                                            Colors.black,
+                                            Colors.black12,
+                                            Colors.black54,
                                           ],
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
@@ -918,14 +921,20 @@ Future<void> loadAllPosts() async {
                               ),
 
                               // Image Section (Instagram style - full width)
+                                // Image Section (Instagram style - full width)
                               if (postItem.images.isNotEmpty)
                                 SizedBox(
-                                  height: 400, // Fixed Instagram-like height
+                                  height: 400,
                                   width: double.infinity,
                                   child: Stack(
                                     children: [
                                       PageView(
                                         controller: pageController,
+                                        onPageChanged: (page) {
+                                          setState(() {
+                                            currentPageMap[index] = page;
+                                          });
+                                        },
                                         children: postItem.images.map((img) {
                                           return GestureDetector(
                                             onDoubleTap: () async {
@@ -967,7 +976,6 @@ Future<void> loadAllPosts() async {
                                               errorBuilder:
                                                   (context, error, stackTrace) {
                                                 return Container(
-                                                  height: 400,
                                                   color: Colors.grey[100],
                                                   child: Center(
                                                     child: Column(
@@ -985,10 +993,9 @@ Future<void> loadAllPosts() async {
                                                         Text(
                                                           'ไม่สามารถโหลดรูปภาพได้',
                                                           style: TextStyle(
-                                                            color: Colors
-                                                                .grey[600],
-                                                            fontSize: 14,
-                                                          ),
+                                                              color: Colors
+                                                                  .grey[600],
+                                                              fontSize: 14),
                                                         ),
                                                       ],
                                                     ),
@@ -999,6 +1006,42 @@ Future<void> loadAllPosts() async {
                                           );
                                         }).toList(),
                                       ),
+                                      // แถบเลื่อนด้านล่าง
+                                      Positioned(
+                                        bottom: 8,
+                                        left: 0,
+                                        right: 0,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: List.generate(
+                                              postItem.images.length,
+                                              (dotIndex) {
+                                            return Container(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 4),
+                                              width: currentPageMap[index] ==
+                                                      dotIndex
+                                                  ? 10
+                                                  : 6,
+                                              height: currentPageMap[index] ==
+                                                      dotIndex
+                                                  ? 10
+                                                  : 6,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: currentPageMap[index] ==
+                                                        dotIndex
+                                                    ? Colors.white
+                                                    : Colors.white
+                                                        .withOpacity(0.4),
+                                              ),
+                                            );
+                                          }),
+                                        ),
+                                      ),
+
 
                                       // Heart animation
                                       Center(
@@ -1084,11 +1127,24 @@ Future<void> loadAllPosts() async {
                                             : Icons.favorite_border,
                                         color: likedMap[postItem.post.postId] ==
                                                 true
-                                            ? const Color.fromARGB(255, 0, 0, 0)
+                                            ? Colors.red
                                             : Colors.black,
                                         size: 24,
                                       ),
                                     ),
+                                    // Likes count
+                              if ((likeCountMap[postItem.post.postId] ?? 0) > 0)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  child: Text(
+                                    '${likeCountMap[postItem.post.postId]} ',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
                                     const SizedBox(width: 16),
 
                                     // Comment button
@@ -1097,24 +1153,14 @@ Future<void> loadAllPosts() async {
                                         // Handle comment
                                       },
                                       child: const Icon(
-                                        Icons.chat_bubble_outline,
+                                        Icons.chat,
                                         color: Colors.black,
                                         size: 24,
                                       ),
                                     ),
                                     const SizedBox(width: 16),
 
-                                    // Share button
-                                    GestureDetector(
-                                      onTap: () {
-                                        // Handle share
-                                      },
-                                      child: const Icon(
-                                        Icons.send_outlined,
-                                        color: Colors.black,
-                                        size: 24,
-                                      ),
-                                    ),
+                                    
 
                                     const Spacer(),
 
@@ -1133,17 +1179,40 @@ Future<void> loadAllPosts() async {
                                 ),
                               ),
 
-                              // Likes count
-                              if ((likeCountMap[postItem.post.postId] ?? 0) > 0)
+                               // Categories (simplified)
+                              if (postItem.categories.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  child: Text(
-                                    '${likeCountMap[postItem.post.postId]} คนถูกใจ',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
+                                      horizontal: 12, vertical: 8),
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: postItem.categories.map((cat) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: const Color.fromARGB(255, 214, 214, 214), // พื้นหลังอ่อน
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                              color: Color.fromARGB(255, 0, 0, 0)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              cat.cname,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: const Color.fromARGB(255, 0, 0, 0),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
                                   ),
                                 ),
 

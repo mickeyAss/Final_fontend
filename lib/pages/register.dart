@@ -2,8 +2,6 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/pages/choose_categoryPage.dart';
-import 'package:get/get.dart';
-
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -106,13 +104,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   suggestedValues: List.generate(41, (i) => 150 + i),
                   onChanged: (val) => setState(() => height = val),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('*ไม่จำเป็นต้องระบุ',
-                        style: TextStyle(color: Colors.red, fontSize: 12)),
-                  ],
-                ),
                 _buildInputWithDropdown(
                   label: 'น้ำหนัก',
                   unit: 'กก.',
@@ -120,54 +111,26 @@ class _RegisterPageState extends State<RegisterPage> {
                   suggestedValues: List.generate(51, (i) => 40 + i),
                   onChanged: (val) => setState(() => weight = val),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('*ไม่จำเป็นต้องระบุ',
-                        style: TextStyle(color: Colors.red, fontSize: 12)),
-                  ],
-                ),
                 _buildInputWithDropdown(
                   label: 'รอบอก',
-                  unit: 'นิ้ว',
+                  unit: 'ซม.',
                   value: chest,
-                  suggestedValues: List.generate(51, (i) => 20 + i),
+                  suggestedValues: List.generate(51, (i) => 70 + i),
                   onChanged: (val) => setState(() => chest = val),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('*ไม่จำเป็นต้องระบุ',
-                        style: TextStyle(color: Colors.red, fontSize: 12)),
-                  ],
                 ),
                 _buildInputWithDropdown(
                   label: 'รอบเอว',
-                  unit: 'นิ้ว',
+                  unit: 'ซม.',
                   value: waist,
-                  suggestedValues: List.generate(51, (i) => 15 + i),
+                  suggestedValues: List.generate(51, (i) => 60 + i),
                   onChanged: (val) => setState(() => waist = val),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('*ไม่จำเป็นต้องระบุ',
-                        style: TextStyle(color: Colors.red, fontSize: 12)),
-                  ],
                 ),
                 _buildInputWithDropdown(
                   label: 'สะโพก',
-                  unit: 'นิ้ว',
+                  unit: 'ซม.',
                   value: hips,
-                  suggestedValues: List.generate(51, (i) => 20 + i),
+                  suggestedValues: List.generate(51, (i) => 80 + i),
                   onChanged: (val) => setState(() => hips = val),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('*ไม่จำเป็นต้องระบุ',
-                        style: TextStyle(color: Colors.red, fontSize: 12)),
-                  ],
                 ),
                 SizedBox(height: 12),
                 _buildDropdownInput('Size'),
@@ -190,10 +153,7 @@ class _RegisterPageState extends State<RegisterPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () {
-            Get.to(ChooseCategorypage());
-              // register(); // เรียกใช้ฟังก์ชัน register() ที่คุณต้องการ
-            },
+            onPressed: register,
             child: const Text(
               'ยืนยัน',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -277,8 +237,7 @@ class _RegisterPageState extends State<RegisterPage> {
         readOnly: readOnly, // คุณจะเห็นว่าค่าดีฟอลต์เป็น false
         cursorColor: Colors.grey,
         decoration: InputDecoration(
-          hintText: label,
-          hintStyle: TextStyle(color: Colors.grey),
+          labelText: label,
           filled: true,
           fillColor: readOnly ? Colors.grey.shade200 : Colors.white,
           enabledBorder: OutlineInputBorder(
@@ -323,14 +282,9 @@ class _RegisterPageState extends State<RegisterPage> {
             onChanged: (value) => setState(() => selectedSize = value),
           ),
         ),
-        SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text('*ไม่จำเป็นต้องระบุ',
-                style: TextStyle(color: Colors.red, fontSize: 12)),
-          ],
-        ),
+        SizedBox(height: 4),
+        Text('*ไม่จำเป็นต้องระบุ',
+            style: TextStyle(color: Colors.red, fontSize: 12)),
       ],
     );
   }

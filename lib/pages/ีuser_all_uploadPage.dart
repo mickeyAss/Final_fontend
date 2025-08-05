@@ -2,14 +2,17 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:fontend_pro/models/get_all_category.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/pages/mainpage.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:fontend_pro/models/insert_post.dart';
+import 'package:fontend_pro/models/get_hashtags.dart';
+import 'package:fontend_pro/models/insert_hashtag.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:fontend_pro/models/get_all_category.dart';
 
 // อย่าลืมนำเข้าหน้า Mainpage ด้วย
 
@@ -28,12 +31,21 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
   List<GetAllCategory> selectedCategories = [];
   late Future<List<GetAllCategory>> futureCategories;
 
-  String _postPrivacy = 'Public'; // ค่าเริ่มต้น
+  String postVisibility = 'Public'; // ค่าเริ่มต้น
+
+  List<Datum> hashtagSuggestions = []; // ✅ ใช้ Datum ไม่ใช่ GetHashtags
+  bool isShowingHashtagSuggestions = false;
+  String currentHashtagQuery = '';
+  int hashtagStartPosition = 0;
+  OverlayEntry? hashtagOverlay;
+  final LayerLink _layerLink = LayerLink();
+
+  List<Datum> selectedHashtags = [];
 
   final TextEditingController _topicController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  final Map<String, Map<String, dynamic>> privacyOptions = {
+  final Map<String, Map<String, dynamic>> privacyOptions = { 
     'Public': {
       'label': 'โพสต์แบบสาธารณะ',
       'icon': Icons.public,
@@ -49,6 +61,8 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
     super.initState();
     _loadSelectedAssets();
     futureCategories = loadCategories();
+    fetchHashtags(); // เดิม
+    _setupDescriptionListener(); // เพิ่มใหม่
   }
 
   Future<void> _loadSelectedAssets() async {
@@ -84,6 +98,358 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
       selectedAssets = assets;
       isLoading = false;
     });
+  }
+
+  @override
+  void dispose() {
+    _removeHashtagOverlay();
+    _descriptionController.dispose();
+    _topicController.dispose();
+    super.dispose();
+  }
+
+// ฟังก์ชันใหม่สำหรับจัดการ hashtag search
+  void _setupDescriptionListener() {
+    _descriptionController.addListener(() {
+      _handleHashtagSearch();
+    });
+  }
+
+  void _handleHashtagSearch() {
+    final text = _descriptionController.text;
+    final cursorPosition = _descriptionController.selection.baseOffset;
+
+    if (cursorPosition <= 0) {
+      _hideHashtagSuggestions();
+      return;
+    }
+
+    int hashtagStart = -1;
+    for (int i = cursorPosition - 1; i >= 0; i--) {
+      if (text[i] == '#') {
+        hashtagStart = i;
+        break;
+      } else if (text[i] == ' ' || text[i] == '\n') {
+        break;
+      }
+    }
+
+    if (hashtagStart == -1) {
+      _hideHashtagSuggestions();
+      return;
+    }
+
+    String hashtagQuery = text.substring(hashtagStart + 1, cursorPosition);
+
+    if (hashtagQuery.contains(' ') || hashtagQuery.contains('\n')) {
+      _hideHashtagSuggestions();
+      return;
+    }
+
+    hashtagStartPosition = hashtagStart;
+    currentHashtagQuery = hashtagQuery;
+
+    _searchHashtags(hashtagQuery); // ✅ แสดงผลแบบ real-time
+  }
+
+  Future<void> _searchHashtags(String query) async {
+    try {
+      final config = await Configuration.getConfig();
+      final url = config['apiEndpoint'];
+
+      final response =
+          await http.get(Uri.parse('$url/hashtags/search?q=$query'));
+
+      if (response.statusCode == 200) {
+        final getHashtags = getHashtagsFromJson(response.body);
+        final results = getHashtags.data;
+
+        if (results.isNotEmpty) {
+          setState(() {
+            hashtagSuggestions = results;
+          });
+          _showHashtagSuggestions();
+        } else {
+          _hideHashtagSuggestions(); // ✅ ไม่มีผลลัพธ์ → ปิดรายการ
+        }
+      } else {
+        _hideHashtagSuggestions(); // ✅ error → ปิดรายการ
+      }
+    } catch (e) {
+      log('Error searching hashtags: $e');
+      _hideHashtagSuggestions();
+    }
+  }
+
+  void _showHashtagSuggestions() {
+    if (hashtagSuggestions.isEmpty) return;
+
+    _removeHashtagOverlay();
+
+    hashtagOverlay = OverlayEntry(
+      builder: (context) {
+        final mediaQuery = MediaQuery.of(context);
+        final keyboardHeight = mediaQuery.viewInsets.bottom;
+
+        return Positioned(
+          left: 12,
+          right: 12,
+          bottom: keyboardHeight + 70,
+          child: CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            offset: const Offset(0, 5),
+            child: Material(
+              elevation: 0,
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.transparent,
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 280),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                      spreadRadius: 0,
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.grey.shade100,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF6B6B),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Icon(
+                                Icons.tag,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'แท็กยอดนิยม',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // List
+                      Flexible(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shrinkWrap: true,
+                          itemCount: hashtagSuggestions.length,
+                          itemBuilder: (context, index) {
+                            final hashtag = hashtagSuggestions[index];
+                            return _buildHashtagItem(hashtag, index);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    Overlay.of(context).insert(hashtagOverlay!);
+    setState(() {
+      isShowingHashtagSuggestions = true;
+    });
+  }
+
+  Widget _buildHashtagItem(dynamic hashtag, int index) {
+    // สร้างสีพื้นหลังที่หลากหลาย
+    final colors = [
+      const Color(0xFFFF6B6B),
+      const Color(0xFF4ECDC4),
+      const Color(0xFF45B7D1),
+      const Color(0xFF96CEB4),
+      const Color(0xFFFECA57),
+      const Color(0xFF6C5CE7),
+      const Color(0xFFFF9FF3),
+      const Color(0xFFFF6B35),
+    ];
+
+    final color = colors[index % colors.length];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.transparent,
+      ),
+      child: InkWell(
+        onTap: () => _selectHashtag(hashtag.tagName),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+          child: Row(
+            children: [
+              // Avatar แท็ก
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      color.withOpacity(0.8),
+                      color.withOpacity(0.6),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.tag_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 14),
+              // ข้อมูลแท็ก
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '#${hashtag.tagName}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: Color(0xFF2D3748),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'แท็กยอดนิยม • แตะเพื่อเพิ่ม',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ไอคอนเพิ่ม
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.add_rounded,
+                  color: color,
+                  size: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+// ปรับปรุงฟังก์ชันเลือกแท็ก
+  void _selectHashtag(String hashtagName) {
+    final selectedTag = hashtagSuggestions.firstWhere(
+      (tag) => tag.tagName == hashtagName,
+      orElse: () => Datum(tagId: -1, tagName: hashtagName),
+    );
+
+    // ป้องกันซ้ำ
+    if (!selectedHashtags.any((tag) => tag.tagName == selectedTag.tagName)) {
+      selectedHashtags.add(selectedTag);
+    }
+
+    final text = _descriptionController.text;
+    final beforeHashtag = text.substring(0, hashtagStartPosition);
+    final afterCursor =
+        text.substring(_descriptionController.selection.baseOffset);
+
+    final newText = '$beforeHashtag#$hashtagName $afterCursor';
+    final newCursorPosition = beforeHashtag.length + hashtagName.length + 2;
+
+    _descriptionController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursorPosition),
+    );
+
+    // เพิ่ม animation เมื่อเลือกแท็ก
+    _hideHashtagSuggestions();
+
+    // แสดง feedback
+    HapticFeedback.lightImpact();
+  }
+
+// ปรับปรุงฟังก์ชันซ่อนแท็ก
+  void _hideHashtagSuggestions() {
+    _removeHashtagOverlay();
+    setState(() {
+      isShowingHashtagSuggestions = false;
+      hashtagSuggestions.clear();
+      currentHashtagQuery = '';
+    });
+  }
+
+// เพิ่ม animation สำหรับการปิด overlay
+  void _removeHashtagOverlay() {
+    hashtagOverlay?.remove();
+    hashtagOverlay = null;
   }
 
   void _showCategoryBottomSheet(BuildContext context) {
@@ -178,402 +544,526 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+        backgroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
         automaticallyImplyLeading: false,
         leading: IconButton(
-          icon: Icon(Icons.keyboard_arrow_left, color: Colors.white, size: 28),
+          icon: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.keyboard_arrow_left,
+              color: Colors.black87,
+              size: 20,
+            ),
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text('สมัครสมาชิก',
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white)),
+        title: const Text(
+          'สร้างโพสต์ใหม่',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
+            letterSpacing: -0.5,
+          ),
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: TextButton(
+              onPressed: submitPost,
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                minimumSize: const Size(0, 36),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: const Text(
+                'โพสต์',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Colors.black))
           : selectedAssets.isEmpty
-              ? const Center(child: Text('ไม่มีรูปภาพที่เลือก'))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+              ? Center(
                   child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: 250,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: EdgeInsets.zero,
-                            itemCount: selectedAssets.length,
-                            itemBuilder: (context, index) {
-                              final asset = selectedAssets[index];
-                              return FutureBuilder<Uint8List?>(
-                                future: asset.thumbnailDataWithSize(
-                                  const ThumbnailSize(300, 300),
-                                ),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                          ConnectionState.done &&
-                                      snapshot.hasData) {
-                                    return GestureDetector(
-                                      onTap: () async {
-                                        await showDialog(
-                                          context: context,
-                                          barrierDismissible: true,
-                                          builder: (context) {
-                                            return Dialog(
-                                              backgroundColor:
-                                                  Colors.transparent,
-                                              insetPadding:
-                                                  const EdgeInsets.all(16),
-                                              child: ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                child: InteractiveViewer(
-                                                  child: Image.memory(
-                                                    snapshot.data!,
-                                                    fit: BoxFit.contain,
-                                                    width:
-                                                        MediaQuery.of(context)
-                                                                .size
-                                                                .width *
-                                                            0.8,
-                                                    height:
-                                                        MediaQuery.of(context)
-                                                                .size
-                                                                .height *
-                                                            0.6,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.image_not_supported_outlined,
+                        size: 64,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'ไม่มีรูปภาพที่เลือก',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Image Gallery Section
+                      Container(
+                        height: 280,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: selectedAssets.length,
+                          itemBuilder: (context, index) {
+                            final asset = selectedAssets[index];
+                            return FutureBuilder<Uint8List?>(
+                              future: asset.thumbnailDataWithSize(
+                                const ThumbnailSize(400, 400),
+                              ),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                        ConnectionState.done &&
+                                    snapshot.hasData) {
+                                  return GestureDetector(
+                                    onTap: () => _showImagePreview(
+                                        context, snapshot.data!),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 12),
+                                      width: 220,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.1),
+                                            blurRadius: 20,
+                                            offset: const Offset(0, 8),
+                                          ),
+                                        ],
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            Image.memory(
+                                              snapshot.data!,
+                                              fit: BoxFit.cover,
+                                            ),
+                                            // Gradient overlay
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: [
+                                                    Colors.transparent,
+                                                    Colors.black
+                                                        .withOpacity(0.1),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                            // Image counter
+                                            if (selectedAssets.length > 1)
+                                              Positioned(
+                                                top: 12,
+                                                right: 12,
+                                                child: Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withOpacity(0.7),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                  ),
+                                                  child: Text(
+                                                    '${index + 1}/${selectedAssets.length}',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                            );
-                                          },
-                                        );
-                                      },
-                                      child: Container(
-                                        margin:
-                                            const EdgeInsets.only(right: 12),
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black12,
-                                              blurRadius: 8,
-                                              offset: const Offset(2, 4),
-                                            ),
                                           ],
                                         ),
-                                        child: Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 12),
-                                          child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                            child: Image.memory(
-                                              snapshot.data!,
-                                              fit: BoxFit.cover,
-                                              width: 200,
-                                              height: 200,
-                                            ),
-                                          ),
-                                        ),
                                       ),
-                                    );
-                                  }
-                                  return Container(
-                                    width: 200,
-                                    height: 200,
-                                    margin: const EdgeInsets.only(right: 12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[300],
-                                      borderRadius: BorderRadius.circular(16),
                                     ),
                                   );
-                                },
-                              );
-                            },
-                          ),
+                                }
+                                return Container(
+                                  width: 220,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                         ),
-                        SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(
-                                height: 10,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  padding: EdgeInsets.zero,
-                                  itemCount: selectedAssets.length,
-                                  itemBuilder: (context, index) {
-                                    // รูปภาพเหมือนเดิม
-                                    return const SizedBox.shrink();
-                                  },
-                                ),
-                              ),
-                              Text(
-                                'หัวเรื่องที่น่าสนใจ',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey.shade900,
-                                      letterSpacing: 0.5,
-                                    ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextField(
-                                controller: _topicController,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'Poppins',
-                                  height: 1.3,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: 'พิมพ์หัวเรื่องที่นี่...',
-                                  floatingLabelBehavior:
-                                      FloatingLabelBehavior.never,
-                                  filled: true,
-                                  fillColor: Colors.grey.shade100,
-                                  prefixIcon: Container(
-                                    margin: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Colors.black,
-                                          Colors.grey,
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(Icons.title,
-                                        color: Colors.white),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 12),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: const BorderSide(
-                                      color: Color.fromARGB(255, 0, 0, 0),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  hintStyle:
-                                      TextStyle(color: Colors.grey.shade600),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'คำบรรยาย',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey.shade900,
-                                      letterSpacing: 0.5,
-                                    ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextField(
-                                controller: _descriptionController,
-                                maxLines: 4,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontFamily: 'Poppins',
-                                  height: 1.4,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText:
-                                      'เขียนคำบรรยายหรือเพิ่มแฮชแท็ก(#) เกี่ยวกับไลฟ์สไตล์ของคุณ...',
-                                  floatingLabelBehavior:
-                                      FloatingLabelBehavior.never,
-                                  filled: true,
-                                  fillColor: Colors.grey.shade100,
-                                  prefixIcon: Container(
-                                    margin: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Colors.black,
-                                          Colors.grey,
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(Icons.edit_note,
-                                        color: Colors.white),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 12),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: const BorderSide(
-                                      color: Color.fromARGB(255, 0, 0, 0),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  hintStyle:
-                                      TextStyle(color: Colors.grey.shade600),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 20),
-                                child: TextButton(
-                                  onPressed: () {
-                                    _showCategoryBottomSheet(context);
-                                  },
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets
-                                        .zero, // เอาระยะขอบออกให้เหมือนข้อความปกติ
-                                    minimumSize: Size(0, 0), // ลดขนาดให้เล็กสุด
-                                    tapTargetSize: MaterialTapTargetSize
-                                        .shrinkWrap, // ลดพื้นที่แตะ
-                                    alignment: Alignment
-                                        .centerLeft, // จัดข้อความชิดซ้าย
-                                    foregroundColor:
-                                        Colors.black, // สีข้อความดำ
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.category_outlined,
-                                              size: 20),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                              "เลือกสไตล์ในโพสต์ของคุณ (${selectedCategories.length})"),
-                                        ],
-                                      ),
-                                      const Icon(Icons.keyboard_arrow_right),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              Container(
-                                height: 44,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border:
-                                      Border.all(color: Colors.grey.shade400),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: _postPrivacy,
-                                    isExpanded: true,
-                                    icon: const Icon(Icons.arrow_drop_down,
-                                        color: Colors.black54),
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.black87,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    items: privacyOptions.entries.map((entry) {
-                                      final isSelected =
-                                          entry.key == _postPrivacy;
-                                      return DropdownMenuItem<String>(
-                                        value: entry.key,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 6),
-                                          decoration: isSelected
-                                              ? BoxDecoration(
-                                                  color: Colors.black
-                                                      .withOpacity(0.05),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                )
-                                              : null,
-                                          child: Row(
-                                            children: [
-                                              Icon(entry.value['icon'],
-                                                  color: Colors.black87,
-                                                  size: 18),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                entry.value['label'],
-                                                style: TextStyle(
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.bold
-                                                      : FontWeight.w400,
-                                                  color: isSelected
-                                                      ? Colors.black
-                                                      : Colors.grey[800],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      if (value != null &&
-                                          value != _postPrivacy) {
-                                        _postPrivacy = value;
-                                        if (mounted) setState(() {});
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                      ),
+
+                      // Content Section
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Topic Section
+                            _buildSectionHeader(
+                                'หัวเรื่อง', Icons.title_rounded),
+                            const SizedBox(height: 12),
+                            _buildTopicField(),
+                            const SizedBox(height: 24),
+
+                            // Description Section
+                            _buildSectionHeader(
+                                'คำบรรยาย', Icons.edit_note_rounded),
+                            const SizedBox(height: 12),
+                            _buildDescriptionField(),
+                            const SizedBox(height: 24),
+
+                            // Category Section
+                            _buildCategorySection(),
+                            const SizedBox(height: 24),
+
+                            // Privacy Section
+                            _buildPrivacySection(),
+                            const SizedBox(
+                                height: 100), // Space for bottom padding
+                          ],
                         ),
-                      ]),
+                      ),
+                    ],
+                  ),
                 ),
-      bottomNavigationBar: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: SizedBox(
-          width: double.infinity,
-          height: 54,
-          child: ElevatedButton.icon(
-            onPressed: submitPost,
-            icon: const Icon(Icons.send, color: Colors.black),
-            label: const Text(
-              'โพสต์',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                letterSpacing: 0.5,
-              ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 16,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
+            letterSpacing: -0.3,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopicField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: TextField(
+        controller: _topicController,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          height: 1.4,
+        ),
+        decoration: InputDecoration(
+          hintText: 'เขียนหัวเรื่องที่น่าสนใจ...',
+          hintStyle: TextStyle(
+            color: Colors.grey.shade500,
+            fontWeight: FontWeight.w400,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDescriptionField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: CompositedTransformTarget(
+        link: _layerLink,
+        child: TextField(
+          controller: _descriptionController,
+          maxLines: 5,
+          style: const TextStyle(
+            fontSize: 15,
+            height: 1.5,
+          ),
+          decoration: InputDecoration(
+            hintText: 'แบ่งปันเรื่องราวของคุณ...\nใช้ # เพื่อเพิ่มแฮชแท็ก',
+            hintStyle: TextStyle(
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w400,
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-                side: const BorderSide(color: Colors.black, width: 1.2),
-              ),
-              shadowColor: Colors.black.withOpacity(0.2),
-            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.all(16),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCategorySection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.category_rounded,
+            color: Colors.orange.shade600,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          'เลือกหมวดหมู่',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade800,
+          ),
+        ),
+        subtitle: Text(
+          selectedCategories.isEmpty
+              ? 'ยังไม่ได้เลือกหมวดหมู่'
+              : '${selectedCategories.length} หมวดหมู่ที่เลือก',
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            Icons.keyboard_arrow_right,
+            color: Colors.grey.shade600,
+            size: 18,
+          ),
+        ),
+        onTap: () => _showCategoryBottomSheet(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.privacy_tip_rounded,
+                color: Colors.blue.shade600,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'ความเป็นส่วนตัว',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: postVisibility,
+              isExpanded: true,
+              icon: Container(
+                margin: const EdgeInsets.only(right: 12),
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+              items: privacyOptions.entries.map((entry) {
+                return DropdownMenuItem<String>(
+                  value: entry.key,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            entry.value['icon'],
+                            color: Colors.grey.shade700,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(entry.value['label']),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null && value != postVisibility) {
+                  setState(() {
+                    postVisibility = value;
+                  });
+                }
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showImagePreview(BuildContext context, Uint8List imageData) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(20),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Stack(
+                children: [
+                  InteractiveViewer(
+                    child: Image.memory(
+                      imageData,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -596,11 +1086,12 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
 
   Future<void> submitPost() async {
     final topic = _topicController.text.trim();
-    final description = _descriptionController.text.trim();
-    final user = gs.read('user').toString();
+    final rawDescription = _descriptionController.text.trim();
+    final userString = gs.read('user');
 
-    if (selectedAssets.isEmpty || user == null) {
-      // แสดงแจ้งเตือนถ้าไม่เลือกภาพหรือไม่มี uid
+    if (selectedAssets.isEmpty ||
+        userString == null ||
+        userString.toString().isEmpty) {
       showModalBottomSheet(
         context: context,
         isDismissible: true,
@@ -631,18 +1122,18 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
       return;
     }
 
-    // แสดง dialog โหลดก่อนเริ่ม
     showLoadingDialog(context);
 
     try {
-      // อัปโหลดรูปขึ้น Firebase Storage
-      List<String> imageUrls = [];
+      final config = await Configuration.getConfig();
+      final url = config['apiEndpoint'];
+      final userId = int.tryParse(userString.toString()) ?? 0;
 
+      // อัปโหลดรูป
+      List<String> imageUrls = [];
       for (final asset in selectedAssets) {
         final imageUrl = await uploadToFirebase(asset);
-        if (imageUrl != null) {
-          imageUrls.add(imageUrl);
-        }
+        if (imageUrl != null) imageUrls.add(imageUrl);
       }
 
       if (imageUrls.isEmpty) {
@@ -653,45 +1144,163 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
         return;
       }
 
+      // ✅ ดึงแฮชแท็กจาก description ทั้งหมด (ปรับปรุง regex)
+      final RegExp hashtagRegex = RegExp(r'#([a-zA-Z0-9ก-๙_]+)');
+      final matches = hashtagRegex.allMatches(rawDescription);
+      final Set<String> allHashtagsInText = matches
+          .map((m) => m.group(1)?.trim() ?? '')
+          .where((tag) => tag.isNotEmpty)
+          .toSet();
+
+      // ✅ รวมแฮชแท็กจาก description และ selectedHashtags
+      final Set<String> combinedHashtags = {
+        ...selectedHashtags.map((e) => e.tagName.trim()),
+        ...allHashtagsInText,
+      };
+
+      log('Combined hashtags: $combinedHashtags');
+
+      // ✅ ตรวจสอบและ insert แฮชแท็ก (ปรับปรุง logic)
+      List<int> hashtagIds = [];
+
+      for (final tagName in combinedHashtags) {
+        final cleanTag = tagName.trim();
+
+        if (cleanTag.isEmpty) continue;
+
+        try {
+          // ค้นหา hashtag ในระบบก่อน
+          final searchRes = await http.get(
+            Uri.parse(
+                '$url/hashtags/search?q=${Uri.encodeComponent(cleanTag)}'),
+          );
+
+          if (searchRes.statusCode == 200) {
+            final result = jsonDecode(searchRes.body);
+
+            // ตรวจสอบว่าเจอ hashtag ที่ตรงกันหรือไม่
+            bool foundExact = false;
+            if (result['data'] != null && result['data'].isNotEmpty) {
+              for (final item in result['data']) {
+                if (item['tag_name']?.toString().toLowerCase() ==
+                    cleanTag.toLowerCase()) {
+                  hashtagIds.add(item['tag_id']);
+                  foundExact = true;
+                  log('Found existing hashtag: $cleanTag with ID: ${item['tag_id']}');
+                  break;
+                }
+              }
+            }
+
+            // ถ้าไม่เจอ hashtag ที่ตรงกัน ให้ insert ใหม่
+            if (!foundExact) {
+              log('Hashtag not found, inserting new: $cleanTag');
+
+              final insertBody = InsertHashtag(tagName: cleanTag);
+              final insertRes = await http.post(
+                Uri.parse('$url/hashtags/insert'),
+                headers: {'Content-Type': 'application/json; charset=utf-8'},
+                body: insertHashtagToJson(insertBody),
+              );
+
+              log('Insert response status: ${insertRes.statusCode}');
+              log('Insert response body: ${insertRes.body}');
+
+              if (insertRes.statusCode == 200 || insertRes.statusCode == 201) {
+                final insertData = jsonDecode(insertRes.body);
+
+                // ตรวจสอบ response structure
+                if (insertData['data'] != null) {
+                  int? newTagId;
+
+                  if (insertData['data'] is List &&
+                      insertData['data'].isNotEmpty) {
+                    newTagId = insertData['data'][0]['tag_id'];
+                  } else if (insertData['data'] is Map) {
+                    newTagId = insertData['data']['tag_id'];
+                  }
+
+                  if (newTagId != null) {
+                    hashtagIds.add(newTagId);
+                    log('Successfully inserted hashtag: $cleanTag with ID: $newTagId');
+                  } else {
+                    log('Insert successful but no tag_id returned for: $cleanTag');
+                  }
+                } else {
+                  log('Insert response has no data field for: $cleanTag');
+                }
+              } else {
+                log('Insert hashtag failed for "$cleanTag": ${insertRes.statusCode} - ${insertRes.body}');
+              }
+            }
+          } else {
+            log('Search hashtag failed for "$cleanTag": ${searchRes.statusCode} - ${searchRes.body}');
+          }
+        } catch (e) {
+          log('Error processing hashtag "$cleanTag": $e');
+        }
+      }
+
+      log('Final hashtag IDs: $hashtagIds');
+
+      // แยกคำบรรยายจริงออกจาก hashtag
+      final filteredDescription = rawDescription
+          .replaceAll(hashtagRegex, '') // ลบ hashtag ออก
+          .replaceAll(RegExp(r'\s+'), ' ') // ลบช่องว่างเกิน
+          .trim();
+
+      final categoryIds = selectedCategories.map((e) => e.cid).toList();
+
       final postModel = Insertpost(
-        postTopic: topic,
-        postDescription: description,
-        postFkUid: int.parse(user),
-        images: imageUrls,
-        categoryIdFk: selectedCategories.map((c) => c.cid).toList(),
-        hashtags: [], // แฮชแท็กยังไม่รองรับ
-      );
+          postTopic: topic,
+          postDescription: filteredDescription,
+          postFkUid: userId,
+          images: imageUrls,
+          categoryIdFk: categoryIds,
+          hashtags: hashtagIds,
+          postStatus: postVisibility);
 
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
+      final jsonBody = insertpostToJson(postModel);
+      log('Post data: $jsonBody');
 
-      var postResponse = await http.post(
+      // ส่งโพสต์
+      final postResponse = await http.post(
         Uri.parse("$url/image_post/post/add"),
         headers: {"Content-Type": "application/json; charset=utf-8"},
-        body: insertpostToJson(postModel),
+        body: jsonBody,
       );
 
+      Navigator.pop(context);
+
       if (postResponse.statusCode == 201) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('โพสต์เรียบร้อย')),
+          const SnackBar(
+            content: Text('โพสต์เรียบร้อย'),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => Mainpage()),
+          MaterialPageRoute(builder: (context) => const Mainpage()),
         );
       } else {
-        log('Error inserting post: ${postResponse.body}');
-        Navigator.pop(context);
+        log('Post failed: ${postResponse.statusCode} - ${postResponse.body}');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('เกิดข้อผิดพลาดในการโพสต์')),
+          SnackBar(
+            content:
+                Text('เกิดข้อผิดพลาดในการโพสต์: ${postResponse.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
-    } catch (e) {
-      log('Exception: $e');
+    } catch (e, stackTrace) {
       Navigator.pop(context);
+      log('Exception in submitPost: $e', stackTrace: stackTrace);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ')),
+        const SnackBar(
+          content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -732,6 +1341,30 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
       log("โหลดข้อมูล category ไม่สำเร็จ: ${response.statusCode}");
       throw Exception('โหลดข้อมูล category ไม่สำเร็จ');
     }
+  }
+}
+
+Future<void> fetchHashtags({String query = ''}) async {
+  try {
+    final config = await Configuration.getConfig();
+    final url = config['apiEndpoint'];
+
+    final response = await http.get(Uri.parse('$url/hashtags/search?q=$query'));
+
+    if (response.statusCode == 200) {
+      final getHashtags = getHashtagsFromJson(response.body);
+
+      log('fetchHashtags isNew: ${getHashtags.isNew}');
+      log('fetchHashtags data count: ${getHashtags.data.length}');
+
+      for (var hashtag in getHashtags.data) {
+        log('Hashtag id: ${hashtag.tagId}, name: ${hashtag.tagName}');
+      }
+    } else {
+      log('Failed to fetch hashtags: Status code ${response.statusCode}');
+    }
+  } catch (e) {
+    log('Error fetching hashtags: $e');
   }
 }
 

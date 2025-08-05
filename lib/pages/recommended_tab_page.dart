@@ -33,6 +33,9 @@ class _RecommendedTabState extends State<RecommendedTab> {
   Map<int, int> likeCountMap = {};
   Map<int, bool> likedMap = {};
 
+  Map<int, int> currentPageMap = {};
+  Map<int, PageController> pageControllers = {};
+
   bool isInitialLoading = true;
   bool isRefreshing = false;
 
@@ -833,9 +836,9 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         shape: BoxShape.circle,
                                         gradient: LinearGradient(
                                           colors: [
-                                            Colors.purple,
-                                            Colors.pink,
-                                            Colors.orange,
+                                            Colors.black,
+                                            Colors.black12,
+                                            Colors.black54,
                                           ],
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
@@ -913,12 +916,17 @@ class _RecommendedTabState extends State<RecommendedTab> {
                               // Image Section (Instagram style - full width)
                               if (postItem.images.isNotEmpty)
                                 SizedBox(
-                                  height: 400, // Fixed Instagram-like height
+                                  height: 400,
                                   width: double.infinity,
                                   child: Stack(
                                     children: [
                                       PageView(
                                         controller: pageController,
+                                        onPageChanged: (page) {
+                                          setState(() {
+                                            currentPageMap[index] = page;
+                                          });
+                                        },
                                         children: postItem.images.map((img) {
                                           return GestureDetector(
                                             onDoubleTap: () async {
@@ -960,7 +968,6 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                               errorBuilder:
                                                   (context, error, stackTrace) {
                                                 return Container(
-                                                  height: 400,
                                                   color: Colors.grey[100],
                                                   child: Center(
                                                     child: Column(
@@ -978,10 +985,9 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                                         Text(
                                                           'ไม่สามารถโหลดรูปภาพได้',
                                                           style: TextStyle(
-                                                            color: Colors
-                                                                .grey[600],
-                                                            fontSize: 14,
-                                                          ),
+                                                              color: Colors
+                                                                  .grey[600],
+                                                              fontSize: 14),
                                                         ),
                                                       ],
                                                     ),
@@ -991,6 +997,41 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                             ),
                                           );
                                         }).toList(),
+                                      ),
+                                      // แถบเลื่อนด้านล่าง
+                                      Positioned(
+                                        bottom: 8,
+                                        left: 0,
+                                        right: 0,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: List.generate(
+                                              postItem.images.length,
+                                              (dotIndex) {
+                                            return Container(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 4),
+                                              width: currentPageMap[index] ==
+                                                      dotIndex
+                                                  ? 10
+                                                  : 6,
+                                              height: currentPageMap[index] ==
+                                                      dotIndex
+                                                  ? 10
+                                                  : 6,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: currentPageMap[index] ==
+                                                        dotIndex
+                                                    ? Colors.white
+                                                    : Colors.white
+                                                        .withOpacity(0.4),
+                                              ),
+                                            );
+                                          }),
+                                        ),
                                       ),
 
                                       // Heart animation
@@ -1077,11 +1118,27 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                             : Icons.favorite_border,
                                         color: likedMap[postItem.post.postId] ==
                                                 true
-                                            ? const Color.fromARGB(255, 0, 0, 0)
+                                            ? Color.fromARGB(255, 247, 32, 32)
                                             : Colors.black,
                                         size: 24,
                                       ),
                                     ),
+                                    // Likes count
+                                    if ((likeCountMap[postItem.post.postId] ??
+                                            0) >
+                                        0)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12),
+                                        child: Text(
+                                          '${likeCountMap[postItem.post.postId]} ',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+
                                     const SizedBox(width: 16),
 
                                     // Comment button
@@ -1090,24 +1147,12 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         // Handle comment
                                       },
                                       child: const Icon(
-                                        Icons.chat_bubble_outline,
+                                        Icons.chat,
                                         color: Colors.black,
                                         size: 24,
                                       ),
                                     ),
                                     const SizedBox(width: 16),
-
-                                    // Share button
-                                    GestureDetector(
-                                      onTap: () {
-                                        // Handle share
-                                      },
-                                      child: const Icon(
-                                        Icons.send_outlined,
-                                        color: Colors.black,
-                                        size: 24,
-                                      ),
-                                    ),
 
                                     const Spacer(),
 
@@ -1125,21 +1170,42 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                   ],
                                 ),
                               ),
-
-                              // Likes count
-                              if ((likeCountMap[postItem.post.postId] ?? 0) > 0)
+ // Categories (simplified)
+                              if (postItem.categories.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  child: Text(
-                                    '${likeCountMap[postItem.post.postId]} คนถูกใจ',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
+                                      horizontal: 12, vertical: 8),
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: postItem.categories.map((cat) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: const Color.fromARGB(255, 214, 214, 214), // พื้นหลังอ่อน
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                              color: Color.fromARGB(255, 0, 0, 0)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              cat.cname,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: const Color.fromARGB(255, 0, 0, 0),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
                                   ),
                                 ),
-
                               // Caption
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -1197,23 +1263,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                   ),
                                 ),
 
-                              // Categories (simplified)
-                              if (postItem.categories.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 4),
-                                  child: Text(
-                                    postItem.categories
-                                        .map((cat) => cat.cname)
-                                        .join(' • '),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ),
-
-                              const SizedBox(height: 12),
+                             
                             ],
                           ),
                         );
@@ -1224,614 +1274,6 @@ class _RecommendedTabState extends State<RecommendedTab> {
         ),
       ),
     );
-    // return Scaffold(
-    //   body: Padding(
-    //     padding: EdgeInsets.fromLTRB(10, 0, 10, 0),
-    //     child: SingleChildScrollView(
-    //         child: Column(
-    //       crossAxisAlignment: CrossAxisAlignment.start,
-    //       children: [
-    //         SingleChildScrollView(
-    //             scrollDirection: Axis.horizontal, // ให้เลื่อนแนวนอน
-    //             child: FutureBuilder(
-    //               future: loadData_Category,
-    //               builder: (context, snapshot) {
-    //                 if (snapshot.connectionState == ConnectionState.waiting) {
-    //                   return const Center(child: CircularProgressIndicator());
-    //                 } else if (snapshot.hasError) {
-    //                   return const Center(
-    //                       child: Text('Error loading Category data'));
-    //                 }
-      
-    //                 return Row(
-    //                   children: category.asMap().entries.map((entry) {
-    //                     int index = entry.key;
-    //                     var cate = entry.value;
-      
-    //                     bool isSelected = selectedIndex == index;
-      
-    //                     return Padding(
-    //                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
-    //                       child: TextButton(
-    //                         onPressed: () {
-    //                           setState(() {
-    //                             selectedIndex = index;
-    //                           });
-    //                         },
-    //                         style: ButtonStyle(
-    //                           padding: WidgetStateProperty.all(EdgeInsets.zero),
-    //                           backgroundColor:
-    //                               WidgetStateProperty.all(Colors.transparent),
-    //                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    //                           overlayColor:
-    //                               WidgetStateProperty.all(Colors.transparent),
-    //                           foregroundColor: WidgetStateProperty.all(
-    //                             isSelected ? Colors.black : Colors.black54,
-    //                           ),
-    //                         ),
-    //                         child: Text(
-    //                           cate.cname,
-    //                           style: TextStyle(
-    //                             fontWeight: isSelected
-    //                                 ? FontWeight.bold
-    //                                 : FontWeight.normal,
-    //                           ),
-    //                         ),
-    //                       ),
-    //                     );
-    //                   }).toList(),
-    //                 );
-    //               },
-    //             )),
-    //         FutureBuilder<List<model.GetAllPost>?>(
-    //           future: loadDataPost(),
-    //           builder: (context, snapshot) {
-    //             if (snapshot.connectionState == ConnectionState.waiting) {
-    //               return Center(child: CircularProgressIndicator());
-    //             } else if (snapshot.hasError) {
-    //               return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
-    //             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-    //               return Center(child: Text('ไม่พบข้อมูล'));
-    //             }
-      
-    //             final posts = snapshot.data!;
-      
-    //             return ListView.builder(
-    //               shrinkWrap: true,
-    //               physics: NeverScrollableScrollPhysics(),
-    //               itemCount: posts.length,
-    //               itemBuilder: (context, index) {
-    //                 final post = posts[index];
-    //                 final pageController = PageController();
-      
-    //                 return Padding(
-    //                   padding: const EdgeInsets.all(10.0),
-    //                   child: Column(
-    //                     crossAxisAlignment: CrossAxisAlignment.start,
-    //                     children: [
-    //                       // Header: รูปโปรไฟล์ + ชื่อ + ปุ่มติดตาม + เมนู
-    //                       Row(
-    //                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    //                         children: [
-    //                           Row(
-    //                             children: [
-    //                               ClipOval(
-    //                                 child: Image.network(
-    //                                   post.user.profileImage ?? '',
-    //                                   width: 40,
-    //                                   height: 40,
-    //                                   fit: BoxFit.cover,
-    //                                   errorBuilder:
-    //                                       (context, error, stackTrace) =>
-    //                                           Image.asset(
-    //                                     'assets/default_profile.png',
-    //                                     width: 40,
-    //                                     height: 40,
-    //                                     fit: BoxFit.cover,
-    //                                   ),
-    //                                 ),
-    //                               ),
-    //                               SizedBox(width: 10),
-    //                               Text(
-    //                                 post.user.name,
-    //                                 style: TextStyle(
-    //                                     fontSize: 12,
-    //                                     fontWeight: FontWeight.bold),
-    //                               ),
-    //                             ],
-    //                           ),
-    //                           Row(
-    //                             children: [
-    //                               FilledButton(
-    //                                 style: FilledButton.styleFrom(
-    //                                   backgroundColor: Colors.black,
-    //                                   foregroundColor: Colors.white,
-    //                                   padding: EdgeInsets.symmetric(
-    //                                       horizontal: 12, vertical: 2),
-    //                                   textStyle: TextStyle(
-    //                                       fontSize: 12,
-    //                                       fontWeight: FontWeight.bold),
-    //                                   elevation: 10,
-    //                                   shape: RoundedRectangleBorder(
-    //                                     borderRadius: BorderRadius.circular(8),
-    //                                   ),
-    //                                   minimumSize: Size(0, 40),
-    //                                   visualDensity: VisualDensity.compact,
-    //                                 ),
-    //                                 onPressed: () {},
-    //                                 child: Text("ติดตาม"),
-    //                               ),
-    //                               PopupMenuButton<String>(
-    //                                 icon: Icon(Icons.more_vert),
-    //                                 onSelected: (value) {
-    //                                   if (value == 'report') {
-    //                                     // รายงาน
-    //                                   } else if (value == 'block') {
-    //                                     // บล็อก
-    //                                   }
-    //                                 },
-    //                                 itemBuilder: (context) => [
-    //                                   PopupMenuItem(
-    //                                       value: 'report', child: Text('รายงาน')),
-    //                                   PopupMenuItem(
-    //                                       value: 'block', child: Text('บล็อก')),
-    //                                 ],
-    //                               ),
-    //                             ],
-    //                           ),
-    //                         ],
-    //                       ),
-    //                       SizedBox(height: 10),
-      
-    //                       // รูปภาพแบบ PageView
-    //                       if (post.images.isNotEmpty)
-    //                         Center(
-    //                           child: Container(
-    //                             height: 450,
-    //                             width: double.infinity,
-    //                             child: PageView(
-    //                               controller: pageController,
-    //                               children: post.images.map((image) {
-    //                                 return ClipRRect(
-    //                                   borderRadius: BorderRadius.circular(20),
-    //                                   child: Image.network(
-    //                                     image.image,
-    //                                     fit: BoxFit.cover,
-    //                                   ),
-    //                                 );
-    //                               }).toList(),
-    //                             ),
-    //                           ),
-    //                         ),
-      
-    //                       SizedBox(height: 10),
-      
-    //                       // SmoothPageIndicator
-    //                       if (post.images.length > 1)
-    //                         Center(
-    //                           child: SmoothPageIndicator(
-    //                             controller: pageController,
-    //                             count: post.images.length,
-    //                             effect: ExpandingDotsEffect(
-    //                               dotWidth: 8,
-    //                               dotHeight: 8,
-    //                               spacing: 8,
-    //                               expansionFactor: 4,
-    //                               dotColor: Colors.black,
-    //                               activeDotColor: Colors.black38,
-    //                             ),
-    //                           ),
-    //                         ),
-      
-    //                       SizedBox(height: 10),
-      
-    //                       // แสดงปุ่ม category และไอคอนต่าง ๆ
-    //                       Row(
-    //                         crossAxisAlignment:
-    //                             CrossAxisAlignment.start, // สำคัญ! ให้ชิดบน
-    //                         children: [
-    //                           // ฝั่งซ้าย: ปุ่ม category
-    //                           Expanded(
-    //                             flex: 1,
-    //                             child: Wrap(
-    //                               spacing: 4.0,
-    //                               runSpacing: 4.0,
-    //                               children: post.categories.map((category) {
-    //                                 return OutlinedButton(
-    //                                   style: OutlinedButton.styleFrom(
-    //                                     backgroundColor: Colors.white,
-    //                                     foregroundColor: Colors.black,
-    //                                     padding: EdgeInsets.symmetric(
-    //                                         horizontal: 20, vertical: 2),
-    //                                     textStyle: TextStyle(fontSize: 12),
-    //                                     elevation: 10,
-    //                                     shape: RoundedRectangleBorder(
-    //                                       borderRadius: BorderRadius.circular(20),
-    //                                     ),
-    //                                     minimumSize: Size(0, 40),
-    //                                     visualDensity: VisualDensity.compact,
-    //                                   ),
-    //                                   onPressed: () {},
-    //                                   child: Text(category.cname),
-    //                                 );
-    //                               }).toList(),
-    //                             ),
-    //                           ),
-      
-    //                           // ฝั่งขวา: ปุ่มไอคอนแนวนอน อยู่ชิดบน
-    //                           Padding(
-    //                             padding: const EdgeInsets.only(top: 5),
-    //                             child: Row(
-    //                               mainAxisSize: MainAxisSize.min,
-    //                               children: [
-    //                                 GestureDetector(
-    //                                   onTap: () {},
-    //                                   child: Row(
-    //                                     children: [
-    //                                       Icon(Icons.favorite_border),
-    //                                       SizedBox(width: 4),
-    //                                       Text("423"),
-    //                                     ],
-    //                                   ),
-    //                                 ),
-    //                                 SizedBox(width: 8),
-    //                                 GestureDetector(
-    //                                   onTap: () {
-    //                                     showModalBottomSheet(
-    //                                       context: context,
-    //                                       isScrollControlled:
-    //                                           true, // ทำให้ป๊อปอัพใหญ่ขึ้นได้
-    //                                       shape: const RoundedRectangleBorder(
-    //                                         borderRadius: BorderRadius.vertical(
-    //                                             top: Radius.circular(16)),
-    //                                       ),
-    //                                       builder: (context) {
-    //                                         return DraggableScrollableSheet(
-    //                                           expand: false,
-    //                                           initialChildSize:
-    //                                               0.4, // ขนาดเริ่มต้น (40% ของหน้าจอ)
-    //                                           minChildSize: 0.2,
-    //                                           maxChildSize: 0.9,
-    //                                           builder:
-    //                                               (context, scrollController) {
-    //                                             return Container(
-    //                                               padding:
-    //                                                   const EdgeInsets.all(16),
-    //                                               child: ListView.builder(
-    //                                                 controller: scrollController,
-    //                                                 itemCount:
-    //                                                     10, // ตัวอย่างคอมเมนต์ 10 รายการ
-    //                                                 itemBuilder:
-    //                                                     (context, index) {
-    //                                                   return ListTile(
-    //                                                     leading:
-    //                                                         Icon(Icons.person),
-    //                                                     title: Text(
-    //                                                         "ความคิดเห็นที่ ${index + 1}"),
-    //                                                     subtitle: Text(
-    //                                                         "นี่คือข้อความความคิดเห็น..."),
-    //                                                   );
-    //                                                 },
-    //                                               ),
-    //                                             );
-    //                                           },
-    //                                         );
-    //                                       },
-    //                                     );
-    //                                   },
-    //                                   child: Row(
-    //                                     children: [
-    //                                       Image.asset('assets/images/chat.png',
-    //                                           height: 20, width: 20),
-    //                                       SizedBox(width: 3),
-    //                                       Text("42"),
-    //                                     ],
-    //                                   ),
-    //                                 ),
-    //                                 SizedBox(width: 8),
-    //                                 GestureDetector(
-    //                                   onTap: () {},
-    //                                   child: Row(
-    //                                     children: [
-    //                                       Icon(Icons.bookmark_outline_rounded),
-    //                                       SizedBox(width: 4),
-    //                                       Text("224"),
-    //                                     ],
-    //                                   ),
-    //                                 ),
-    //                               ],
-    //                             ),
-    //                           ),
-    //                         ],
-    //                       ),
-      
-    //                       // ข้อความเนื้อหาโพสต์
-    //                       Padding(
-    //                         padding: const EdgeInsets.only(left: 8, top: 8),
-    //                         child: Column(
-    //                           crossAxisAlignment: CrossAxisAlignment.start,
-    //                           children: [
-    //                             Text(post.post.postTopic,
-    //                                 style:
-    //                                     TextStyle(fontWeight: FontWeight.bold)),
-    //                             if (post.post.postDescription != null)
-    //                               Text(post.post.postDescription!),
-    //                             Text("#ถ่ายรูปหน้ากระจก #ชุดเล่น",
-    //                                 style: TextStyle(color: Colors.blue)),
-    //                             SizedBox(height: 5),
-    //                             Text(
-    //                               "3 วันที่แล้ว",
-    //                               style: TextStyle(
-    //                                   color: Colors.black38, fontSize: 10),
-    //                             ),
-    //                           ],
-    //                         ),
-    //                       ),
-      
-    //                       Divider(thickness: 1),
-    //                     ],
-    //                   ),
-    //                 );
-    //               },
-    //             );
-    //           },
-    //         ),
-    //         // Column(
-    //         //   crossAxisAlignment: CrossAxisAlignment.start,
-    //         //   children: [
-    //         //     Row(
-    //         //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    //         //       children: [
-    //         //         Row(
-    //         //           children: [
-    //         //             ClipOval(
-    //         //               child: Image.asset(
-    //         //                 'assets/images/pic2.jpg',
-    //         //                 width: 40,
-    //         //                 height: 40,
-    //         //                 fit: BoxFit.cover,
-    //         //               ),
-    //         //             ),
-    //         //             SizedBox(width: 10),
-    //         //             Text(
-    //         //               "apxd_lxz ",
-    //         //               style: TextStyle(
-    //         //                   fontSize: 12, fontWeight: FontWeight.bold),
-    //         //             ),
-    //         //           ],
-    //         //         ),
-    //         //         Row(
-    //         //           children: [
-    //         //             FilledButton(
-    //         //               style: FilledButton.styleFrom(
-    //         //                 backgroundColor: const Color.fromARGB(255, 0, 0, 0),
-    //         //                 foregroundColor:
-    //         //                     const Color.fromARGB(255, 255, 255, 255),
-    //         //                 padding: const EdgeInsets.symmetric(
-    //         //                     horizontal: 12,
-    //         //                     vertical: 2), // ลด padding ด้านบน-ล่าง
-    //         //                 textStyle: const TextStyle(
-    //         //                   fontSize: 12,
-    //         //                   fontWeight: FontWeight.bold,
-    //         //                 ),
-    //         //                 elevation: 10,
-    //         //                 shape: RoundedRectangleBorder(
-    //         //                   borderRadius: BorderRadius.circular(8),
-    //         //                 ),
-    //         //                 minimumSize:
-    //         //                     const Size(0, 40), // ลดขนาดขั้นต่ำของปุ่ม
-    //         //                 visualDensity: VisualDensity
-    //         //                     .compact, // ลดความสูงของปุ่มให้กะทัดรัดขึ้น
-    //         //               ),
-    //         //               onPressed: () {},
-    //         //               child: const Text("ติดตาม"),
-    //         //             ),
-    //         //             PopupMenuButton<String>(
-    //         //               icon: const Icon(Icons.more_vert),
-    //         //               onSelected: (String result) {
-    //         //                 // Handle เมื่อกดเลือกเมนู
-    //         //                 if (result == 'report') {
-    //         //                   // ดำเนินการรายงาน
-    //         //                 } else if (result == 'block') {
-    //         //                   // ดำเนินการบล็อก
-    //         //                 }
-    //         //               },
-    //         //               itemBuilder: (BuildContext context) =>
-    //         //                   <PopupMenuEntry<String>>[
-    //         //                 const PopupMenuItem<String>(
-    //         //                   value: 'report',
-    //         //                   child: Text('รายงาน'),
-    //         //                 ),
-    //         //                 const PopupMenuItem<String>(
-    //         //                   value: 'block',
-    //         //                   child: Text('บล็อก'),
-    //         //                 ),
-    //         //               ],
-    //         //             ),
-    //         //           ],
-    //         //         ),
-    //         //       ],
-    //         //     ),
-    //         //     SizedBox(height: 10),
-    //         //     Center(
-    //         //       child: Container(
-    //         //         height: 450, // กำหนดความสูงให้กับ PageView
-    //         //         width: double.infinity, // กำหนดความกว้างเต็มหน้าจอ
-    //         //         child: PageView(
-    //         //           controller: pageController, // เชื่อมโยงกับ PageController
-    //         //           children: [
-    //         //             ClipRRect(
-    //         //               borderRadius: BorderRadius.circular(20),
-    //         //               child: Image.asset(
-    //         //                 'assets/images/p1.jpg',
-    //         //                 fit: BoxFit.cover,
-    //         //               ),
-    //         //             ),
-    //         //             ClipRRect(
-    //         //               borderRadius: BorderRadius.circular(20),
-    //         //               child: Image.asset(
-    //         //                 'assets/images/p2.jpg',
-    //         //                 fit: BoxFit.cover,
-    //         //               ),
-    //         //             ),
-    //         //             ClipRRect(
-    //         //               borderRadius: BorderRadius.circular(20),
-    //         //               child: Image.asset(
-    //         //                 'assets/images/p3.jpg',
-    //         //                 fit: BoxFit.cover,
-    //         //               ),
-    //         //             ),
-    //         //           ],
-    //         //         ),
-    //         //       ),
-    //         //     ),
-    //         //     SizedBox(height: 10),
-    //         //     // SmoothPageIndicator
-    //         //     Center(
-    //         //       child: SmoothPageIndicator(
-    //         //         controller: pageController, // เชื่อมโยงกับ PageController
-    //         //         count: 3, // จำนวนรูป
-    //         //         effect: ExpandingDotsEffect(
-    //         //           dotWidth: 8, // ขนาดจุด
-    //         //           dotHeight: 8, // ความสูงของจุด
-    //         //           spacing: 8, // ระยะห่างระหว่างจุด
-    //         //           expansionFactor: 4, // ขนาดขยายจุดเมื่อถูกเลือก
-    //         //           dotColor: const Color.fromARGB(
-    //         //               255, 0, 0, 0), // สีของจุดที่ไม่ได้เลือก
-    //         //           activeDotColor: Colors.black38, // สีของจุดที่เลือก
-    //         //         ),
-    //         //       ),
-    //         //     ),
-    //         //     SizedBox(height: 10),
-    //         //     Row(
-    //         //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    //         //       children: [
-    //         //         Row(
-    //         //           children: [
-    //         //             OutlinedButton(
-    //         //                 style: OutlinedButton.styleFrom(
-    //         //                   backgroundColor:
-    //         //                       const Color.fromARGB(255, 255, 255, 255),
-    //         //                   foregroundColor: Colors.black,
-    //         //                   padding: const EdgeInsets.symmetric(
-    //         //                       horizontal: 20,
-    //         //                       vertical: 2), // ลด padding ด้านบน-ล่าง
-    //         //                   textStyle: const TextStyle(
-    //         //                       fontSize: 12, color: Colors.black54),
-    //         //                   elevation: 10,
-    //         //                   shape: RoundedRectangleBorder(
-    //         //                     borderRadius: BorderRadius.circular(20),
-    //         //                   ),
-    //         //                   minimumSize:
-    //         //                       const Size(0, 40), // ลดขนาดขั้นต่ำของปุ่ม
-    //         //                   visualDensity: VisualDensity
-    //         //                       .compact, // ลดความสูงของปุ่มให้กะทัดรัดขึ้น
-    //         //                 ),
-    //         //                 onPressed: () {},
-    //         //                 child: const Text('สตรีท')),
-    //         //             SizedBox(
-    //         //               width: 8,
-    //         //             ),
-    //         //             OutlinedButton(
-    //         //                 style: OutlinedButton.styleFrom(
-    //         //                   backgroundColor:
-    //         //                       const Color.fromARGB(255, 255, 255, 255),
-    //         //                   foregroundColor: Colors.black,
-    //         //                   padding: const EdgeInsets.symmetric(
-    //         //                       horizontal: 20,
-    //         //                       vertical: 2), // ลด padding ด้านบน-ล่าง
-    //         //                   textStyle: const TextStyle(
-    //         //                       fontSize: 12, color: Colors.black54),
-    //         //                   elevation: 10,
-    //         //                   shape: RoundedRectangleBorder(
-    //         //                     borderRadius: BorderRadius.circular(20),
-    //         //                   ),
-    //         //                   minimumSize:
-    //         //                       const Size(0, 40), // ลดขนาดขั้นต่ำของปุ่ม
-    //         //                   visualDensity: VisualDensity
-    //         //                       .compact, // ลดความสูงของปุ่มให้กะทัดรัดขึ้น
-    //         //                 ),
-    //         //                 onPressed: () {},
-    //         //                 child: const Text('chainese')),
-    //         //           ],
-    //         //         ),
-    //         //         Row(
-    //         //           children: [
-    //         //             GestureDetector(
-    //         //               onTap: () {
-    //         //                 // ทำสิ่งที่ต้องการเมื่อไอคอนแรกถูกกด
-    //         //               },
-    //         //               child: Row(
-    //         //                 children: [
-    //         //                   Icon(Icons.favorite_border),
-    //         //                   Text("423"),
-    //         //                 ],
-    //         //               ),
-    //         //             ),
-    //         //             SizedBox(width: 5),
-    //         //             GestureDetector(
-    //         //               onTap: () {
-    //         //                 // ทำสิ่งที่ต้องการเมื่อไอคอนที่สองถูกกด
-    //         //               },
-    //         //               child: Row(
-    //         //                 children: [
-    //         //                   Image.asset(
-    //         //                     'assets/images/chat.png',
-    //         //                     height: 20,
-    //         //                     width: 20,
-    //         //                   ),
-    //         //                   SizedBox(width: 3),
-    //         //                   Text("42"),
-    //         //                 ],
-    //         //               ),
-    //         //             ),
-    //         //             SizedBox(width: 5),
-    //         //             GestureDetector(
-    //         //               onTap: () {
-    //         //                 // ทำสิ่งที่ต้องการเมื่อไอคอนที่สามถูกกด
-    //         //               },
-    //         //               child: Row(
-    //         //                 children: [
-    //         //                   Icon(Icons.bookmark_outline_rounded),
-    //         //                   Text("224"),
-    //         //                 ],
-    //         //               ),
-    //         //             ),
-    //         //           ],
-    //         //         )
-    //         //       ],
-    //         //     ),
-      
-    //         //     Padding(
-    //         //       padding: const EdgeInsets.only(left: 8),
-    //         //       child: Column(
-    //         //         crossAxisAlignment: CrossAxisAlignment.start,
-    //         //         children: [
-    //         //           Text(
-    //         //             "แต่งตัวชิลๆ",
-    //         //             style: TextStyle(fontWeight: FontWeight.bold),
-    //         //           ),
-    //         //           Text("ไอเดียแต่งตัวถ่ายรูปหน้ากระจกสวยๆจ้าา"),
-    //         //           Text(
-    //         //             "#ถ่ายรูปหน้ากระจก #ชุดเล่น",
-    //         //             style: TextStyle(color: Colors.blue),
-    //         //           ),
-    //         //           SizedBox(
-    //         //             height: 5,
-    //         //           ),
-    //         //           Text(
-    //         //             "3 วันที่แล้ว",
-    //         //             style: TextStyle(color: Colors.black38, fontSize: 10),
-    //         //           ),
-    //         //         ],
-    //         //       ),
-    //         //     ),
-    //         //   ],
-    //         // ),
-    //       ],
-    //     )),
-    //   ),
-    // );
   }
 
   Future<void> loadDataCategory() async {
