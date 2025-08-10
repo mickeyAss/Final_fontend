@@ -1,48 +1,21 @@
 import 'dart:convert';
 // To parse this JSON data, do
 //
-//     final getAllPost = getAllPostFromJson(jsonString);
+//     final postDetail = postDetailFromJson(jsonString);
 
-// Enum for post status
-enum PostStatus {
-  public,
-  friends;
 
-  // Convert from string to enum
-  static PostStatus fromString(String value) {
-    switch (value) {
-      case 'public':
-        return PostStatus.public;
-      case 'friends':
-        return PostStatus.friends;
-      default:
-        return PostStatus.public; // Default value
-    }
-  }
+PostDetail postDetailFromJson(String str) => PostDetail.fromJson(json.decode(str));
 
-  // Convert enum to string
-  String toStringValue() {
-    switch (this) {
-      case PostStatus.public:
-        return 'public';
-      case PostStatus.friends:
-        return 'friends';
-    }
-  }
-}
+String postDetailToJson(PostDetail data) => json.encode(data.toJson());
 
-List<GetAllPost> getAllPostFromJson(String str) => List<GetAllPost>.from(json.decode(str).map((x) => GetAllPost.fromJson(x)));
-
-String getAllPostToJson(List<GetAllPost> data) => json.encode(List<dynamic>.from(data.map((x) => x.toJson())));
-
-class GetAllPost {
+class PostDetail {
     Post post;
     User user;
     List<Image> images;
     List<Category> categories;
     List<Hashtag> hashtags;
 
-    GetAllPost({
+    PostDetail({
         required this.post,
         required this.user,
         required this.images,
@@ -50,7 +23,7 @@ class GetAllPost {
         required this.hashtags,
     });
 
-    factory GetAllPost.fromJson(Map<String, dynamic> json) => GetAllPost(
+    factory PostDetail.fromJson(Map<String, dynamic> json) => PostDetail(
         post: Post.fromJson(json["post"]),
         user: User.fromJson(json["user"]),
         images: List<Image>.from(json["images"].map((x) => Image.fromJson(x))),
@@ -140,51 +113,47 @@ class Image {
 }
 
 class Post {
-  int postId;
-  String? postTopic;
-  String? postDescription;
-  DateTime postDate;
-  int postFkUid;
-  int amountOfLike;
-  int amountOfComment;
-  int amountOfSave;
-  PostStatus postStatus; // ✅ เพิ่ม postStatus
+    int postId;
+    String postTopic;
+    String postDescription;
+    DateTime postDate;
+    int postFkUid;
+    int amountOfLike;
+    int amountOfSave;
+    int amountOfComment;
 
-  Post({
-    required this.postId,
-    required this.postTopic,
-    required this.postDescription,
-    required this.postDate,
-    required this.postFkUid,
-    required this.amountOfLike,
-    required this.amountOfComment,
-    required this.amountOfSave,
-    required this.postStatus, // ✅ เพิ่ม
-  });
+    Post({
+        required this.postId,
+        required this.postTopic,
+        required this.postDescription,
+        required this.postDate,
+        required this.postFkUid,
+        required this.amountOfLike,
+        required this.amountOfSave,
+        required this.amountOfComment,
+    });
 
-  factory Post.fromJson(Map<String, dynamic> json) => Post(
+    factory Post.fromJson(Map<String, dynamic> json) => Post(
         postId: json["post_id"],
         postTopic: json["post_topic"],
         postDescription: json["post_description"],
         postDate: DateTime.parse(json["post_date"]),
         postFkUid: json["post_fk_uid"],
-        amountOfLike: json["amount_of_like"] ?? 0,
-        amountOfComment: json["amount_of_comment"] ?? 0,
-        amountOfSave: json["amount_of_save"] ?? 0,
-        postStatus: PostStatus.fromString(json["post_status"] ?? "public"), // ✅ เพิ่ม
-      );
+        amountOfLike: json["amount_of_like"],
+        amountOfSave: json["amount_of_save"],
+        amountOfComment: json["amount_of_comment"],
+    );
 
-  Map<String, dynamic> toJson() => {
+    Map<String, dynamic> toJson() => {
         "post_id": postId,
         "post_topic": postTopic,
         "post_description": postDescription,
         "post_date": postDate.toIso8601String(),
         "post_fk_uid": postFkUid,
         "amount_of_like": amountOfLike,
-        "amount_of_comment": amountOfComment,
         "amount_of_save": amountOfSave,
-        "post_status": postStatus.toStringValue(), // ✅ เพิ่ม
-      };
+        "amount_of_comment": amountOfComment,
+    };
 }
 
 class User {

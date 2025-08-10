@@ -12,6 +12,52 @@ import 'package:fontend_pro/models/get_all_category.dart';
 import 'package:fontend_pro/models/get_all_post.dart' as model;
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
+// ฟังก์ชันช่วยในการแสดงผล status สำหรับ enum
+String getStatusText(model.PostStatus status) {
+  switch (status) {
+    case model.PostStatus.public:
+      return 'สาธารณะ';
+    case model.PostStatus.friends:
+      return 'เฉพาะเพื่อน';
+    default:
+      return 'สาธารณะ';
+  }
+}
+
+IconData getStatusIcon(model.PostStatus status) {
+  switch (status) {
+    case model.PostStatus.public:
+      return Icons.public;
+    case model.PostStatus.friends:
+      return Icons.people;
+    default:
+      return Icons.public;
+  }
+}
+
+Color getStatusColor(model.PostStatus status) {
+  switch (status) {
+    case model.PostStatus.public:
+      return Colors.green;
+    case model.PostStatus.friends:
+      return Colors.blue;
+    default:
+      return Colors.green;
+  }
+}
+
+// ฟังก์ชันสำหรับสีเข้ม
+Color getStatusDarkColor(model.PostStatus status) {
+  switch (status) {
+    case model.PostStatus.public:
+      return Colors.green.shade700;
+    case model.PostStatus.friends:
+      return Colors.blue.shade700;
+    default:
+      return Colors.green.shade700;
+  }
+}
+
 class RecommendedTab extends StatefulWidget {
   final PageController pageController;
   const RecommendedTab({super.key, required this.pageController});
@@ -32,6 +78,9 @@ class _RecommendedTabState extends State<RecommendedTab> {
   Map<int, bool> showHeartMap = {};
   Map<int, int> likeCountMap = {};
   Map<int, bool> likedMap = {};
+
+  Map<int, bool> savedMap = {}; // เก็บว่าบันทึกหรือยัง
+  Map<int, int> saveCountMap = {}; // เก็บจำนวนคนบันทึกโพสต์
 
   Map<int, int> currentPageMap = {};
   Map<int, PageController> pageControllers = {};
@@ -54,8 +103,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
     var user = gs.read('user');
     dev.log(user.toString());
 
-    // ลบการเริ่มต้น timer
-    // _startTimer();
+    loadSavedPosts();
 
     dynamic rawUid = gs.read('user');
     if (rawUid is int) {
@@ -343,6 +391,78 @@ class _RecommendedTabState extends State<RecommendedTab> {
       }
     } catch (e) {
       dev.log("Error like/unlike post: $e");
+    }
+  }
+
+  void savePost(int postId) async {
+    final uid = gs.read('user'); // อ่าน user id จาก GetStorage
+    final isSaved = savedMap[postId] ?? false; // เช็คว่าบันทึกไปแล้วหรือยัง
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      // ✅ สลับ endpoint ตามสถานะ save/unsave
+      final endpoint = isSaved ? '/image_post/unsave' : '/image_post/save';
+      final uri = Uri.parse('$url$endpoint');
+
+      final saveModel = LikePost(userId: uid, postId: postId);
+      // ใช้โมเดลเดียวกับ like ได้เลย ถ้า fields ชื่อเหมือนกัน
+      final bodyJson = likePostToJson(saveModel);
+
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: bodyJson,
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          savedMap[postId] = !isSaved;
+
+          if (!isSaved) {
+            // บันทึกโพสต์
+            saveCountMap[postId] = (saveCountMap[postId] ?? 0) + 1;
+          } else {
+            // ยกเลิกบันทึกโพสต์
+            saveCountMap[postId] = (saveCountMap[postId] ?? 1) - 1;
+            if (saveCountMap[postId]! < 0) {
+              saveCountMap[postId] = 0; // ป้องกันค่าติดลบ
+            }
+          }
+        });
+      } else {
+        dev.log("Save/Unsave API failed: ${response.body}");
+      }
+    } catch (e) {
+      dev.log("Error save/unsave post: $e");
+    }
+  }
+
+  Future<void> loadSavedPosts() async {
+    final uid = gs.read('user'); // user id จาก GetStorage
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final uri = Uri.parse('$url/image_post/saved-posts/$uid');
+
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List savedPostIds = data['savedPostIds'];
+
+        setState(() {
+          // รีเซ็ต savedMap และใส่สถานะ true ให้โพสต์ที่โหลดมา
+          savedMap = {};
+          for (var postId in savedPostIds) {
+            savedMap[postId] = true;
+          }
+        });
+      } else {
+        dev.log("Failed to load saved posts: ${response.body}");
+      }
+    } catch (e) {
+      dev.log("Error loading saved posts: $e");
     }
   }
 
@@ -809,8 +929,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                     )
                   : ListView.builder(
                       padding: EdgeInsets.zero,
-                      physics:
-                          const AlwaysScrollableScrollPhysics(), // เพิ่มเพื่อให้ pull-to-refresh ทำงาน
+                      physics: const AlwaysScrollableScrollPhysics(),
                       itemCount: filteredPosts.length,
                       itemBuilder: (context, index) {
                         final postItem = filteredPosts[index];
@@ -860,7 +979,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                     ),
                                     const SizedBox(width: 10),
 
-                                    // Username and time
+                                    // Username, status, and time
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -874,13 +993,67 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
-                                          Text(
-                                            _formatTimeAgo(
-                                                postItem.post.postDate),
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 12,
-                                            ),
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            children: [
+                                              // Status Badge ใต้ username
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: getStatusColor(postItem
+                                                          .post.postStatus)
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: getStatusColor(
+                                                        postItem
+                                                            .post.postStatus),
+                                                    width: 0.5,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      getStatusIcon(postItem
+                                                          .post.postStatus),
+                                                      size: 8,
+                                                      color: getStatusDarkColor(
+                                                          postItem
+                                                              .post.postStatus),
+                                                    ),
+                                                    const SizedBox(width: 2),
+                                                    Text(
+                                                      getStatusText(postItem
+                                                          .post.postStatus),
+                                                      style: TextStyle(
+                                                        fontSize: 9,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        color:
+                                                            getStatusDarkColor(
+                                                                postItem.post
+                                                                    .postStatus),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _formatTimeAgo(
+                                                    postItem.post.postDate),
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -913,7 +1086,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                 ),
                               ),
 
-                              // Image Section (Instagram style - full width)
+                              // Image Section with Status Badge overlay (ตัวเลือกที่ 1)
                               if (postItem.images.isNotEmpty)
                                 SizedBox(
                                   height: 400,
@@ -998,6 +1171,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                           );
                                         }).toList(),
                                       ),
+
                                       // แถบเลื่อนด้านล่าง
                                       Positioned(
                                         bottom: 8,
@@ -1052,12 +1226,12 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                             child: Container(
                                               padding: const EdgeInsets.all(12),
                                               decoration: BoxDecoration(
-                                                color: Colors.black
+                                                color: Color.fromARGB(255, 247, 32, 32)
                                                     .withOpacity(0.8),
                                                 shape: BoxShape.circle,
                                                 boxShadow: [
                                                   BoxShadow(
-                                                    color: Colors.black
+                                                    color: Color.fromARGB(255, 247, 32, 32)
                                                         .withOpacity(0.3),
                                                     blurRadius: 20,
                                                     spreadRadius: 2,
@@ -1159,18 +1333,24 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                     // Save button
                                     GestureDetector(
                                       onTap: () {
-                                        // Handle save
+                                        savePost(postItem.post.postId);
                                       },
-                                      child: const Icon(
-                                        Icons.bookmark_border,
-                                        color: Colors.black,
+                                      child: Icon(
+                                        savedMap[postItem.post.postId] == true
+                                            ? Icons.bookmark
+                                            : Icons.bookmark_border,
+                                        color: savedMap[postItem.post.postId] ==
+                                                true
+                                            ? const Color.fromARGB(255, 0, 0, 0)
+                                            : Colors.black,
                                         size: 24,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
- // Categories (simplified)
+
+                              // Categories (ไม่มี Status Badge)
                               if (postItem.categories.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -1183,29 +1363,27 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12, vertical: 6),
                                         decoration: BoxDecoration(
-                                          color: const Color.fromARGB(255, 214, 214, 214), // พื้นหลังอ่อน
+                                          color: const Color.fromARGB(
+                                              255, 214, 214, 214),
                                           borderRadius:
                                               BorderRadius.circular(20),
                                           border: Border.all(
-                                              color: Color.fromARGB(255, 0, 0, 0)),
+                                              color:
+                                                  Color.fromARGB(255, 0, 0, 0)),
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              cat.cname,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: const Color.fromARGB(255, 0, 0, 0),
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
+                                        child: Text(
+                                          cat.cname,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Color.fromARGB(255, 0, 0, 0),
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       );
                                     }).toList(),
                                   ),
                                 ),
+
                               // Caption
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -1220,8 +1398,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                           fontSize: 14,
                                           color: Colors.black,
                                           height: 1.3,
-                                          fontWeight: FontWeight
-                                              .w600, // ทำให้ข้อความหนา
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     if (postItem.post.postDescription != null &&
@@ -1262,8 +1439,6 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                     }).toList(),
                                   ),
                                 ),
-
-                             
                             ],
                           ),
                         );

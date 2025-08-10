@@ -2,16 +2,16 @@ import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:fontend_pro/pages/login.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:fontend_pro/pages/mainPage.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:fontend_pro/firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(); 
   await GetStorage.init();
   
   final gs = GetStorage();

@@ -33,7 +33,10 @@ class _FollowingTabState extends State<FollowingTab> {
   Map<int, int> likeCountMap = {};
   Map<int, bool> likedMap = {};
 
-   Map<int, int> currentPageMap = {};
+  Map<int, bool> savedMap = {}; // เก็บว่าบันทึกหรือยัง
+  Map<int, int> saveCountMap = {}; // เก็บจำนวนคนบันทึกโพสต์
+
+  Map<int, int> currentPageMap = {};
   Map<int, PageController> pageControllers = {};
 
   bool isInitialLoading = true;
@@ -53,9 +56,7 @@ class _FollowingTabState extends State<FollowingTab> {
     loadInitialData();
     var user = gs.read('user');
     dev.log(user.toString());
-
-    // ลบการเริ่มต้น timer
-    // _startTimer();
+    loadSavedPosts();
 
     dynamic rawUid = gs.read('user');
     if (rawUid is int) {
@@ -227,65 +228,67 @@ class _FollowingTabState extends State<FollowingTab> {
   }
 
 // แก้ไขฟังก์ชัน loadAllPosts เพื่อโหลดเฉพาะโพสต์ของคนที่ติดตาม
-Future<void> loadAllPosts() async {
-  try {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-    final uid = gs.read('user');
+  Future<void> loadAllPosts() async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+      final uid = gs.read('user');
 
-    // เปลี่ยนจาก /get เป็น /following-posts/:user_id
-    final postResponse = await http.get(Uri.parse("$url/image_post/following-posts/$uid"));
-    final likedResponse = await http.get(Uri.parse("$url/image_post/liked-posts/$uid"));
+      // เปลี่ยนจาก /get เป็น /following-posts/:user_id
+      final postResponse =
+          await http.get(Uri.parse("$url/image_post/following-posts/$uid"));
+      final likedResponse =
+          await http.get(Uri.parse("$url/image_post/liked-posts/$uid"));
 
-    if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
-      final List<dynamic> jsonData = jsonDecode(postResponse.body);
-      allPosts = jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
-      filteredPosts = allPosts;
+      if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
+        final List<dynamic> jsonData = jsonDecode(postResponse.body);
+        allPosts =
+            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
+        filteredPosts = allPosts;
 
-      // 1. เก็บโพสต์ที่ผู้ใช้เคยกดไลก์
-      final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
-      final likedSet = Set<int>.from(likedIds);
+        // 1. เก็บโพสต์ที่ผู้ใช้เคยกดไลก์
+        final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
+        final likedSet = Set<int>.from(likedIds);
 
-      // 2. เคลียร์ข้อมูลก่อน
-      showHeartMap.clear();
-      likeCountMap.clear();
-      likedMap.clear();
+        // 2. เคลียร์ข้อมูลก่อน
+        showHeartMap.clear();
+        likeCountMap.clear();
+        likedMap.clear();
 
-      // 3. กำหนดค่า likedMap และ likeCountMap ตามโพสต์ที่โหลดมา
-      for (var postItem in allPosts) {
-        final postId = postItem.post.postId;
-        likeCountMap[postId] = postItem.post.amountOfLike;
-        likedMap[postId] = likedSet.contains(postId);
+        // 3. กำหนดค่า likedMap และ likeCountMap ตามโพสต์ที่โหลดมา
+        for (var postItem in allPosts) {
+          final postId = postItem.post.postId;
+          likeCountMap[postId] = postItem.post.amountOfLike;
+          likedMap[postId] = likedSet.contains(postId);
+        }
+
+        // 4. สร้าง map สำหรับแสดงหัวใจ
+        for (int i = 0; i < filteredPosts.length; i++) {
+          showHeartMap[i] = false;
+        }
+
+        await loadFollowingStatus();
+      } else if (postResponse.statusCode == 404) {
+        // กรณีไม่มีโพสต์จากคนที่ติดตาม
+        dev.log('ไม่พบโพสต์จากคนที่คุณติดตาม');
+        allPosts = [];
+        filteredPosts = [];
+        likedMap.clear();
+        likeCountMap.clear();
+        showHeartMap.clear();
+      } else {
+        throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
       }
-
-      // 4. สร้าง map สำหรับแสดงหัวใจ
-      for (int i = 0; i < filteredPosts.length; i++) {
-        showHeartMap[i] = false;
-      }
-
-      await loadFollowingStatus();
-
-    } else if (postResponse.statusCode == 404) {
-      // กรณีไม่มีโพสต์จากคนที่ติดตาม
-      dev.log('ไม่พบโพสต์จากคนที่คุณติดตาม');
+    } catch (e) {
+      dev.log('Error loading following posts: $e');
       allPosts = [];
       filteredPosts = [];
       likedMap.clear();
       likeCountMap.clear();
       showHeartMap.clear();
-    } else {
-      throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
+      followingUserIds.clear();
     }
-  } catch (e) {
-    dev.log('Error loading following posts: $e');
-    allPosts = [];
-    filteredPosts = [];
-    likedMap.clear();
-    likeCountMap.clear();
-    showHeartMap.clear();
-    followingUserIds.clear();
   }
-}
 
   void filterPostsByCategory(int? cid) {
     setState(() {
@@ -350,6 +353,78 @@ Future<void> loadAllPosts() async {
       }
     } catch (e) {
       dev.log("Error like/unlike post: $e");
+    }
+  }
+
+  void savePost(int postId) async {
+    final uid = gs.read('user'); // อ่าน user id จาก GetStorage
+    final isSaved = savedMap[postId] ?? false; // เช็คว่าบันทึกไปแล้วหรือยัง
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      // ✅ สลับ endpoint ตามสถานะ save/unsave
+      final endpoint = isSaved ? '/image_post/unsave' : '/image_post/save';
+      final uri = Uri.parse('$url$endpoint');
+
+      final saveModel = LikePost(userId: uid, postId: postId);
+      // ใช้โมเดลเดียวกับ like ได้เลย ถ้า fields ชื่อเหมือนกัน
+      final bodyJson = likePostToJson(saveModel);
+
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: bodyJson,
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          savedMap[postId] = !isSaved;
+
+          if (!isSaved) {
+            // บันทึกโพสต์
+            saveCountMap[postId] = (saveCountMap[postId] ?? 0) + 1;
+          } else {
+            // ยกเลิกบันทึกโพสต์
+            saveCountMap[postId] = (saveCountMap[postId] ?? 1) - 1;
+            if (saveCountMap[postId]! < 0) {
+              saveCountMap[postId] = 0; // ป้องกันค่าติดลบ
+            }
+          }
+        });
+      } else {
+        dev.log("Save/Unsave API failed: ${response.body}");
+      }
+    } catch (e) {
+      dev.log("Error save/unsave post: $e");
+    }
+  }
+
+  Future<void> loadSavedPosts() async {
+    final uid = gs.read('user'); // user id จาก GetStorage
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final uri = Uri.parse('$url/image_post/saved-posts/$uid');
+
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List savedPostIds = data['savedPostIds'];
+
+        setState(() {
+          // รีเซ็ต savedMap และใส่สถานะ true ให้โพสต์ที่โหลดมา
+          savedMap = {};
+          for (var postId in savedPostIds) {
+            savedMap[postId] = true;
+          }
+        });
+      } else {
+        dev.log("Failed to load saved posts: ${response.body}");
+      }
+    } catch (e) {
+      dev.log("Error loading saved posts: $e");
     }
   }
 
@@ -921,7 +996,6 @@ Future<void> loadAllPosts() async {
                               ),
 
                               // Image Section (Instagram style - full width)
-                                // Image Section (Instagram style - full width)
                               if (postItem.images.isNotEmpty)
                                 SizedBox(
                                   height: 400,
@@ -1042,7 +1116,6 @@ Future<void> loadAllPosts() async {
                                         ),
                                       ),
 
-
                                       // Heart animation
                                       Center(
                                         child: AnimatedScale(
@@ -1127,24 +1200,27 @@ Future<void> loadAllPosts() async {
                                             : Icons.favorite_border,
                                         color: likedMap[postItem.post.postId] ==
                                                 true
-                                            ? Colors.red
+                                            ? Color.fromARGB(255, 247, 32, 32)
                                             : Colors.black,
                                         size: 24,
                                       ),
                                     ),
                                     // Likes count
-                              if ((likeCountMap[postItem.post.postId] ?? 0) > 0)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  child: Text(
-                                    '${likeCountMap[postItem.post.postId]} ',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
+                                    if ((likeCountMap[postItem.post.postId] ??
+                                            0) >
+                                        0)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12),
+                                        child: Text(
+                                          '${likeCountMap[postItem.post.postId]} ',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+
                                     const SizedBox(width: 16),
 
                                     // Comment button
@@ -1160,26 +1236,29 @@ Future<void> loadAllPosts() async {
                                     ),
                                     const SizedBox(width: 16),
 
-                                    
-
                                     const Spacer(),
 
                                     // Save button
                                     GestureDetector(
                                       onTap: () {
-                                        // Handle save
+                                        savePost(postItem.post
+                                            .postId); // ฟังก์ชัน toggle save / unsave
                                       },
-                                      child: const Icon(
-                                        Icons.bookmark_border,
-                                        color: Colors.black,
+                                      child: Icon(
+                                        savedMap[postItem.post.postId] == true
+                                            ? Icons.bookmark
+                                            : Icons.bookmark_border,
+                                        color: savedMap[postItem.post.postId] ==
+                                                true
+                                            ? const Color.fromARGB(255, 0, 0, 0)
+                                            : Colors.black,
                                         size: 24,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-
-                               // Categories (simplified)
+                              // Categories (simplified)
                               if (postItem.categories.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -1192,11 +1271,13 @@ Future<void> loadAllPosts() async {
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12, vertical: 6),
                                         decoration: BoxDecoration(
-                                          color: const Color.fromARGB(255, 214, 214, 214), // พื้นหลังอ่อน
+                                          color: const Color.fromARGB(255, 214,
+                                              214, 214), // พื้นหลังอ่อน
                                           borderRadius:
                                               BorderRadius.circular(20),
                                           border: Border.all(
-                                              color: Color.fromARGB(255, 0, 0, 0)),
+                                              color:
+                                                  Color.fromARGB(255, 0, 0, 0)),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -1205,7 +1286,8 @@ Future<void> loadAllPosts() async {
                                               cat.cname,
                                               style: TextStyle(
                                                 fontSize: 14,
-                                                color: const Color.fromARGB(255, 0, 0, 0),
+                                                color: const Color.fromARGB(
+                                                    255, 0, 0, 0),
                                                 fontWeight: FontWeight.w500,
                                               ),
                                             ),
@@ -1215,7 +1297,6 @@ Future<void> loadAllPosts() async {
                                     }).toList(),
                                   ),
                                 ),
-
                               // Caption
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -1272,24 +1353,6 @@ Future<void> loadAllPosts() async {
                                     }).toList(),
                                   ),
                                 ),
-
-                              // Categories (simplified)
-                              if (postItem.categories.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 4),
-                                  child: Text(
-                                    postItem.categories
-                                        .map((cat) => cat.cname)
-                                        .join(' • '),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ),
-
-                              const SizedBox(height: 12),
                             ],
                           ),
                         );

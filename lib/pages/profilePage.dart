@@ -9,8 +9,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/pages/edit_profile.dart';
 import 'package:fontend_pro/models/get_user_uid.dart';
 import 'package:fontend_pro/pages/user_detail_post.dart';
-import 'package:fontend_pro/pages/user_my_likes_tab.dart';
+import 'package:fontend_pro/pages/user_upload_photoPage.dart';
 import 'package:fontend_pro/models/get_post_user.dart' as model;
+import 'package:fontend_pro/models/get_post_save.dart' as models;
 import 'package:fontend_pro/models/get_post_like.dart' as modelp;
 
 class Profilepage extends StatefulWidget {
@@ -24,10 +25,12 @@ class _ProfilepageState extends State<Profilepage> {
   int selectedIndex = 0;
   GetUserUid? user;
   final GetStorage gs = GetStorage();
-  
+
   // เก็บข้อมูลไว้ใน state แทนการใช้ Future
   List<model.GetPostUser>? userPosts;
   List<modelp.GetPostLike>? likedPosts;
+  List<models.GetPostSave>? savedPosts;
+
   bool _isInitialLoading = true;
   bool _isRefreshing = false;
 
@@ -47,8 +50,9 @@ class _ProfilepageState extends State<Profilepage> {
       loadDataUser(),
       loadUserPosts(),
       _loadLikedPosts(),
+      _loadSavedPosts(),
     ]);
-    
+
     setState(() {
       _isInitialLoading = false;
     });
@@ -95,6 +99,7 @@ class _ProfilepageState extends State<Profilepage> {
         loadDataUser(),
         loadUserPosts(),
         _loadLikedPosts(),
+        _loadSavedPosts()
       ]);
     } catch (e) {
       log('Error refreshing data: $e');
@@ -172,6 +177,35 @@ class _ProfilepageState extends State<Profilepage> {
     }
   }
 
+  Future<void> _loadSavedPosts() async {
+    try {
+      final userId = gs.read('user');
+      if (userId == null) return;
+
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+      final uri = Uri.parse('$url/image_post/saved-posts/full/$userId');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final loadedPosts = models.getPostSaveFromJson(response.body);
+        log('Loaded saved posts count: ${loadedPosts.length}'); // debug log
+        setState(() {
+          savedPosts = loadedPosts;
+        });
+      } else {
+        setState(() {
+          savedPosts = [];
+        });
+      }
+    } catch (e) {
+      log('Error loading saved posts: $e');
+      setState(() {
+        savedPosts = [];
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -196,7 +230,17 @@ class _ProfilepageState extends State<Profilepage> {
               color: Colors.black,
               size: 28,
             ),
-            onPressed: () {},
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.white,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                builder: (context) => const UserUploadPhotopage(),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(
@@ -350,8 +394,7 @@ class _ProfilepageState extends State<Profilepage> {
                           color: Colors.transparent,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(6),
-                            onTap: () =>
-                                Get.to(() => const EditProfilePage()),
+                            onTap: () => Get.to(() => const EditProfilePage()),
                             child: const Center(
                               child: Text(
                                 "แก้ไขโปรไฟล์",
@@ -492,11 +535,13 @@ class _ProfilepageState extends State<Profilepage> {
 
   Widget _buildPostsGrid() {
     List<dynamic>? posts;
-    
+
     if (selectedIndex == 2) {
-      posts = likedPosts;
+      posts = likedPosts; // list ของ modelp.GetPostLike
+    } else if (selectedIndex == 1) {
+      posts = savedPosts; // list ของ models.GetPostSave
     } else {
-      posts = userPosts;
+      posts = userPosts; // list ของ model.GetPostUser
     }
 
     // แสดง loading indicator เฉพาะตอน refresh
@@ -504,8 +549,7 @@ class _ProfilepageState extends State<Profilepage> {
       return Container(
         height: 200,
         child: const Center(
-          child: CircularProgressIndicator(
-              color: Colors.black, strokeWidth: 2),
+          child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
         ),
       );
     }
@@ -522,13 +566,14 @@ class _ProfilepageState extends State<Profilepage> {
               height: 62,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                    color: Colors.black, width: 2),
+                border: Border.all(color: Colors.black, width: 2),
               ),
               child: Icon(
                 selectedIndex == 2
                     ? Icons.favorite_border
-                    : Icons.camera_alt_outlined,
+                    : (selectedIndex == 1
+                        ? Icons.bookmark_border
+                        : Icons.camera_alt_outlined),
                 size: 24,
                 color: Colors.black,
               ),
@@ -537,7 +582,9 @@ class _ProfilepageState extends State<Profilepage> {
             Text(
               selectedIndex == 2
                   ? 'ยังไม่มีโพสต์ที่ถูกใจ'
-                  : 'แชร์ภาพถ่าย',
+                  : (selectedIndex == 1
+                      ? 'ยังไม่มีโพสต์ที่บันทึก'
+                      : 'แชร์ภาพถ่าย'),
               style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w300,
@@ -547,10 +594,10 @@ class _ProfilepageState extends State<Profilepage> {
             Text(
               selectedIndex == 2
                   ? 'เมื่อคุณกดใจภาพถ่ายและวิดีโอ\nภาพเหล่านั้นจะปรากฏที่นี่'
-                  : 'เมื่อคุณแชร์ภาพถ่ายและวิดีโอ ภาพเหล่านั้น\nจะปรากฏในโปรไฟล์ของคุณ',
-              style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54),
+                  : (selectedIndex == 1
+                      ? 'โพสต์ที่คุณบันทึกจะปรากฏที่นี่'
+                      : 'เมื่อคุณแชร์ภาพถ่ายและวิดีโอ ภาพเหล่านั้น\nจะปรากฏในโปรไฟล์ของคุณ'),
+              style: const TextStyle(fontSize: 14, color: Colors.black54),
               textAlign: TextAlign.center,
             ),
           ],
@@ -572,26 +619,29 @@ class _ProfilepageState extends State<Profilepage> {
       itemBuilder: (context, index) {
         final post = posts![index];
         String? imageUrl;
+        int? postId;
 
         if (selectedIndex == 2) {
-          // สำหรับโพสต์ที่ถูกใจ ใช้ modelp.GetPostLike
           final likedPost = post as modelp.GetPostLike;
-          imageUrl = likedPost.images.isNotEmpty
-              ? likedPost.images.first.image
-              : null;
+          imageUrl = likedPost.images.isNotEmpty ? likedPost.images.first.image : null;
+          postId = likedPost.post.postId; // ใช้ id ของ GetPostLike
+        } else if (selectedIndex == 1) {
+          final savedPost = post as models.GetPostSave;
+          imageUrl = savedPost.images.isNotEmpty ? savedPost.images.first.image : null;
+          postId = savedPost.post.postId; // ใช้ id ของ GetPostSave
         } else {
-          // สำหรับโพสต์ของผู้ใช้ ใช้ model.GetPostUser
           final userPost = post as model.GetPostUser;
-          imageUrl = userPost.images.isNotEmpty
-              ? userPost.images.first.image
-              : null;
+          imageUrl = userPost.images.isNotEmpty ? userPost.images.first.image : null;
+          postId = userPost.post.postId; // ใช้ id ของ GetPostUser
         }
 
         return GestureDetector(
           onTap: () {
-            if (selectedIndex == 0) {
-              final userPost = post as model.GetPostUser;
-              Get.to(() => UserDetailPost(postUser: userPost));
+            // ส่ง postId แทนการส่ง object ทั้งหมด
+            if (postId != null) {
+              log('Navigating to post detail with ID: $postId');
+              // เปลี่ยนจากการส่ง object เป็นการส่ง postId
+              Get.to(() => UserDetailPostPage(postId: postId!));
             }
           },
           child: Container(
@@ -600,8 +650,7 @@ class _ProfilepageState extends State<Profilepage> {
                 ? Image.network(
                     imageUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        Icon(
+                    errorBuilder: (context, error, stackTrace) => Icon(
                       Icons.broken_image,
                       color: Colors.grey[400],
                       size: 40,

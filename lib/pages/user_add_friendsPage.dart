@@ -51,7 +51,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
     try {
       await Future.wait([
         loadDataUser(loggedInUid),
-        loadFollowingUsers(loggedInUid),
       ]);
     } catch (e) {
       setState(() {
@@ -73,7 +72,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
     try {
       await Future.wait([
         loadDataUser(loggedInUid),
-        loadFollowingUsers(loggedInUid),
       ]);
     } catch (e) {
       setState(() {
@@ -401,8 +399,8 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                 decoration: BoxDecoration(
                                   color: Colors.green[500],
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                      color: Colors.white, width: 2),
+                                  border:
+                                      Border.all(color: Colors.white, width: 2),
                                 ),
                                 child: const Icon(
                                   Icons.check,
@@ -454,12 +452,10 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                       duration: const Duration(milliseconds: 200),
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isFollowing
-                              ? Colors.grey[100]
-                              : Colors.black87,
-                          foregroundColor: isFollowing
-                              ? Colors.black87
-                              : Colors.white,
+                          backgroundColor:
+                              isFollowing ? Colors.grey[100] : Colors.black87,
+                          foregroundColor:
+                              isFollowing ? Colors.black87 : Colors.white,
                           elevation: 0,
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
@@ -538,44 +534,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
     }
   }
 
-  Future<void> loadFollowingUsers(int loggedInUid) async {
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-
-      final response = await http.get(
-        Uri.parse("$url/user/following?uid=$loggedInUid"),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        Set<int> followingIds = {};
-        
-        // แปลง response data เป็น Set<int> ของ following user IDs
-        if (data is List) {
-          for (var item in data) {
-            if (item is Map<String, dynamic> && item.containsKey('following_id')) {
-              followingIds.add(item['following_id'] as int);
-            } else if (item is Map<String, dynamic> && item.containsKey('uid')) {
-              followingIds.add(item['uid'] as int);
-            }
-          }
-        }
-
-        setState(() {
-          followingUserIds = followingIds;
-        });
-        log('Following users loaded: ${followingIds.length} users');
-      } else {
-        log('Failed to load following users: ${response.statusCode}');
-        // ไม่ throw error เพราะไม่ใช่ข้อมูลสำคัญ
-      }
-    } catch (e) {
-      log('Error loading following users: $e');
-      // ไม่ throw error เพราะไม่ใช่ข้อมูลสำคัญ
-    }
-  }
-
   Future<void> followUser(int targetUserId) async {
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
@@ -640,7 +598,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
 
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
