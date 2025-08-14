@@ -22,12 +22,12 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
   GetStorage gs = GetStorage();
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email'],
-  );
-
   bool _isLoading = false;
   bool _isPasswordVisible = false;
+
+    final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email'],
+  );
 
   late AnimationController _logoController;
   late AnimationController _slideController;
@@ -153,7 +153,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                                   end: Alignment.bottomCenter,
                                 ).createShader(bounds),
                                 child: const Text(
-                                  "ยินดีต้อนรับกลับ!",
+                                  "ยินดีต้อนรับ!",
                                   style: TextStyle(
                                     fontSize: 32,
                                     fontWeight: FontWeight.bold,

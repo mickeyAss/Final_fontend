@@ -93,7 +93,6 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
         assets.add(asset);
       }
     }
-
     setState(() {
       selectedAssets = assets;
       isLoading = false;

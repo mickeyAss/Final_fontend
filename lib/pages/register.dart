@@ -113,23 +113,23 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 _buildInputWithDropdown(
                   label: 'รอบอก',
-                  unit: 'ซม.',
+                  unit: 'นิ้ว',
                   value: chest,
-                  suggestedValues: List.generate(51, (i) => 70 + i),
+                  suggestedValues: List.generate(51, (i) => 20+ i),
                   onChanged: (val) => setState(() => chest = val),
                 ),
                 _buildInputWithDropdown(
                   label: 'รอบเอว',
-                  unit: 'ซม.',
+                  unit: 'นิ้ว',
                   value: waist,
-                  suggestedValues: List.generate(51, (i) => 60 + i),
+                  suggestedValues: List.generate(51, (i) => 15 + i),
                   onChanged: (val) => setState(() => waist = val),
                 ),
                 _buildInputWithDropdown(
                   label: 'สะโพก',
-                  unit: 'ซม.',
+                  unit: 'นิ้ว',
                   value: hips,
-                  suggestedValues: List.generate(51, (i) => 80 + i),
+                  suggestedValues: List.generate(51, (i) => 20 + i),
                   onChanged: (val) => setState(() => hips = val),
                 ),
                 SizedBox(height: 12),
@@ -177,6 +177,7 @@ class _RegisterPageState extends State<RegisterPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          
           Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
           SizedBox(height: 4),
           Container(
@@ -219,8 +220,17 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 SizedBox(width: 8),
                 Text(unit, style: TextStyle(color: Colors.black87)),
+                
               ],
             ),
+          ),
+          SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text('*ไม่จำเป็นต้องระบุ',
+                style: TextStyle(color: Colors.red, fontSize: 12)),
+            ],
           ),
         ],
       ),
@@ -237,7 +247,7 @@ class _RegisterPageState extends State<RegisterPage> {
         readOnly: readOnly, // คุณจะเห็นว่าค่าดีฟอลต์เป็น false
         cursorColor: Colors.grey,
         decoration: InputDecoration(
-          labelText: label,
+          hintText: label,
           filled: true,
           fillColor: readOnly ? Colors.grey.shade200 : Colors.white,
           enabledBorder: OutlineInputBorder(
