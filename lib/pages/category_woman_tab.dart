@@ -392,12 +392,6 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
       name: gs.read('register_name') ?? '',
       email: gs.read('register_email') ?? '',
       password: gs.read('register_password') ?? '',
-      height: gs.read('register_height') ?? 0,
-      weight: gs.read('register_weight') ?? 0,
-      shirtSize: gs.read('register_shirtSize') ?? '',
-      chest: gs.read('register_chest') ?? 0,
-      waistCircumference: gs.read('register_waist') ?? 0,
-      hip: gs.read('register_hips') ?? 0,
       personalDescription: '',
       categoryIds: categoryIds,
     );

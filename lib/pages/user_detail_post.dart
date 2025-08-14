@@ -21,12 +21,12 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   bool isLoading = true;
   String? errorMessage;
   bool isLiked = false;
-  bool isSavingLike = false; // ป้องกันกดซ้ำขณะกำลังส่ง
+  bool isSavingLike = false;
   int loggedInUserId = 0;
 
   Map<int, bool> savedMap = {};
   Map<int, int> saveCountMap = {};
-  bool isSavingSave = false; // ป้องกันกดซ้ำ
+  bool isSavingSave = false;
 
   GetStorage gs = GetStorage();
 
@@ -204,8 +204,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
       isSavingSave = true;
     });
 
-    final uid = gs.read('user'); // อ่าน user id จาก GetStorage
-    final isSaved = savedMap[postId] ?? false; // สถานะปัจจุบัน
+    final uid = gs.read('user');
+    final isSaved = savedMap[postId] ?? false;
 
     try {
       var config = await Configuration.getConfig();
@@ -233,8 +233,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
             if (saveCountMap[postId]! < 0) saveCountMap[postId] = 0;
           }
         });
-      } else {
-        // handle error
       }
     } catch (e) {
       // handle error
@@ -246,7 +244,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   }
 
   Future<void> loadSavedPosts() async {
-    final uid = gs.read('user'); // user id จาก GetStorage
+    final uid = gs.read('user');
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
     final uri = Uri.parse('$url/image_post/saved-posts/$uid');
@@ -263,8 +261,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
             savedMap[postId] = true;
           }
         });
-      } else {
-        // handle error
       }
     } catch (e) {
       // handle error
@@ -289,7 +285,10 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   }
 
   Widget _buildCategoriesSection() {
-    if (postDetail?.categories.isEmpty ?? true) return const SizedBox.shrink();
+    // เช็คว่า categories ไม่เป็น null และมีข้อมูล
+    if (postDetail?.categories == null || postDetail!.categories.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -302,7 +301,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
             decoration: BoxDecoration(
               color: const Color.fromARGB(255, 214, 214, 214),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Color.fromARGB(255, 0, 0, 0)),
+              border: Border.all(color: const Color.fromARGB(255, 0, 0, 0)),
             ),
             child: Text(
               category.cname,
@@ -319,7 +318,10 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   }
 
   Widget _buildHashtagsSection() {
-    if (postDetail?.hashtags.isEmpty ?? true) return const SizedBox.shrink();
+    // เช็คว่า hashtags ไม่เป็น null และมีข้อมูล
+    if (postDetail?.hashtags == null || postDetail!.hashtags.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -328,7 +330,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
         children: postDetail!.hashtags.map((hashtag) {
           return GestureDetector(
             onTap: () {
-              // TODO: Navigate to hashtag search page
               print('Tapped hashtag: ${hashtag.tagName}');
             },
             child: Text(
@@ -356,9 +357,9 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
           iconTheme: const IconThemeData(color: Colors.black),
           title: const Text('Post', style: TextStyle(color: Colors.black)),
         ),
-        body: Scaffold(
-          backgroundColor: const Color(0xFFF8F9FA),
-          body: const Center(
+        body: const Scaffold(
+          backgroundColor: Color(0xFFF8F9FA),
+          body: Center(
             child: CircularProgressIndicator(
               color: Colors.black,
               strokeWidth: 2,
@@ -422,10 +423,10 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundImage: user.profileImage.isNotEmpty
-                        ? NetworkImage(user.profileImage)
+                    backgroundImage: user.profileImage != null && user.profileImage!.isNotEmpty
+                        ? NetworkImage(user.profileImage!)
                         : null,
-                    child: user.profileImage.isEmpty
+                    child: user.profileImage == null || user.profileImage!.isEmpty
                         ? const Icon(Icons.person)
                         : null,
                   ),
@@ -481,6 +482,17 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                             postDetail!.images[index].image,
                             fit: BoxFit.cover,
                             width: double.infinity,
+                            // เพิ่ม error handler สำหรับรูปภาพ
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[200],
+                                child: const Icon(
+                                  Icons.broken_image,
+                                  size: 50,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
                           ),
                           if (showHeart)
                             ScaleTransition(
@@ -576,11 +588,12 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  if (post.postDescription.isNotEmpty)
+                  // ใช้ null safety สำหรับ postDescription
+                  if (post.postDescription != null && post.postDescription!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
-                        post.postDescription,
+                        post.postDescription!,
                         style: const TextStyle(
                           fontSize: 14,
                           color: Colors.black,
