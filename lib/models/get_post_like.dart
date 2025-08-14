@@ -44,7 +44,7 @@ class Category {
     int cid;
     String cname;
     String cimage;
-    String ctype;
+    Ctype ctype;
 
     Category({
         required this.cid,
@@ -57,20 +57,28 @@ class Category {
         cid: json["cid"],
         cname: json["cname"],
         cimage: json["cimage"],
-        ctype: json["ctype"],
+        ctype: ctypeValues.map[json["ctype"]]!,
     );
 
     Map<String, dynamic> toJson() => {
         "cid": cid,
         "cname": cname,
         "cimage": cimage,
-        "ctype": ctype,
+        "ctype": ctypeValues.reverse[ctype],
     };
 }
 
+enum Ctype {
+    M
+}
+
+final ctypeValues = EnumValues({
+    "M": Ctype.M
+});
+
 class Hashtag {
     int tagId;
-    String tagName;
+    TagName tagName;
 
     Hashtag({
         required this.tagId,
@@ -79,14 +87,22 @@ class Hashtag {
 
     factory Hashtag.fromJson(Map<String, dynamic> json) => Hashtag(
         tagId: json["tag_id"],
-        tagName: json["tag_name"],
+        tagName: tagNameValues.map[json["tag_name"]]!,
     );
 
     Map<String, dynamic> toJson() => {
         "tag_id": tagId,
-        "tag_name": tagName,
+        "tag_name": tagNameValues.reverse[tagName],
     };
 }
+
+enum TagName {
+    EMPTY
+}
+
+final tagNameValues = EnumValues({
+    "มินิมอล": TagName.EMPTY
+});
 
 class Image {
     int imageId;
@@ -158,56 +174,74 @@ class Post {
 
 class User {
     int uid;
-    String name;
-    String email;
-    String height;
-    String weight;
-    String shirtSize;
-    String chest;
-    String waistCircumference;
-    String hip;
-    String personalDescription;
+    Name name;
+    Email email;
+    PersonalDescription personalDescription;
     String profileImage;
 
     User({
         required this.uid,
         required this.name,
         required this.email,
-        required this.height,
-        required this.weight,
-        required this.shirtSize,
-        required this.chest,
-        required this.waistCircumference,
-        required this.hip,
         required this.personalDescription,
         required this.profileImage,
     });
 
     factory User.fromJson(Map<String, dynamic> json) => User(
         uid: json["uid"],
-        name: json["name"],
-        email: json["email"],
-        height: json["height"],
-        weight: json["weight"],
-        shirtSize: json["shirt_size"],
-        chest: json["chest"],
-        waistCircumference: json["waist_circumference"],
-        hip: json["hip"],
-        personalDescription: json["personal_description"],
+        name: nameValues.map[json["name"]]!,
+        email: emailValues.map[json["email"]]!,
+        personalDescription: personalDescriptionValues.map[json["personal_description"]]!,
         profileImage: json["profile_image"],
     );
 
     Map<String, dynamic> toJson() => {
         "uid": uid,
-        "name": name,
-        "email": email,
-        "height": height,
-        "weight": weight,
-        "shirt_size": shirtSize,
-        "chest": chest,
-        "waist_circumference": waistCircumference,
-        "hip": hip,
-        "personal_description": personalDescription,
+        "name": nameValues.reverse[name],
+        "email": emailValues.reverse[email],
+        "personal_description": personalDescriptionValues.reverse[personalDescription],
         "profile_image": profileImage,
     };
+}
+
+enum Email {
+    MICSARA_GMAIL_COM,
+    TEAM_GMAIL_COM
+}
+
+final emailValues = EnumValues({
+    "micsara@gmail.com": Email.MICSARA_GMAIL_COM,
+    "team@gmail.com": Email.TEAM_GMAIL_COM
+});
+
+enum Name {
+    SARAWUT_SUTTHIPANYO,
+    TEAM
+}
+
+final nameValues = EnumValues({
+    "Sarawut Sutthipanyo": Name.SARAWUT_SUTTHIPANYO,
+    "team": Name.TEAM
+});
+
+enum PersonalDescription {
+    EMPTY,
+    MICKEY
+}
+
+final personalDescriptionValues = EnumValues({
+    "": PersonalDescription.EMPTY,
+    "MICKEY": PersonalDescription.MICKEY
+});
+
+class EnumValues<T> {
+    Map<String, T> map;
+    late Map<T, String> reverseMap;
+
+    EnumValues(this.map);
+
+    Map<T, String> get reverse {
+            reverseMap = map.map((k, v) => MapEntry(v, k));
+            return reverseMap;
+    }
 }
