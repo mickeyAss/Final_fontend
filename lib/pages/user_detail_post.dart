@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/like_post.dart';
+import 'package:fontend_pro/models/get_comment.dart';
 import 'package:fontend_pro/models/post_detail.dart' as model;
 
 class UserDetailPostPage extends StatefulWidget {
@@ -72,6 +73,30 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   void getLoggedInUserId() {
     loggedInUserId = gs.read('user') ?? 0;
     checkIsLiked();
+  }
+
+  String _formatTimeAgo(DateTime postDate) {
+    final now = DateTime.now();
+    final difference = now.difference(postDate);
+
+    if (difference.inSeconds < 60) {
+      return 'เมื่อสักครู่';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} นาทีที่แล้ว';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} ชั่วโมงที่แล้ว';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} วันที่แล้ว';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return '$weeks สัปดาห์ที่แล้ว';
+    } else if (difference.inDays < 365) {
+      final months = (difference.inDays / 30).floor();
+      return '$months เดือนที่แล้ว';
+    } else {
+      final years = (difference.inDays / 365).floor();
+      return '$years ปีที่แล้ว';
+    }
   }
 
   Future<void> fetchPostDetail() async {
@@ -264,6 +289,548 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
       }
     } catch (e) {
       // handle error
+    }
+  }
+
+  void _showCommentBottomSheet(BuildContext context, int postId) {
+    TextEditingController _commentController = TextEditingController();
+    FocusNode _focusNode = FocusNode();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return AnimatedPadding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.75,
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Handle Bar
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey[200]!),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline,
+                            color: Colors.blue,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'ความคิดเห็น',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Comments List
+                    Expanded(
+                      child: FutureBuilder<GetComment>(
+                        future: _fetchComments(postId),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) {
+                            return Container(
+                              color: Colors.white,
+                              child: const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.blue),
+                                    ),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'กำลังโหลดความคิดเห็น...',
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          final comments = snapshot.data!.comments;
+
+                          if (comments.isEmpty) {
+                            return Container(
+                              color: Colors.white,
+                              child: const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 48,
+                                      color: Colors.grey,
+                                    ),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'ยังไม่มีความคิดเห็น',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'เป็นคนแรกที่แสดงความคิดเห็น',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          return Container(
+                            color: Colors.white,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              itemCount: comments.length,
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(height: 4),
+                              itemBuilder: (context, index) {
+                                final c = comments[index];
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.grey[200]!,
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Hero(
+                                            tag: 'avatar_${c.name}_$index',
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: Colors.grey[300]!,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: CircleAvatar(
+                                                radius: 18,
+                                                backgroundImage: c
+                                                        .profileImage.isNotEmpty
+                                                    ? NetworkImage(
+                                                        c.profileImage)
+                                                    : const AssetImage(
+                                                            'assets/default_avatar.png')
+                                                        as ImageProvider,
+                                                backgroundColor:
+                                                    Colors.grey[200],
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  c.name,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 14,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.access_time,
+                                                      size: 12,
+                                                      color: Colors.grey[500],
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      _formatTimeAgo(
+                                                          c.createdAt),
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: Colors.grey[500],
+                                                        fontWeight:
+                                                            FontWeight.w400,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: Colors.grey[200]!,
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          c.commentText,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black87,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    // Comment Input
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border(
+                          top: BorderSide(color: Colors.grey[200]!),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, -2),
+                          ),
+                        ],
+                      ),
+                      child: SafeArea(
+                        top: false,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                  maxHeight: 120,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: Colors.grey[300]!,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: TextField(
+                                  controller: _commentController,
+                                  focusNode: _focusNode,
+                                  maxLines: null,
+                                  textCapitalization:
+                                      TextCapitalization.sentences,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'แสดงความคิดเห็น...',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 14,
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: _commentController,
+                              builder: (context, value, child) {
+                                final hasText = value.text.trim().isNotEmpty;
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeInOut,
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: hasText
+                                          ? () async {
+                                              final text = _commentController
+                                                  .text
+                                                  .trim();
+                                              if (text.isNotEmpty) {
+                                                _commentController.clear();
+                                                _focusNode.unfocus();
+
+                                                // Show loading state
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  SnackBar(
+                                                    content: const Row(
+                                                      children: [
+                                                        SizedBox(
+                                                          width: 16,
+                                                          height: 16,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            valueColor:
+                                                                AlwaysStoppedAnimation<
+                                                                        Color>(
+                                                                    Colors
+                                                                        .white),
+                                                          ),
+                                                        ),
+                                                        SizedBox(width: 12),
+                                                        Text(
+                                                            'กำลังส่งความคิดเห็น...'),
+                                                      ],
+                                                    ),
+                                                    duration: const Duration(
+                                                        seconds: 1),
+                                                    backgroundColor:
+                                                        Colors.blue,
+                                                  ),
+                                                );
+
+                                                await _submitComment(
+                                                    postId, text);
+                                                setModalState(
+                                                    () {}); // รีโหลด FutureBuilder
+                                              }
+                                            }
+                                          : null,
+                                      borderRadius: BorderRadius.circular(24),
+                                      child: Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                          color: hasText
+                                              ? Colors.blue
+                                              : Colors.grey[300],
+                                          shape: BoxShape.circle,
+                                          boxShadow: hasText
+                                              ? [
+                                                  BoxShadow(
+                                                    color: Colors.blue
+                                                        .withOpacity(0.3),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ]
+                                              : null,
+                                        ),
+                                        child: Icon(
+                                          Icons.send_rounded,
+                                          color: hasText
+                                              ? Colors.white
+                                              : Colors.grey[500],
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<GetComment> _fetchComments(int postId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
+    if (res.statusCode == 200) {
+      return getCommentFromJson(res.body);
+    } else {
+      throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
+    }
+  }
+
+  Future<void> _submitComment(int postId, String commentText) async {
+    final gs = GetStorage();
+    final userId = gs.read('user');
+    
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+      
+      final res = await http.post(
+        Uri.parse('$url/image_post/comment'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'post_id': postId,
+          'user_id': userId,
+          'comment_text': commentText,
+        }),
+      );
+      
+      if (res.statusCode == 200) {
+        // แสดงข้อความสำเร็จ
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text('ส่งความคิดเห็นสำเร็จ'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          
+          // รีเฟรชหน้าเพื่ออัพเดทจำนวน comments
+          setState(() {});
+        }
+      } else {
+        // แสดงข้อความผิดพลาด
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text('ส่งความคิดเห็นไม่สำเร็จ'),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        debugPrint('ส่งคอมเมนต์ไม่สำเร็จ: ${res.statusCode} - ${res.body}');
+      }
+    } catch (e) {
+      // จัดการ error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text('เกิดข้อผิดพลาด กรุณาลองใหม่'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      debugPrint('Error submitting comment: $e');
     }
   }
 
@@ -518,6 +1085,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 children: [
                   Row(
                     children: [
+                      // Like Button
                       IconButton(
                         icon: Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border,
@@ -526,14 +1094,18 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         ),
                         onPressed: toggleLike,
                       ),
+                      
+                      // Comment Button - เชื่อมต่อกับ bottom sheet
                       IconButton(
                         icon: const Icon(
                           Icons.chat_bubble_outline,
                           color: Colors.black,
                           size: 28,
                         ),
-                        onPressed: () {},
+                        onPressed: () => _showCommentBottomSheet(context, widget.postId),
                       ),
+                      
+                      // Share Button
                       IconButton(
                         icon: const Icon(
                           Icons.send,
@@ -544,6 +1116,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                       ),
                     ],
                   ),
+                  
+                  // Save Button
                   IconButton(
                     icon: Icon(
                       savedMap[widget.postId] == true
@@ -560,15 +1134,45 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
               ),
             ),
 
-            // Likes count
+            // Likes and Comments count
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text(
-                '${post.amountOfLike} likes',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Likes count
+                  Text(
+                    '${post.amountOfLike} likes',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  
+                  // Comments count - เพิ่มการแสดงจำนวน comments
+                  const SizedBox(height: 2),
+                  FutureBuilder<GetComment>(
+                    future: _fetchComments(widget.postId),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData && snapshot.data!.comments.isNotEmpty) {
+                        final commentCount = snapshot.data!.comments.length;
+                        return GestureDetector(
+                          onTap: () => _showCommentBottomSheet(context, widget.postId),
+                          child: Text(
+                            commentCount == 1 
+                                ? 'ดูความคิดเห็น 1 รายการ'
+                                : 'ดูความคิดเห็นทั้งหมด $commentCount รายการ',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
               ),
             ),
 

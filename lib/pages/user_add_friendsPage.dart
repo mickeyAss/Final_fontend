@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/material.dart';
@@ -17,14 +18,13 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
   List<GetAllUser> user = [];
   List<GetAllUser> filteredUsers = [];
   TextEditingController searchController = TextEditingController();
+  Timer? _debounce;
 
   final GetStorage gs = GetStorage();
   late int loggedInUid;
 
-  // เก็บ uid ของผู้ใช้ที่ติดตามอยู่ (สถานะติดตาม)
   Set<int> followingUserIds = {};
 
-  // State management
   bool _isInitialLoading = true;
   bool _isRefreshing = false;
   String? _errorMessage;
@@ -49,9 +49,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
 
   Future<void> _initializeData() async {
     try {
-      await Future.wait([
-        loadDataUser(loggedInUid),
-      ]);
+      await loadDataUser(loggedInUid);
     } catch (e) {
       setState(() {
         _errorMessage = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
@@ -70,9 +68,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
     });
 
     try {
-      await Future.wait([
-        loadDataUser(loggedInUid),
-      ]);
+      await loadDataUser(loggedInUid);
     } catch (e) {
       setState(() {
         _errorMessage = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
@@ -84,18 +80,149 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
     }
   }
 
-  void filterUsers(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        filteredUsers = user;
+  /// ================== API Load Users ==================
+  Future<void> loadDataUser(int loggedInUid) async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response =
+          await http.get(Uri.parse("$url/user/users-except?uid=$loggedInUid"));
+
+      if (response.statusCode == 200) {
+        final newUsers = getAllUserFromJson(response.body);
+        setState(() {
+          user = newUsers;
+          filteredUsers = newUsers;
+          _errorMessage = null;
+        });
+        log('Users loaded successfully: ${newUsers.length} users');
       } else {
-        filteredUsers = user
-            .where((u) => u.name.toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        throw Exception('HTTP ${response.statusCode}: Failed to load users');
       }
-    });
+    } catch (e) {
+      log('Error loading user data: $e');
+      throw e;
+    }
   }
 
+  /// ================== API Search Users ==================
+  Future<void> searchUsers(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        filteredUsers = user;
+      });
+      return;
+    }
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response =
+          await http.get(Uri.parse("$url/user/search-users?name=$query"));
+
+      if (response.statusCode == 200) {
+        final searchResults = getAllUserFromJson(response.body);
+        setState(() {
+          filteredUsers = searchResults;
+        });
+        log('Search results: ${searchResults.length} users');
+      } else {
+        log('Search failed: ${response.body}');
+        setState(() {
+          filteredUsers = [];
+        });
+      }
+    } catch (e) {
+      log('Error searching users: $e');
+      setState(() {
+        filteredUsers = [];
+      });
+    }
+  }
+
+  /// ================== API Follow / Unfollow ==================
+  Future<void> followUser(int targetUserId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final response = await http.post(
+        Uri.parse('$url/user/follow'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "follower_id": loggedInUid,
+          "following_id": targetUserId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        log('ติดตามผู้ใช้ $targetUserId สำเร็จ');
+        setState(() {
+          followingUserIds.add(targetUserId);
+        });
+      } else {
+        log('เกิดข้อผิดพลาดในการติดตาม: ${response.body}');
+        _showErrorSnackBar('ไม่สามารถติดตามได้ในขณะนี้');
+      }
+    } catch (e) {
+      log('Error following user: $e');
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการติดตาม');
+    }
+  }
+
+  Future<void> unfollowUser(int targetUserId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final uri = Uri.parse('$url/user/unfollow');
+      final request = http.Request('DELETE', uri);
+      request.headers['Content-Type'] = 'application/json';
+      request.body = jsonEncode({
+        'follower_id': loggedInUid,
+        'following_id': targetUserId,
+      });
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        log('เลิกติดตามผู้ใช้ $targetUserId สำเร็จ');
+        setState(() {
+          followingUserIds.remove(targetUserId);
+        });
+      } else {
+        log('เกิดข้อผิดพลาดในการเลิกติดตาม: ${response.body}');
+        _showErrorSnackBar('ไม่สามารถเลิกติดตามได้ในขณะนี้');
+      }
+    } catch (e) {
+      log('Error unfollowing user: $e');
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการเลิกติดตาม');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red[400],
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  /// ================== UI ==================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -119,7 +246,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: Column(
           children: [
-            // Header Container with Search
+            // Search Header
             Container(
               color: Colors.white,
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -152,7 +279,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                     color: Colors.grey[600], size: 20),
                                 onPressed: () {
                                   searchController.clear();
-                                  filterUsers('');
+                                  searchUsers('');
                                 },
                               )
                             : null,
@@ -166,14 +293,14 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                         color: Colors.black87,
                       ),
                       onChanged: (value) {
-                        filterUsers(value);
-                        setState(() {});
+                        if (_debounce?.isActive ?? false) _debounce!.cancel();
+                        _debounce = Timer(const Duration(milliseconds: 500), () {
+                          searchUsers(value);
+                        });
                       },
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
                   // Stats Row
                   Row(
                     children: [
@@ -204,7 +331,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                 ],
               ),
             ),
-
             // User List
             Expanded(
               child: _buildUserList(),
@@ -216,7 +342,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
   }
 
   Widget _buildUserList() {
-    // Initial loading
     if (_isInitialLoading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -226,7 +351,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
       );
     }
 
-    // Error state
     if (_errorMessage != null && user.isEmpty) {
       return Center(
         child: Column(
@@ -266,7 +390,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
       );
     }
 
-    // Empty state
     if (filteredUsers.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refreshData,
@@ -320,7 +443,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
       );
     }
 
-    // User list
     return RefreshIndicator(
       onRefresh: _refreshData,
       color: Colors.black,
@@ -350,7 +472,6 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // บรรทัดแรก: รูปโปรไฟล์และชื่อ
                   Row(
                     children: [
                       Stack(
@@ -442,10 +563,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
-
-                  // บรรทัดที่สอง: ปุ่มติดตาม
                   SizedBox(
                     width: double.infinity,
                     child: AnimatedContainer(
@@ -507,111 +625,5 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
         },
       ),
     );
-  }
-
-  Future<void> loadDataUser(int loggedInUid) async {
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-
-      final response =
-          await http.get(Uri.parse("$url/user/users-except?uid=$loggedInUid"));
-
-      if (response.statusCode == 200) {
-        final newUsers = getAllUserFromJson(response.body);
-        setState(() {
-          user = newUsers;
-          filteredUsers = newUsers;
-          _errorMessage = null;
-        });
-        log('Users loaded successfully: ${newUsers.length} users');
-      } else {
-        throw Exception('HTTP ${response.statusCode}: Failed to load users');
-      }
-    } catch (e) {
-      log('Error loading user data: $e');
-      throw e;
-    }
-  }
-
-  Future<void> followUser(int targetUserId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    try {
-      final response = await http.post(
-        Uri.parse('$url/user/follow'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "follower_id": loggedInUid,
-          "following_id": targetUserId,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        log('ติดตามผู้ใช้ $targetUserId สำเร็จ');
-
-        setState(() {
-          followingUserIds.add(targetUserId);
-        });
-      } else {
-        log('เกิดข้อผิดพลาดในการติดตาม: ${response.body}');
-        _showErrorSnackBar('ไม่สามารถติดตามได้ในขณะนี้');
-      }
-    } catch (e) {
-      log('Error following user: $e');
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการติดตาม');
-    }
-  }
-
-  Future<void> unfollowUser(int targetUserId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    try {
-      final uri = Uri.parse('$url/user/unfollow');
-
-      final request = http.Request('DELETE', uri);
-      request.headers['Content-Type'] = 'application/json';
-      request.body = jsonEncode({
-        'follower_id': loggedInUid,
-        'following_id': targetUserId,
-      });
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        log('เลิกติดตามผู้ใช้ $targetUserId สำเร็จ');
-        setState(() {
-          followingUserIds.remove(targetUserId);
-        });
-      } else {
-        log('เกิดข้อผิดพลาดในการเลิกติดตาม: ${response.body}');
-        _showErrorSnackBar('ไม่สามารถเลิกติดตามได้ในขณะนี้');
-      }
-    } catch (e) {
-      log('Error unfollowing user: $e');
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการเลิกติดตาม');
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red[400],
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    searchController.dispose();
-    super.dispose();
   }
 }
