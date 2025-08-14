@@ -39,7 +39,7 @@ class _CategoryManTabState extends State<CategoryManTab> {
             future: futureCategories,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return  Center(
+                return Center(
                   child: Image.asset(
                     'assets/images/Logo.png',
                     width: 60,
@@ -54,7 +54,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
 
               final snapshotCategories = snapshot.data!;
               if (selected.length != snapshotCategories.length) {
-                selected = List.generate(snapshotCategories.length, (_) => false);
+                selected =
+                    List.generate(snapshotCategories.length, (_) => false);
               }
 
               categories = snapshotCategories; // ✅ อัปเดต global
@@ -125,7 +126,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
                               child: Padding(
                                 padding: const EdgeInsets.all(2.0),
                                 child: isSelected
-                                    ? const Icon(Icons.check, size: 18, color: Colors.white)
+                                    ? const Icon(Icons.check,
+                                        size: 18, color: Colors.white)
                                     : const SizedBox(width: 18, height: 18),
                               ),
                             ),
@@ -368,6 +370,8 @@ class _CategoryManTabState extends State<CategoryManTab> {
   }
 
   void submitRegister({bool skipCategory = false}) async {
+    log("submitRegister เรียกแล้ว, skipCategory = $skipCategory");
+
     if (!skipCategory) {
       if (categories.isEmpty || selected.length != categories.length) {
         log("⚠️ categories หรือ selected ไม่ตรงกัน");
@@ -379,9 +383,7 @@ class _CategoryManTabState extends State<CategoryManTab> {
 
       final selectedCategoryIds = <int>[];
       for (int i = 0; i < selected.length; i++) {
-        if (selected[i]) {
-          selectedCategoryIds.add(categories[i].cid);
-        }
+        if (selected[i]) selectedCategoryIds.add(categories[i].cid);
       }
 
       if (selectedCategoryIds.isEmpty) {
@@ -398,13 +400,29 @@ class _CategoryManTabState extends State<CategoryManTab> {
     }
   }
 
+  double? parseDouble(dynamic val) {
+    if (val == null) return null;
+    if (val is double) return val;
+    if (val is int) return val.toDouble();
+    if (val is String) return double.tryParse(val);
+    return null;
+  }
+
   Future<void> _registerUser(List<int> categoryIds) async {
     final gs = GetStorage();
+
     final model = RegisterUserRequest(
       name: gs.read('register_name') ?? '',
       email: gs.read('register_email') ?? '',
       password: gs.read('register_password') ?? '',
-      personalDescription: '',
+      personalDescription: gs.read('register_personal_description'),
+      profileImage: gs.read('register_profile_image'),
+      height: parseDouble(gs.read('register_height')),
+      weight: parseDouble(gs.read('register_weight')),
+      shirtSize: gs.read('register_shirt_size'),
+      chest: parseDouble(gs.read('register_chest')),
+      waistCircumference: parseDouble(gs.read('register_waist_circumference')),
+      hip: parseDouble(gs.read('register_hip')),
       categoryIds: categoryIds,
     );
 
@@ -412,21 +430,25 @@ class _CategoryManTabState extends State<CategoryManTab> {
     final url = "${config['apiEndpoint']}/user/register";
 
     try {
+      final body = jsonEncode(model.toJson());
+      log("📦 ส่งข้อมูล register: $body");
+
       final response = await http.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-        body: registerUserRequestToJson(model),
+        body: body,
       );
 
       log("📨 Register response: ${response.statusCode} ${response.body}");
 
       if (response.statusCode == 201) {
-        final responseBody = response.body;
-        final Map<String, dynamic> data = responseBody.isNotEmpty ? Map<String, dynamic>.from(jsonDecode(responseBody)) : {};
+        final Map<String, dynamic> data = response.body.isNotEmpty
+            ? Map<String, dynamic>.from(jsonDecode(response.body))
+            : {};
         final uid = data['uid'];
 
         if (uid != null) {
-          gs.write('user', uid); // ✅ เก็บ UID
+          gs.write('user', uid); // เก็บ UID
           log("✅ บันทึก UID ลง GetStorage: $uid");
         }
 
@@ -439,19 +461,30 @@ class _CategoryManTabState extends State<CategoryManTab> {
           context: context,
           builder: (_) => AlertDialog(
             title: const Text("สมัครไม่สำเร็จ"),
-            content: Text("รหัสสถานะ: ${response.statusCode}\n${response.body}"),
-            actions: [TextButton(child: const Text("ตกลง"), onPressed: () => Navigator.pop(context))],
+            content:
+                Text("รหัสสถานะ: ${response.statusCode}\n${response.body}"),
+            actions: [
+              TextButton(
+                child: const Text("ตกลง"),
+                onPressed: () => Navigator.pop(context),
+              )
+            ],
           ),
         );
       }
-    } catch (e) {
-      log("❗ Register error: $e");
+    } catch (e, st) {
+      log("❗ Register exception: $e\n$st");
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text("ข้อผิดพลาด"),
           content: Text("เกิดข้อผิดพลาดระหว่างสมัครสมาชิก\n$e"),
-          actions: [TextButton(child: const Text("ตกลง"), onPressed: () => Navigator.pop(context))],
+          actions: [
+            TextButton(
+              child: const Text("ตกลง"),
+              onPressed: () => Navigator.pop(context),
+            )
+          ],
         ),
       );
     }

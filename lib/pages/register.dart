@@ -12,10 +12,18 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage>
     with TickerProviderStateMixin {
+  // Controllers for basic info
   TextEditingController nameNoCt1 = TextEditingController();
   TextEditingController emailNoCt1 = TextEditingController();
   TextEditingController passwordNoCt1 = TextEditingController();
   TextEditingController conpasswordNoCt1 = TextEditingController();
+  
+  // Controllers for body measurements
+  TextEditingController heightController = TextEditingController();
+  TextEditingController weightController = TextEditingController();
+  TextEditingController chestController = TextEditingController();
+  TextEditingController waistController = TextEditingController();
+  TextEditingController hipController = TextEditingController();
 
   late AnimationController _slideController;
   late AnimationController _fadeController;
@@ -25,6 +33,10 @@ class _RegisterPageState extends State<RegisterPage>
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  int _currentStep = 0; // 0 = basic info, 1 = body measurements
+  String _selectedShirtSize = '';
+
+  final List<String> shirtSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 
   @override
   void initState() {
@@ -62,6 +74,15 @@ class _RegisterPageState extends State<RegisterPage>
   void dispose() {
     _slideController.dispose();
     _fadeController.dispose();
+    nameNoCt1.dispose();
+    emailNoCt1.dispose();
+    passwordNoCt1.dispose();
+    conpasswordNoCt1.dispose();
+    heightController.dispose();
+    weightController.dispose();
+    chestController.dispose();
+    waistController.dispose();
+    hipController.dispose();
     super.dispose();
   }
 
@@ -96,9 +117,13 @@ class _RegisterPageState extends State<RegisterPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _buildProgressIndicator(),
+                      const SizedBox(height: 20),
                       _buildHeader(),
                       const SizedBox(height: 40),
-                      _buildFormSection(),
+                      _currentStep == 0 
+                          ? _buildBasicInfoSection()
+                          : _buildBodyMeasurementsSection(),
                     ],
                   ),
                 ),
@@ -107,7 +132,7 @@ class _RegisterPageState extends State<RegisterPage>
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomButton(),
+      bottomNavigationBar: _buildBottomButtons(),
     );
   }
 
@@ -126,12 +151,20 @@ class _RegisterPageState extends State<RegisterPage>
         child: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new,
               color: Colors.white, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (_currentStep == 0) {
+              Navigator.of(context).pop();
+            } else {
+              setState(() {
+                _currentStep = 0;
+              });
+            }
+          },
         ),
       ),
-      title: const Text(
-        'สมัครสมาชิก',
-        style: TextStyle(
+      title: Text(
+        _currentStep == 0 ? 'สมัครสมาชิก' : 'ข้อมูลร่างกาย',
+        style: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: Colors.white,
@@ -147,6 +180,61 @@ class _RegisterPageState extends State<RegisterPage>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          _buildStepIndicator(0, 'ข้อมูลพื้นฐาน'),
+          Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              color: _currentStep >= 1 ? Colors.black : Colors.grey.shade300,
+            ),
+          ),
+          _buildStepIndicator(1, 'ข้อมูลร่างกาย'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepIndicator(int step, String label) {
+    final isActive = _currentStep >= step;
+    return Column(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: isActive ? Colors.black : Colors.grey.shade300,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              '${step + 1}',
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.grey.shade600,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isActive ? Colors.black87 : Colors.grey.shade600,
+            fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
@@ -167,16 +255,20 @@ class _RegisterPageState extends State<RegisterPage>
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.person_add_alt_1_rounded,
+            child: Icon(
+              _currentStep == 0 
+                  ? Icons.person_add_alt_1_rounded
+                  : Icons.accessibility_new_rounded,
               color: Colors.white,
               size: 32,
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'ยินดีต้อนรับเข้าสู่โลกของคุณ',
-            style: TextStyle(
+          Text(
+            _currentStep == 0 
+                ? 'ยินดีต้อนรับเข้าสู่โลกของคุณ'
+                : 'ข้อมูลร่างกายของคุณ',
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
@@ -185,7 +277,9 @@ class _RegisterPageState extends State<RegisterPage>
           ),
           const SizedBox(height: 12),
           Text(
-            'สมัครสมาชิกเพื่อค้นหาสไตล์ที่ใช่\nและรับประสบการณ์ที่ออกแบบมาเพื่อคุณ',
+            _currentStep == 0 
+                ? 'สมัครสมาชิกเพื่อค้นหาสไตล์ที่ใช่\nและรับประสบการณ์ที่ออกแบบมาเพื่อคุณ'
+                : 'กรอกข้อมูลร่างกายเพื่อให้เราแนะนำ\nขนาดเสื้อผ้าที่เหมาะสมกับคุณ',
             style: TextStyle(
               fontSize: 16,
               color: Colors.grey.shade600,
@@ -198,7 +292,7 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
-  Widget _buildFormSection() {
+  Widget _buildBasicInfoSection() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -255,6 +349,210 @@ class _RegisterPageState extends State<RegisterPage>
                 _obscureConfirmPassword = !_obscureConfirmPassword;
               });
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBodyMeasurementsSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'ข้อมูลร่างกาย',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'ข้อมูลเหล่านี้จะช่วยให้เราแนะนำขนาดเสื้อผ้าที่เหมาะสมกับคุณ (ไม่บังคับ)',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMeasurementField(
+                  'ส่วนสูง',
+                  heightController,
+                  Icons.height,
+                  'cm',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildMeasurementField(
+                  'น้ำหนัก',
+                  weightController,
+                  Icons.monitor_weight_outlined,
+                  'kg',
+                ),
+              ),
+            ],
+          ),
+          _buildShirtSizeSelector(),
+          const SizedBox(height: 8),
+          const Text(
+            'ขนาดรอบตัว (cm)',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildMeasurementField(
+            'รอบอก',
+            chestController,
+            Icons.accessibility_new,
+            'cm',
+          ),
+          _buildMeasurementField(
+            'รอบเอว',
+            waistController,
+            Icons.accessibility_new,
+            'cm',
+          ),
+          _buildMeasurementField(
+            'รอบสะโพก',
+            hipController,
+            Icons.accessibility_new,
+            'cm',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMeasurementField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    String unit,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        cursorColor: Colors.black,
+        style: const TextStyle(
+          fontSize: 16,
+          color: Colors.black87,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.grey.shade700, size: 20),
+          ),
+          suffixText: unit,
+          suffixStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.black, width: 2),
+          ),
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShirtSizeSelector() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ขนาดเสื้อที่คุณใส่',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: shirtSizes.map((size) {
+              final isSelected = _selectedShirtSize == size;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedShirtSize = size;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.black : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected ? Colors.black : Colors.grey.shade300,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    size,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -325,7 +623,7 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
-  Widget _buildBottomButton() {
+  Widget _buildBottomButtons() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -339,73 +637,109 @@ class _RegisterPageState extends State<RegisterPage>
         ],
       ),
       child: SafeArea(
-        child: Container(
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Colors.black, Color(0xFF2C2C2C)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            onPressed: _isLoading ? null : register,
-            child: _isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
+        child: Row(
+          children: [
+            if (_currentStep == 1) ...[
+              Expanded(
+                flex: 1,
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                  )
-                : const Text(
-                    'ยืนยัน',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
+                    onPressed: () {
+                      setState(() {
+                        _currentStep = 0;
+                      });
+                    },
+                    child: Text(
+                      'ย้อนกลับ',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
                     ),
                   ),
-          ),
+                ),
+              ),
+              const SizedBox(width: 16),
+            ],
+            Expanded(
+              flex: 2,
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Colors.black, Color(0xFF2C2C2C)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: _isLoading ? null : () {
+                    if (_currentStep == 0) {
+                      _validateAndProceedToNext();
+                    } else {
+                      register();
+                    }
+                  },
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          _currentStep == 0 ? 'ถัดไป' : 'สมัครสมาชิก',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  void register() async {
-    if (_isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    // เพิ่ม delay เล็กน้อยเพื่อแสดง loading animation
-    await Future.delayed(const Duration(milliseconds: 500));
-
+  void _validateAndProceedToNext() {
     if (nameNoCt1.text.trim().isEmpty ||
         emailNoCt1.text.trim().isEmpty ||
         passwordNoCt1.text.trim().isEmpty ||
         conpasswordNoCt1.text.trim().isEmpty) {
-      setState(() {
-        _isLoading = false;
-      });
       showModernDialog(
         context: context,
         icon: Icons.warning_amber_rounded,
@@ -417,9 +751,6 @@ class _RegisterPageState extends State<RegisterPage>
     }
 
     if (passwordNoCt1.text != conpasswordNoCt1.text) {
-      setState(() {
-        _isLoading = false;
-      });
       showModernDialog(
         context: context,
         icon: Icons.error_outline,
@@ -435,30 +766,60 @@ class _RegisterPageState extends State<RegisterPage>
         RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
 
     if (!passwordRegex.hasMatch(password)) {
-      setState(() {
-        _isLoading = false;
-      });
       showModernDialog(
         context: context,
         icon: Icons.lock_outline,
         iconColor: Colors.orange,
-        title: 'รหัสผ่านไม่ปลอดภัย',
+        title: 'รหัsผ่านไม่ปลอดภัย',
         message:
             'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
       );
       return;
     }
 
+    setState(() {
+      _currentStep = 1;
+    });
+  }
+
+  void register() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
     final box = GetStorage();
     await box.write('register_name', nameNoCt1.text.trim());
     await box.write('register_email', emailNoCt1.text.trim());
-    await box.write('register_password', password);
+    await box.write('register_password', passwordNoCt1.text.trim());
+    
+    // Save body measurements
+    if (heightController.text.trim().isNotEmpty) {
+      await box.write('register_height', heightController.text.trim());
+    }
+    if (weightController.text.trim().isNotEmpty) {
+      await box.write('register_weight', weightController.text.trim());
+    }
+    if (_selectedShirtSize.isNotEmpty) {
+      await box.write('register_shirt_size', _selectedShirtSize);
+    }
+    if (chestController.text.trim().isNotEmpty) {
+      await box.write('register_chest', chestController.text.trim());
+    }
+    if (waistController.text.trim().isNotEmpty) {
+      await box.write('register_waist_circumference', waistController.text.trim());
+    }
+    if (hipController.text.trim().isNotEmpty) {
+      await box.write('register_hip', hipController.text.trim());
+    }
 
     setState(() {
       _isLoading = false;
     });
 
-    // ไปหน้า ChooseCategorypage
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const ChooseCategorypage()),
