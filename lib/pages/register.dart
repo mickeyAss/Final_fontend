@@ -10,321 +10,402 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterPageState extends State<RegisterPage>
+    with TickerProviderStateMixin {
   TextEditingController nameNoCt1 = TextEditingController();
   TextEditingController emailNoCt1 = TextEditingController();
   TextEditingController passwordNoCt1 = TextEditingController();
   TextEditingController conpasswordNoCt1 = TextEditingController();
 
-  int? height;
-  int? weight;
-  int? chest;
-  int? waist;
-  int? hips;
-  String? selectedSize;
+  late AnimationController _slideController;
+  late AnimationController _fadeController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeIn,
+    ));
+
+    _slideController.forward();
+    _fadeController.forward();
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    _fadeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: Icon(Icons.keyboard_arrow_left, color: Colors.white, size: 28),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text('สมัครสมาชิก',
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white)),
-      ),
+      backgroundColor: Colors.grey.shade50,
+      appBar: _buildAppBar(),
       body: SafeArea(
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.white, Colors.grey.shade100],
+              colors: [
+                Colors.white,
+                Colors.grey.shade50,
+                Colors.grey.shade100,
+              ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
+              stops: const [0.0, 0.7, 1.0],
             ),
           ),
           child: SingleChildScrollView(
-            padding: EdgeInsets.only(
-                bottom:
-                    80), // กำหนด padding เพิ่มล่าง เพื่อให้เนื้อหาไม่ซ้อนทับปุ่มยืนยัน
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 10),
-                Center(
-                  child: AnimatedOpacity(
-                    opacity: 1.0,
-                    duration: Duration(milliseconds: 600),
-                    child: Column(
-                      children: [
-                        Icon(Icons.person_add_alt_1_rounded,
-                            color: Colors.black87, size: 40),
-                        SizedBox(height: 12),
-                        Text('ยินดีต้อนรับเข้าสู่โลกของคุณ',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold)),
-                        SizedBox(height: 8),
-                        Text(
-                            'สมัครสมาชิกเพื่อค้นหาสไตล์ที่ใช่\nและรับประสบการณ์ที่ออกแบบมาเพื่อคุณ',
-                            style:
-                                TextStyle(fontSize: 13, color: Colors.black54),
-                            textAlign: TextAlign.center),
-                      ],
-                    ),
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 100),
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 40),
+                      _buildFormSection(),
+                    ],
                   ),
                 ),
-                SizedBox(height: 20),
-                Text('ข้อมูลของคุณ',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                SizedBox(height: 10),
-
-                // ลบการตั้ง readOnly ออก
-                _buildTextField('ชื่อผู้ใช้', nameNoCt1),
-                _buildTextField('อีเมล', emailNoCt1),
-                _buildTextField('รหัสผ่าน', passwordNoCt1, obscure: true),
-                _buildTextField('ยืนยันรหัสผ่าน', conpasswordNoCt1, obscure: true),
-
-                SizedBox(height: 20),
-                _buildSectionHeader('สัดส่วนของคุณ',
-                    'เราจะใช้ข้อมูลสัดส่วนของคุณเพื่อแนะนำเสื้อผ้าและไลฟ์สไตล์ที่เหมาะกับรูปร่างของคุณที่สุด'),
-                SizedBox(height: 10),
-                _buildInputWithDropdown(
-                  label: 'ส่วนสูง',
-                  unit: 'ซม.',
-                  value: height,
-                  suggestedValues: List.generate(41, (i) => 150 + i),
-                  onChanged: (val) => setState(() => height = val),
-                ),
-                _buildInputWithDropdown(
-                  label: 'น้ำหนัก',
-                  unit: 'กก.',
-                  value: weight,
-                  suggestedValues: List.generate(51, (i) => 40 + i),
-                  onChanged: (val) => setState(() => weight = val),
-                ),
-                _buildInputWithDropdown(
-                  label: 'รอบอก',
-                  unit: 'ซม.',
-                  value: chest,
-                  suggestedValues: List.generate(51, (i) => 70 + i),
-                  onChanged: (val) => setState(() => chest = val),
-                ),
-                _buildInputWithDropdown(
-                  label: 'รอบเอว',
-                  unit: 'ซม.',
-                  value: waist,
-                  suggestedValues: List.generate(51, (i) => 60 + i),
-                  onChanged: (val) => setState(() => waist = val),
-                ),
-                _buildInputWithDropdown(
-                  label: 'สะโพก',
-                  unit: 'ซม.',
-                  value: hips,
-                  suggestedValues: List.generate(51, (i) => 80 + i),
-                  onChanged: (val) => setState(() => hips = val),
-                ),
-                SizedBox(height: 12),
-                _buildDropdownInput('Size'),
-                SizedBox(height: 30),
-              ],
+              ),
             ),
           ),
         ),
       ),
+      bottomNavigationBar: _buildBottomButton(),
+    );
+  }
 
-      // ปุ่มยืนยันติดล่างจอ
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: SizedBox(
-          height: 50,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: register,
-            child: const Text(
-              'ยืนยัน',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.black,
+      elevation: 0,
+      centerTitle: true,
+      automaticallyImplyLeading: false,
+      leading: Container(
+        margin: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: Colors.white, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      title: const Text(
+        'สมัครสมาชิก',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0.5,
+        ),
+      ),
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.black, Color(0xFF2C2C2C)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildInputWithDropdown({
-    required String label,
-    required String unit,
-    required int? value,
-    required List<int> suggestedValues,
-    required void Function(int) onChanged,
-  }) {
-    final controller = TextEditingController(text: value?.toString() ?? '');
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+  Widget _buildHeader() {
+    return Center(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.person_add_alt_1_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'ยินดีต้อนรับเข้าสู่โลกของคุณ',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'สมัครสมาชิกเพื่อค้นหาสไตล์ที่ใช่\nและรับประสบการณ์ที่ออกแบบมาเพื่อคุณ',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 4),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300, width: 1.4),
+          const Text(
+            'ข้อมูลของคุณ',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: Colors.black87,
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: 'กรอกหรือเลือก $label',
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (val) {
-                      final parsed = int.tryParse(val);
-                      if (parsed != null) onChanged(parsed);
-                    },
-                  ),
-                ),
-                PopupMenuButton<int>(
-                  icon: Icon(Icons.arrow_drop_down),
-                  onSelected: (val) {
-                    controller.text = val.toString();
-                    onChanged(val);
-                  },
-                  itemBuilder: (context) {
-                    return suggestedValues.map((val) {
-                      return PopupMenuItem(
-                        value: val,
-                        child: Text('$val $unit'),
-                      );
-                    }).toList();
-                  },
-                ),
-                SizedBox(width: 8),
-                Text(unit, style: TextStyle(color: Colors.black87)),
-              ],
-            ),
+          ),
+          const SizedBox(height: 24),
+          _buildTextField(
+            'ชื่อผู้ใช้',
+            nameNoCt1,
+            Icons.person_outline,
+          ),
+          _buildTextField(
+            'อีเมล',
+            emailNoCt1,
+            Icons.email_outlined,
+          ),
+          _buildTextField(
+            'รหัสผ่าน',
+            passwordNoCt1,
+            Icons.lock_outline,
+            obscure: _obscurePassword,
+            onToggleVisibility: () {
+              setState(() {
+                _obscurePassword = !_obscurePassword;
+              });
+            },
+          ),
+          _buildTextField(
+            'ยืนยันรหัสผ่าน',
+            conpasswordNoCt1,
+            Icons.lock_outline,
+            obscure: _obscureConfirmPassword,
+            onToggleVisibility: () {
+              setState(() {
+                _obscureConfirmPassword = !_obscureConfirmPassword;
+              });
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller,
-      {bool obscure = false, bool readOnly = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    bool obscure = false,
+    VoidCallback? onToggleVisibility,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
       child: TextField(
         controller: controller,
         obscureText: obscure,
-        readOnly: readOnly, // คุณจะเห็นว่าค่าดีฟอลต์เป็น false
-        cursorColor: Colors.grey,
+        cursorColor: Colors.black,
+        style: const TextStyle(
+          fontSize: 16,
+          color: Colors.black87,
+        ),
         decoration: InputDecoration(
           labelText: label,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.grey.shade700, size: 20),
+          ),
+          suffixIcon: onToggleVisibility != null
+              ? IconButton(
+                  icon: Icon(
+                    obscure ? Icons.visibility : Icons.visibility_off,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: onToggleVisibility,
+                )
+              : null,
           filled: true,
-          fillColor: readOnly ? Colors.grey.shade200 : Colors.white,
+          fillColor: Colors.grey.shade50,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade500, width: 2),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.black, width: 2),
           ),
-          contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildDropdownInput(String label) {
-    List<String> sizeOptions = ['S', 'M', 'L', 'XL'];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
-        SizedBox(height: 6),
-        Container(
-          height: 50,
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey, width: 1.5),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: DropdownButton<String>(
-            isExpanded: true,
-            underline: SizedBox(),
-            value: selectedSize,
-            hint: Text(''),
-            items: sizeOptions.map((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
-            onChanged: (value) => setState(() => selectedSize = value),
-          ),
-        ),
-        SizedBox(height: 4),
-        Text('*ไม่จำเป็นต้องระบุ',
-            style: TextStyle(color: Colors.red, fontSize: 12)),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title, String description) {
+  Widget _buildBottomButton() {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.straighten_rounded, size: 36, color: Colors.black87),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                SizedBox(height: 6),
-                Text(description,
-                    style: TextStyle(
-                        fontSize: 13, color: Colors.black54, height: 1.4)),
-              ],
-            ),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
           ),
         ],
+      ),
+      child: SafeArea(
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Colors.black, Color(0xFF2C2C2C)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            onPressed: _isLoading ? null : register,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'ยืนยัน',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+          ),
+        ),
       ),
     );
   }
 
   void register() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // เพิ่ม delay เล็กน้อยเพื่อแสดง loading animation
+    await Future.delayed(const Duration(milliseconds: 500));
+
     if (nameNoCt1.text.trim().isEmpty ||
         emailNoCt1.text.trim().isEmpty ||
         passwordNoCt1.text.trim().isEmpty ||
         conpasswordNoCt1.text.trim().isEmpty) {
+      setState(() {
+        _isLoading = false;
+      });
       showModernDialog(
         context: context,
         icon: Icons.warning_amber_rounded,
@@ -336,6 +417,9 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     if (passwordNoCt1.text != conpasswordNoCt1.text) {
+      setState(() {
+        _isLoading = false;
+      });
       showModernDialog(
         context: context,
         icon: Icons.error_outline,
@@ -351,6 +435,9 @@ class _RegisterPageState extends State<RegisterPage> {
         RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
 
     if (!passwordRegex.hasMatch(password)) {
+      setState(() {
+        _isLoading = false;
+      });
       showModernDialog(
         context: context,
         icon: Icons.lock_outline,
@@ -362,17 +449,14 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    // เก็บข้อมูลทั้งหมดลง GetStorage
     final box = GetStorage();
     await box.write('register_name', nameNoCt1.text.trim());
     await box.write('register_email', emailNoCt1.text.trim());
     await box.write('register_password', password);
-    await box.write('register_height', height ?? 0);
-    await box.write('register_weight', weight ?? 0);
-    await box.write('register_chest', chest ?? 0);
-    await box.write('register_waist', waist ?? 0);
-    await box.write('register_hips', hips ?? 0);
-    await box.write('register_shirtSize', selectedSize ?? '');
+
+    setState(() {
+      _isLoading = false;
+    });
 
     // ไปหน้า ChooseCategorypage
     Navigator.pushReplacement(
@@ -394,25 +478,25 @@ class _RegisterPageState extends State<RegisterPage> {
       context: context,
       barrierLabel: "CustomDialog",
       barrierDismissible: false,
-      transitionDuration: const Duration(milliseconds: 300),
+      transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (_, __, ___) => const SizedBox.shrink(),
       transitionBuilder: (_, animation, __, ___) {
         return Transform.scale(
-          scale: Curves.easeOutBack.transform(animation.value),
+          scale: Curves.elasticOut.transform(animation.value),
           child: Opacity(
             opacity: animation.value,
             child: Center(
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.all(24),
+                margin: const EdgeInsets.symmetric(horizontal: 32),
+                padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: const [
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
                     BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 20,
-                      offset: Offset(0, 10),
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 30,
+                      offset: const Offset(0, 15),
                     ),
                   ],
                 ),
@@ -422,45 +506,73 @@ class _RegisterPageState extends State<RegisterPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
+                        width: 80,
+                        height: 80,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: iconColor.withOpacity(0.1),
+                          gradient: LinearGradient(
+                            colors: [
+                              iconColor.withOpacity(0.1),
+                              iconColor.withOpacity(0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                         ),
-                        padding: const EdgeInsets.all(16),
                         child: Icon(icon, size: 40, color: iconColor),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
                       Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       Text(
                         message,
-                        style: const TextStyle(
-                            fontSize: 14, color: Colors.black54),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                          height: 1.4,
+                        ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 24),
-                      FilledButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          if (onConfirm != null) onConfirm();
-                        },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 32, vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      const SizedBox(height: 32),
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.black, Color(0xFF2C2C2C)],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            if (onConfirm != null) onConfirm();
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            confirmText,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                        child: Text(confirmText),
                       ),
                     ],
                   ),

@@ -1,8 +1,8 @@
 import 'dart:convert';
+
 // To parse this JSON data, do
 //
 //     final postDetail = postDetailFromJson(jsonString);
-
 
 PostDetail postDetailFromJson(String str) => PostDetail.fromJson(json.decode(str));
 
@@ -26,9 +26,9 @@ class PostDetail {
     factory PostDetail.fromJson(Map<String, dynamic> json) => PostDetail(
         post: Post.fromJson(json["post"]),
         user: User.fromJson(json["user"]),
-        images: List<Image>.from(json["images"].map((x) => Image.fromJson(x))),
-        categories: List<Category>.from(json["categories"].map((x) => Category.fromJson(x))),
-        hashtags: List<Hashtag>.from(json["hashtags"].map((x) => Hashtag.fromJson(x))),
+        images: List<Image>.from(json["images"]?.map((x) => Image.fromJson(x)) ?? []),
+        categories: List<Category>.from(json["categories"]?.map((x) => Category.fromJson(x)) ?? []),
+        hashtags: List<Hashtag>.from(json["hashtags"]?.map((x) => Hashtag.fromJson(x)) ?? []),
     );
 
     Map<String, dynamic> toJson() => {
@@ -43,27 +43,27 @@ class PostDetail {
 class Category {
     int cid;
     String cname;
-    String cimage;
+    String? cimage;  // อาจเป็น null
     String ctype;
 
     Category({
         required this.cid,
         required this.cname,
-        required this.cimage,
+        this.cimage,  // ไม่ required
         required this.ctype,
     });
 
     factory Category.fromJson(Map<String, dynamic> json) => Category(
-        cid: json["cid"],
-        cname: json["cname"],
-        cimage: json["cimage"],
-        ctype: json["ctype"],
+        cid: json["cid"] ?? 0,
+        cname: json["cname"] ?? '',
+        cimage: json["cimage"],  // อนุญาตให้เป็น null
+        ctype: json["ctype"] ?? '',
     );
 
     Map<String, dynamic> toJson() => {
         "cid": cid,
         "cname": cname,
-        "cimage": cimage,
+        "cimage": cimage,  // จะเป็น null ถ้าไม่มีค่า
         "ctype": ctype,
     };
 }
@@ -78,8 +78,8 @@ class Hashtag {
     });
 
     factory Hashtag.fromJson(Map<String, dynamic> json) => Hashtag(
-        tagId: json["tag_id"],
-        tagName: json["tag_name"],
+        tagId: json["tag_id"] ?? 0,
+        tagName: json["tag_name"] ?? '',
     );
 
     Map<String, dynamic> toJson() => {
@@ -100,9 +100,9 @@ class Image {
     });
 
     factory Image.fromJson(Map<String, dynamic> json) => Image(
-        imageId: json["image_id"],
-        image: json["image"],
-        imageFkPostid: json["image_fk_postid"],
+        imageId: json["image_id"] ?? 0,
+        image: json["image"] ?? '',
+        imageFkPostid: json["image_fk_postid"] ?? 0,
     );
 
     Map<String, dynamic> toJson() => {
@@ -115,7 +115,7 @@ class Image {
 class Post {
     int postId;
     String postTopic;
-    String postDescription;
+    String? postDescription;  // อาจเป็น null
     DateTime postDate;
     int postFkUid;
     int amountOfLike;
@@ -125,7 +125,7 @@ class Post {
     Post({
         required this.postId,
         required this.postTopic,
-        required this.postDescription,
+        this.postDescription,  // ไม่ required
         required this.postDate,
         required this.postFkUid,
         required this.amountOfLike,
@@ -134,20 +134,22 @@ class Post {
     });
 
     factory Post.fromJson(Map<String, dynamic> json) => Post(
-        postId: json["post_id"],
-        postTopic: json["post_topic"],
-        postDescription: json["post_description"],
-        postDate: DateTime.parse(json["post_date"]),
-        postFkUid: json["post_fk_uid"],
-        amountOfLike: json["amount_of_like"],
-        amountOfSave: json["amount_of_save"],
-        amountOfComment: json["amount_of_comment"],
+        postId: json["post_id"] ?? 0,
+        postTopic: json["post_topic"] ?? '',
+        postDescription: json["post_description"],  // อนุญาตให้เป็น null
+        postDate: json["post_date"] != null 
+            ? DateTime.parse(json["post_date"]) 
+            : DateTime.now(),
+        postFkUid: json["post_fk_uid"] ?? 0,
+        amountOfLike: json["amount_of_like"] ?? 0,
+        amountOfSave: json["amount_of_save"] ?? 0,
+        amountOfComment: json["amount_of_comment"] ?? 0,
     );
 
     Map<String, dynamic> toJson() => {
         "post_id": postId,
         "post_topic": postTopic,
-        "post_description": postDescription,
+        "post_description": postDescription,  // จะเป็น null ถ้าไม่มีค่า
         "post_date": postDate.toIso8601String(),
         "post_fk_uid": postFkUid,
         "amount_of_like": amountOfLike,
@@ -160,54 +162,30 @@ class User {
     int uid;
     String name;
     String email;
-    String height;
-    String weight;
-    String shirtSize;
-    String chest;
-    String waistCircumference;
-    String hip;
-    String personalDescription;
-    String profileImage;
+    String? personalDescription;  // อาจเป็น null
+    String? profileImage;        // อาจเป็น null
 
     User({
         required this.uid,
         required this.name,
         required this.email,
-        required this.height,
-        required this.weight,
-        required this.shirtSize,
-        required this.chest,
-        required this.waistCircumference,
-        required this.hip,
-        required this.personalDescription,
-        required this.profileImage,
+        this.personalDescription,  // ไม่ required
+        this.profileImage,         // ไม่ required
     });
 
     factory User.fromJson(Map<String, dynamic> json) => User(
-        uid: json["uid"],
-        name: json["name"],
-        email: json["email"],
-        height: json["height"],
-        weight: json["weight"],
-        shirtSize: json["shirt_size"],
-        chest: json["chest"],
-        waistCircumference: json["waist_circumference"],
-        hip: json["hip"],
-        personalDescription: json["personal_description"],
-        profileImage: json["profile_image"],
+        uid: json["uid"] ?? 0,
+        name: json["name"] ?? '',
+        email: json["email"] ?? '',
+        personalDescription: json["personal_description"],  // อนุญาตให้เป็น null
+        profileImage: json["profile_image"],               // อนุญาตให้เป็น null
     );
 
     Map<String, dynamic> toJson() => {
         "uid": uid,
         "name": name,
         "email": email,
-        "height": height,
-        "weight": weight,
-        "shirt_size": shirtSize,
-        "chest": chest,
-        "waist_circumference": waistCircumference,
-        "hip": hip,
-        "personal_description": personalDescription,
-        "profile_image": profileImage,
+        "personal_description": personalDescription,  // จะเป็น null ถ้าไม่มีค่า
+        "profile_image": profileImage,               // จะเป็น null ถ้าไม่มีค่า
     };
 }

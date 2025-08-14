@@ -45,7 +45,7 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
   final TextEditingController _topicController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  final Map<String, Map<String, dynamic>> privacyOptions = { 
+  final Map<String, Map<String, dynamic>> privacyOptions = {
     'Public': {
       'label': 'โพสต์แบบสาธารณะ',
       'icon': Icons.public,
@@ -1067,31 +1067,22 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
     );
   }
 
-  Future<String?> uploadToFirebase(AssetEntity asset) async {
-    final file = await asset.file;
-    if (file == null) return null;
-
-    final fileName = "${DateTime.now().millisecondsSinceEpoch}_${asset.id}.jpg";
-    final ref = FirebaseStorage.instance.ref().child("final_image/$fileName");
-
-    try {
-      final uploadTask = await ref.putFile(file);
-      final url = await uploadTask.ref.getDownloadURL();
-      return url;
-    } catch (e) {
-      log('Firebase upload error: $e');
-      return null;
-    }
-  }
-
   Future<void> submitPost() async {
     final topic = _topicController.text.trim();
     final rawDescription = _descriptionController.text.trim();
-    final userString = gs.read('user');
+    final userString = gs.read('user'); // ดึงข้อมูล user จาก GetStorage
 
+    log('=== SUBMIT POST START ===');
+    log('Topic: $topic');
+    log('Raw Description: $rawDescription');
+    log('User: $userString');
+    log('Selected Assets Count: ${selectedAssets.length}');
+
+    // ตรวจสอบเบื้องต้น
     if (selectedAssets.isEmpty ||
         userString == null ||
         userString.toString().isEmpty) {
+      log('❌ Validation failed - missing assets or user');
       showModalBottomSheet(
         context: context,
         isDismissible: true,
@@ -1129,22 +1120,66 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
       final url = config['apiEndpoint'];
       final userId = int.tryParse(userString.toString()) ?? 0;
 
-      // อัปโหลดรูป
+      log('✅ Configuration loaded');
+      log('API URL: $url');
+      log('User ID: $userId');
+
+      // 1. Upload รูปไป Firebase
+      log('🔄 Starting Firebase upload...');
       List<String> imageUrls = [];
-      for (final asset in selectedAssets) {
-        final imageUrl = await uploadToFirebase(asset);
-        if (imageUrl != null) imageUrls.add(imageUrl);
+
+      for (int i = 0; i < selectedAssets.length; i++) {
+        final asset = selectedAssets[i];
+        log('Uploading image ${i + 1}/${selectedAssets.length} - Asset ID: ${asset.id}');
+
+        try {
+          final imageUrl = await uploadToFirebase(asset);
+          log('Upload result: $imageUrl');
+
+          if (imageUrl != null) {
+            imageUrls.add(imageUrl);
+            log('✅ Image ${i + 1} uploaded successfully');
+          } else {
+            log('❌ Image ${i + 1} upload failed - null URL');
+          }
+        } catch (e) {
+          log('❌ Image ${i + 1} upload exception: $e');
+        }
       }
+
+      log('📊 Firebase Upload Summary:');
+      log('- Total images to upload: ${selectedAssets.length}');
+      log('- Successfully uploaded: ${imageUrls.length}');
+      log('- Image URLs: $imageUrls');
 
       if (imageUrls.isEmpty) {
         Navigator.pop(context);
+        log('❌ No images uploaded successfully');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปโหลดรูปภาพไม่สำเร็จ')),
+          const SnackBar(
+            content: Text('อัปโหลดรูปภาพไม่สำเร็จ'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
 
-      // ✅ ดึงแฮชแท็กจาก description ทั้งหมด (ปรับปรุง regex)
+      // 2. ตรวจสอบ URL รูปภาพ
+      log('🔍 Checking image URLs accessibility...');
+      for (int i = 0; i < imageUrls.length; i++) {
+        try {
+          final response = await http.head(Uri.parse(imageUrls[i]));
+          log('Image ${i + 1} URL check: ${response.statusCode} - ${imageUrls[i]}');
+          if (response.statusCode != 200) {
+            log('⚠️ Image ${i + 1} URL might not be accessible');
+          }
+        } catch (e) {
+          log('❌ Error checking image ${i + 1} URL: $e');
+        }
+      }
+
+      // 3. ประมวลผล Hashtags
+      log('🏷️ Processing hashtags...');
       final RegExp hashtagRegex = RegExp(r'#([a-zA-Z0-9ก-๙_]+)');
       final matches = hashtagRegex.allMatches(rawDescription);
       final Set<String> allHashtagsInText = matches
@@ -1152,7 +1187,6 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
           .where((tag) => tag.isNotEmpty)
           .toSet();
 
-      // ✅ รวมแฮชแท็กจาก description และ selectedHashtags
       final Set<String> combinedHashtags = {
         ...selectedHashtags.map((e) => e.tagName.trim()),
         ...allHashtagsInText,
@@ -1160,42 +1194,40 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
 
       log('Combined hashtags: $combinedHashtags');
 
-      // ✅ ตรวจสอบและ insert แฮชแท็ก (ปรับปรุง logic)
       List<int> hashtagIds = [];
 
       for (final tagName in combinedHashtags) {
         final cleanTag = tagName.trim();
-
         if (cleanTag.isEmpty) continue;
 
         try {
-          // ค้นหา hashtag ในระบบก่อน
+          log('Processing hashtag: $cleanTag');
+
           final searchRes = await http.get(
             Uri.parse(
                 '$url/hashtags/search?q=${Uri.encodeComponent(cleanTag)}'),
           );
 
+          log('Hashtag search response: ${searchRes.statusCode}');
+
           if (searchRes.statusCode == 200) {
             final result = jsonDecode(searchRes.body);
-
-            // ตรวจสอบว่าเจอ hashtag ที่ตรงกันหรือไม่
             bool foundExact = false;
+
             if (result['data'] != null && result['data'].isNotEmpty) {
               for (final item in result['data']) {
                 if (item['tag_name']?.toString().toLowerCase() ==
                     cleanTag.toLowerCase()) {
                   hashtagIds.add(item['tag_id']);
                   foundExact = true;
-                  log('Found existing hashtag: $cleanTag with ID: ${item['tag_id']}');
+                  log('✅ Found existing hashtag: $cleanTag with ID: ${item['tag_id']}');
                   break;
                 }
               }
             }
 
-            // ถ้าไม่เจอ hashtag ที่ตรงกัน ให้ insert ใหม่
             if (!foundExact) {
-              log('Hashtag not found, inserting new: $cleanTag');
-
+              log('Creating new hashtag: $cleanTag');
               final insertBody = InsertHashtag(tagName: cleanTag);
               final insertRes = await http.post(
                 Uri.parse('$url/hashtags/insert'),
@@ -1203,16 +1235,13 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
                 body: insertHashtagToJson(insertBody),
               );
 
-              log('Insert response status: ${insertRes.statusCode}');
-              log('Insert response body: ${insertRes.body}');
+              log('Insert hashtag response: ${insertRes.statusCode}');
+              log('Insert hashtag body: ${insertRes.body}');
 
               if (insertRes.statusCode == 200 || insertRes.statusCode == 201) {
                 final insertData = jsonDecode(insertRes.body);
-
-                // ตรวจสอบ response structure
                 if (insertData['data'] != null) {
                   int? newTagId;
-
                   if (insertData['data'] is List &&
                       insertData['data'].isNotEmpty) {
                     newTagId = insertData['data'][0]['tag_id'];
@@ -1222,57 +1251,74 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
 
                   if (newTagId != null) {
                     hashtagIds.add(newTagId);
-                    log('Successfully inserted hashtag: $cleanTag with ID: $newTagId');
-                  } else {
-                    log('Insert successful but no tag_id returned for: $cleanTag');
+                    log('✅ Successfully inserted hashtag: $cleanTag with ID: $newTagId');
                   }
-                } else {
-                  log('Insert response has no data field for: $cleanTag');
                 }
-              } else {
-                log('Insert hashtag failed for "$cleanTag": ${insertRes.statusCode} - ${insertRes.body}');
               }
             }
-          } else {
-            log('Search hashtag failed for "$cleanTag": ${searchRes.statusCode} - ${searchRes.body}');
           }
         } catch (e) {
-          log('Error processing hashtag "$cleanTag": $e');
+          log('❌ Error processing hashtag "$cleanTag": $e');
         }
       }
 
       log('Final hashtag IDs: $hashtagIds');
 
-      // แยกคำบรรยายจริงออกจาก hashtag
+      // 4. เตรียมข้อมูลโพสต์
       final filteredDescription = rawDescription
-          .replaceAll(hashtagRegex, '') // ลบ hashtag ออก
-          .replaceAll(RegExp(r'\s+'), ' ') // ลบช่องว่างเกิน
+          .replaceAll(hashtagRegex, '')
+          .replaceAll(RegExp(r'\s+'), ' ')
           .trim();
 
       final categoryIds = selectedCategories.map((e) => e.cid).toList();
 
+      log('📝 Post preparation:');
+      log('- Filtered description: $filteredDescription');
+      log('- Category IDs: $categoryIds');
+      log('- Post visibility: $postVisibility');
+
+      final apiEndpoint = "$url/image_post/post/add";
+      log('🎯 API Endpoint: $apiEndpoint');
+
       final postModel = Insertpost(
-          postTopic: topic,
-          postDescription: filteredDescription,
-          postFkUid: userId,
-          images: imageUrls,
-          categoryIdFk: categoryIds,
-          hashtags: hashtagIds,
-          postStatus: postVisibility);
+        postTopic: topic,
+        postDescription: filteredDescription,
+        postFkUid: userId,
+        images: imageUrls,
+        categoryIdFk: categoryIds,
+        hashtags: hashtagIds,
+        postStatus: postVisibility.toLowerCase(),
+      );
 
       final jsonBody = insertpostToJson(postModel);
-      log('Post data: $jsonBody');
+      log('📤 Sending JSON payload:');
+      log(jsonBody);
 
-      // ส่งโพสต์
-      final postResponse = await http.post(
-        Uri.parse("$url/image_post/post/add"),
+      // 5. ส่งข้อมูลโพสต์ไป API
+      log('🚀 Sending POST request...');
+      final postResponse = await http
+          .post(
+        Uri.parse(apiEndpoint),
         headers: {"Content-Type": "application/json; charset=utf-8"},
         body: jsonBody,
+      )
+          .timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          log('❌ Request timeout after 60 seconds');
+          throw Exception('Request timeout');
+        },
       );
+
+      log('📥 Response received:');
+      log('- Status Code: ${postResponse.statusCode}');
+      log('- Response Headers: ${postResponse.headers}');
+      log('- Response Body: ${postResponse.body}');
 
       Navigator.pop(context);
 
-      if (postResponse.statusCode == 201) {
+      if (postResponse.statusCode >= 200 && postResponse.statusCode < 300) {
+        log('✅ Post created successfully');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('โพสต์เรียบร้อย'),
@@ -1284,24 +1330,84 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
           MaterialPageRoute(builder: (context) => const Mainpage()),
         );
       } else {
-        log('Post failed: ${postResponse.statusCode} - ${postResponse.body}');
+        log('❌ Post creation failed');
+        String errorMessage = 'เกิดข้อผิดพลาด: ${postResponse.statusCode}';
+
+        try {
+          final errorData = jsonDecode(postResponse.body);
+          if (errorData is Map && errorData.containsKey('error')) {
+            errorMessage = errorData['error'].toString();
+          }
+        } catch (e) {
+          log('Error parsing error response: $e');
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('เกิดข้อผิดพลาดในการโพสต์: ${postResponse.statusCode}'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
     } catch (e, stackTrace) {
       Navigator.pop(context);
-      log('Exception in submitPost: $e', stackTrace: stackTrace);
+      log('❌ Exception in submitPost: $e');
+      log('Stack trace: $stackTrace');
+
+      String errorMessage = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+      if (e.toString().contains('timeout')) {
+        errorMessage = 'หมดเวลาการเชื่อมต่อ กรุณาลองใหม่';
+      } else if (e.toString().contains('connection')) {
+        errorMessage = 'ปัญหาการเชื่อมต่อ กรุณาตรวจสอบอินเทอร์เน็ต';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ'),
+        SnackBar(
+          content: Text(errorMessage),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
+    }
+
+    log('=== SUBMIT POST END ===');
+  }
+
+// ✅ ปรับปรุง uploadToFirebase function
+  Future<String?> uploadToFirebase(AssetEntity asset) async {
+    try {
+      log('🔄 Starting Firebase upload for asset: ${asset.id}');
+
+      final file = await asset.file;
+      if (file == null) {
+        log('❌ Asset file is null for: ${asset.id}');
+        return null;
+      }
+
+      log('📁 File info: ${file.path} (${file.lengthSync()} bytes)');
+
+      final fileName =
+          "${DateTime.now().millisecondsSinceEpoch}_${asset.id}.jpg";
+      final ref = FirebaseStorage.instance.ref().child("final_image/$fileName");
+
+      log('☁️ Uploading to Firebase Storage: final_image/$fileName');
+
+      final uploadTask = await ref.putFile(file).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          log('❌ Firebase upload timeout for: ${asset.id}');
+          throw Exception('Firebase upload timeout');
+        },
+      );
+
+      final url = await uploadTask.ref.getDownloadURL();
+      log('✅ Firebase upload successful: $url');
+      return url;
+    } catch (e, stackTrace) {
+      log('❌ Firebase upload error for asset ${asset.id}: $e');
+      log('Stack trace: $stackTrace');
+      return null;
     }
   }
 

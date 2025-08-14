@@ -24,7 +24,8 @@ class Mainpage extends StatefulWidget {
   State<Mainpage> createState() => _MainpageState();
 }
 
-class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, TickerProviderStateMixin {
+class _MainpageState extends State<Mainpage>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final GetStorage gs = GetStorage();
   int unreadCount = 0;
   int _currentIndex = 0;
@@ -34,6 +35,7 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   Timer? fallbackTimer;
   String? currentUserId;
   bool isFirebaseConnected = false;
+  bool isFirstLoad = true; // ✅ เพิ่ม flag
 
   // สำหรับ Notification Popup
   OverlayEntry? _overlayEntry;
@@ -41,7 +43,7 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   late Animation<Offset> _slideAnimation;
   Timer? _hideTimer;
   bool _isAnimationInitialized = false;
-  bool _isShowingPopup = false; // เพิ่ม flag ป้องกัน popup ซ้ำ
+  bool _isShowingPopup = false; // ป้องกัน popup ซ้ำ
 
   @override
   void initState() {
@@ -70,7 +72,6 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // เมื่อ app กลับมาทำงาน ให้ refresh ข้อมูล
       _fetchUnreadNotificationCount();
     }
   }
@@ -78,7 +79,6 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   void _initializeUser() {
     currentUserId = gs.read('user')?.toString();
     debugPrint('Current user id from GetStorage: $currentUserId');
-    
     if (currentUserId == null || currentUserId!.isEmpty) {
       debugPrint('Warning: User ID is null or empty');
     }
@@ -87,7 +87,6 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   Future<void> _initFirebase() async {
     try {
       await Firebase.initializeApp();
-      
       if (currentUserId == null || currentUserId!.isEmpty) {
         debugPrint('Error: User ID is null or empty, falling back to API');
         _fallbackToApiPolling();
@@ -95,31 +94,28 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
       }
 
       notifRef = FirebaseDatabase.instance.ref('notifications');
-      
+
       // ตรวจสอบการเชื่อมต่อ Firebase
-      DatabaseReference connectedRef = FirebaseDatabase.instance.ref('.info/connected');
+      DatabaseReference connectedRef =
+          FirebaseDatabase.instance.ref('.info/connected');
       connectedRef.onValue.listen((event) {
         bool connected = event.snapshot.value as bool? ?? false;
         bool wasConnected = isFirebaseConnected;
         isFirebaseConnected = connected;
         debugPrint('Firebase connection status: $connected');
-        
+
         if (!connected && fallbackTimer == null) {
           _fallbackToApiPolling();
         } else if (connected && !wasConnected) {
-          // เมื่อ Firebase กลับมาเชื่อมต่อ ให้หยุด API polling
           fallbackTimer?.cancel();
           fallbackTimer = null;
         }
       });
 
       _setupNotificationListener();
-      
-      // เรียก API ครั้งแรกเฉพาะเมื่อ Firebase ไม่เชื่อมต่อ
       if (!isFirebaseConnected) {
         _fetchUnreadNotificationCount();
       }
-      
     } catch (e) {
       debugPrint('Error initializing Firebase: $e');
       _fallbackToApiPolling();
@@ -127,10 +123,8 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   }
 
   void _setupNotificationListener() {
-    // ฟังการเปลี่ยนแปลงจาก notifications ทั้งหมด
     notifSubscription = notifRef.onValue.listen(
       (DatabaseEvent event) {
-        debugPrint('Firebase data received: ${event.snapshot.value != null}');
         _processFirebaseData(event.snapshot.value);
       },
       onError: (error) {
@@ -142,27 +136,22 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   }
 
   void _processFirebaseData(dynamic data) {
-    debugPrint('Processing Firebase data...');
-
     if (currentUserId == null || currentUserId!.isEmpty) {
-      debugPrint('User ID is null, cannot process notifications');
       return;
     }
 
     int count = 0;
-    
+
     try {
       if (data != null && data is Map) {
-        final Map<String, dynamic> notifications = Map<String, dynamic>.from(data);
-        
-        debugPrint('Total notifications in Firebase: ${notifications.length}');
+        final Map<String, dynamic> notifications =
+            Map<String, dynamic>.from(data);
 
         notifications.forEach((key, value) {
           if (value != null && value is Map) {
-            final Map<String, dynamic> notif = Map<String, dynamic>.from(value);
-            
-            debugPrint('Notification: receiver_uid=${notif['receiver_uid']}, is_read=${notif['is_read']}, current_user=$currentUserId');
-            
+            final Map<String, dynamic> notif =
+                Map<String, dynamic>.from(value);
+
             final receiverUid = notif['receiver_uid']?.toString();
             final isRead = notif['is_read'];
 
@@ -173,9 +162,10 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
               } else if (isRead is int) {
                 isUnread = (isRead == 0);
               } else if (isRead is String) {
-                isUnread = (isRead == '0' || isRead.toLowerCase() == 'false');
+                isUnread = (isRead == '0' ||
+                    isRead.toLowerCase() == 'false');
               }
-              
+
               if (isUnread) {
                 count++;
               }
@@ -188,30 +178,22 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
       return;
     }
 
-    debugPrint('Calculated unread count: $count (previous: $unreadCount)');
-
     if (mounted && count != unreadCount) {
-      // แสดง popup เฉพาะเมื่อจำนวนเพิ่มขึ้น และมีการเปลี่ยนแปลงจริง ๆ
-      if (count > unreadCount && unreadCount >= 0) {
+      if (!isFirstLoad && count > unreadCount && unreadCount >= 0) {
         int newNotifications = count - unreadCount;
         _showNotificationPopup(newNotifications);
       }
-      
       setState(() {
         unreadCount = count;
       });
-      debugPrint('Updated UI with unread count: $unreadCount');
     }
+
+    isFirstLoad = false; // ✅ ปิดการโหลดครั้งแรก
   }
 
-  // Fallback method หาก Firebase มีปัญหา
   void _fallbackToApiPolling() {
-    if (fallbackTimer != null) return; // ป้องกันการสร้าง timer ซ้ำ
-    
-    debugPrint('Starting API polling fallback...');
+    if (fallbackTimer != null) return;
     _fetchUnreadNotificationCount();
-    
-    // Poll ทุก 15 วินาที
     fallbackTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
       if (mounted) {
         _fetchUnreadNotificationCount();
@@ -222,20 +204,15 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
     });
   }
 
-  // ฟังก์ชันเพื่อดึงจำนวนการแจ้งเตือนจาก API
   Future<void> _fetchUnreadNotificationCount() async {
-    if (currentUserId == null || currentUserId!.isEmpty) {
-      debugPrint('Cannot fetch notifications: User ID is null');
-      return;
-    }
+    if (currentUserId == null || currentUserId!.isEmpty) return;
 
     try {
       var config = await Configuration.getConfig();
       var apiEndpoint = config['apiEndpoint'];
-      final url = Uri.parse('$apiEndpoint/user/notifications/$currentUserId');
+      final url =
+          Uri.parse('$apiEndpoint/user/notifications/$currentUserId');
 
-      debugPrint('Fetching notifications from API: $url');
-      
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -246,25 +223,24 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
             .where((notification) => notification.isRead == 0)
             .length;
 
-        debugPrint('API returned $count unread notifications');
-
         if (mounted) {
-          // แสดง popup เฉพาะถ้า Firebase ไม่เชื่อมต่อ และมีการเปลี่ยนแปลงจริง
-          if (!isFirebaseConnected && count > unreadCount && unreadCount >= 0) {
+          if (!isFirstLoad &&
+              !isFirebaseConnected &&
+              count > unreadCount &&
+              unreadCount >= 0) {
             int newNotifications = count - unreadCount;
             _showNotificationPopup(newNotifications);
           }
-          
           setState(() {
             unreadCount = count;
           });
         }
-      } else {
-        debugPrint('API request failed with status: ${response.statusCode}');
       }
     } catch (e) {
       debugPrint('Error fetching notification count from API: $e');
     }
+
+    isFirstLoad = false; // ✅ ปิดการโหลดครั้งแรก
   }
 
   @override
@@ -278,24 +254,13 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
     super.dispose();
   }
 
-  // ฟังก์ชันแสดง Notification Popup
   void _showNotificationPopup(int newCount) {
-    // ป้องกันการแสดง popup ซ้ำ
-    if (_isShowingPopup) {
-      debugPrint('Popup already showing, skipping');
-      return;
-    }
-
-    if (!_isAnimationInitialized || _animationController == null) {
-      debugPrint('Animation not initialized, skipping popup');
-      return;
-    }
-
+    if (_isShowingPopup) return;
+    if (!_isAnimationInitialized || _animationController == null) return;
     if (_overlayEntry != null) {
       _hideOverlay();
     }
-
-    _isShowingPopup = true; // ตั้ง flag
+    _isShowingPopup = true;
 
     _overlayEntry = OverlayEntry(
       builder: (context) => _buildNotificationPopup(newCount),
@@ -303,11 +268,8 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
 
     Overlay.of(context).insert(_overlayEntry!);
     _animationController!.forward();
-
-    // เพิ่มเสียงสั่น (haptic feedback)
     HapticFeedback.lightImpact();
 
-    // ซ่อน popup หลังจาก 4 วินาที
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 4), () {
       _hideOverlay();
@@ -366,9 +328,9 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
+                        const Text(
                           'การแจ้งเตือนใหม่',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -376,9 +338,9 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          newCount == 1 
-                            ? 'คุณมีการแจ้งเตือน 1 รายการใหม่'
-                            : 'คุณมีการแจ้งเตือน $newCount รายการใหม่',
+                          newCount == 1
+                              ? 'คุณมีการแจ้งเตือน 1 รายการใหม่'
+                              : 'คุณมีการแจ้งเตือน $newCount รายการใหม่',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 14,
@@ -408,17 +370,18 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
   }
 
   void _hideOverlay() {
-    if (_overlayEntry != null && _isAnimationInitialized && _animationController != null) {
+    if (_overlayEntry != null &&
+        _isAnimationInitialized &&
+        _animationController != null) {
       _animationController!.reverse().then((_) {
         _overlayEntry?.remove();
         _overlayEntry = null;
-        _isShowingPopup = false; // รีเซ็ต flag
+        _isShowingPopup = false;
       });
     } else if (_overlayEntry != null) {
-      // หาก animation ไม่พร้อม ให้ลบ overlay ทันที
       _overlayEntry?.remove();
       _overlayEntry = null;
-      _isShowingPopup = false; // รีเซ็ต flag
+      _isShowingPopup = false;
     }
     _hideTimer?.cancel();
   }
@@ -444,19 +407,14 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
     );
   }
 
-  // เมื่อกลับจากหน้า notification
   void _navigateToNotifications() async {
-    _hideOverlay(); // ซ่อน popup ก่อนไปหน้าอื่น
+    _hideOverlay();
     await Navigator.of(context).push(_createRouteToNotifications());
-    
-    // Refresh ข้อมูลหลังจากกลับมา
     await Future.delayed(const Duration(milliseconds: 300));
     _fetchUnreadNotificationCount();
   }
 
-  // Method สำหรับ manual refresh
   void refreshNotificationCount() {
-    debugPrint('Manual refresh notification count');
     _fetchUnreadNotificationCount();
   }
 
@@ -498,10 +456,11 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
                               IconButton(
                                 icon: Icon(
                                   Icons.notifications_none,
-                                  color: isFirebaseConnected ? Colors.black : Colors.grey,
+                                  color: isFirebaseConnected
+                                      ? Colors.black
+                                      : Colors.grey,
                                 ),
                                 onPressed: () {
-                                  debugPrint("Opening notifications - Current count: $unreadCount");
                                   _navigateToNotifications();
                                 },
                               ),
@@ -647,7 +606,7 @@ class _MainpageState extends State<Mainpage> with WidgetsBindingObserver, Ticker
       ),
     );
   }
-} 
+}
 
 class HomePageTab extends StatelessWidget {
   @override
