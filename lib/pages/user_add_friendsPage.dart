@@ -110,7 +110,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
   Future<void> searchUsers(String query) async {
     if (query.isEmpty) {
       setState(() {
-        filteredUsers = user;
+        filteredUsers = user; // 👈 ถ้าไม่พิมพ์ search ให้ใช้ user ทั้งหมด
       });
       return;
     }
@@ -119,8 +119,19 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
 
-      final response =
-          await http.get(Uri.parse("$url/user/search-users?name=$query"));
+      // ดึง uid ของคนที่ login จาก GetStorage (เป็น uid ตรง ๆ)
+      final loggedInUid = gs.read("user");
+      if (loggedInUid == null) {
+        log("❌ ไม่พบ uid ใน storage");
+        setState(() {
+          filteredUsers = [];
+        });
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse("$url/user/search-user?name=$query&uid=$loggedInUid"),
+      );
 
       if (response.statusCode == 200) {
         final searchResults = getAllUserFromJson(response.body);
@@ -294,7 +305,8 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                       ),
                       onChanged: (value) {
                         if (_debounce?.isActive ?? false) _debounce!.cancel();
-                        _debounce = Timer(const Duration(milliseconds: 500), () {
+                        _debounce =
+                            Timer(const Duration(milliseconds: 500), () {
                           searchUsers(value);
                         });
                       },

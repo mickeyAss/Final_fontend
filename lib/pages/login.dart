@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:developer'; // อย่าลืม import
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/pages/register.dart';
 import 'package:fontend_pro/pages/mainPage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/models/login_user_request.dart';
 
@@ -377,7 +379,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      onPressed: _isLoading ? null : signInWithGoogle,
+                      onPressed: _isLoading ? null : _loginWithGoogle,
                       child: _isLoading
                           ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -683,76 +685,70 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
     }
   }
 
-// ✅ ปรับปรุงฟังก์ชัน signInWithGoogle - ไม่แสดง popup เมื่อสำเร็จ
-  Future<void> signInWithGoogle() async {
-    if (_isLoading) return;
-
+  Future<void> _loginWithGoogle() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // ขั้นตอนที่ 1: Sign in with Google
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
+      // 1️⃣ ล็อกอิน Google
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
-        // ผู้ใช้ยกเลิกการ sign in
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
+        log('User canceled Google Sign-In');
         return;
       }
 
-      // ขั้นตอนที่ 2: Get authentication details
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
-      // ตรวจสอบว่าได้ idToken หรือไม่
-      if (googleAuth.idToken == null) {
-        throw Exception('ไม่สามารถรับ ID Token จาก Google ได้');
+      // 2️⃣ สร้าง credential สำหรับ Firebase
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // 3️⃣ ล็อกอินกับ Firebase
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // 4️⃣ ดึง Firebase ID Token
+      final firebaseIdToken = await userCredential.user?.getIdToken();
+      if (firebaseIdToken == null) {
+        log('Error: firebaseIdToken is null', name: 'LoginGoogle');
+        throw Exception("Missing Firebase ID Token");
       }
 
-      // ขั้นตอนที่ 3: เตรียมข้อมูลสำหรับส่งไปยัง API
-      final String name = googleUser.displayName ?? '';
-      final String email = googleUser.email;
-      final String profileImage = googleUser.photoUrl ?? '';
-      final String idToken = googleAuth.idToken!;
+      log('Firebase ID Token: $firebaseIdToken', name: 'LoginGoogle');
 
-      log('Google Sign In Data: Name=$name, Email=$email');
-
-      // ขั้นตอนที่ 4: ส่งข้อมูลไปยัง API
+      // 5️⃣ ส่ง Firebase ID Token ไป API ของเรา (/login-google)
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
 
       final response = await http.post(
-        Uri.parse("$url/user/login"),
-        headers: {"Content-Type": "application/json; charset=utf-8"},
-        body: jsonEncode({
-          "email": email,
-          "isGoogleLogin": true,
-          "idToken": idToken,
-          "name": name,
-          "profile_image": profileImage,
-        }),
+        Uri.parse('$url/user/login-google'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'idToken': firebaseIdToken}),
       );
 
-      log('Google Login Response Status: ${response.statusCode}');
-      log('Google Login Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
-        var responseData = jsonDecode(response.body);
-        var user = responseData['user'];
+        final responseData = jsonDecode(response.body);
+        final user = responseData['user'];
 
-        // บันทึก user data
-        await gs.write('user', user['uid']);
+        if (user == null || user['uid'] == null) {
+          throw Exception('User data missing from API');
+        }
+
+        final mySqlUid = user['uid'];
+
+        // บันทึกลง GetStorage
+        await gs.write('user', mySqlUid);
         await gs.write('user_data', user);
         await gs.write('login_type', 'google');
 
-        bool isNewUser =
-            responseData['message'].toString().contains('new user');
-        log('Google Login successful: ${responseData['message']}');
+        log('Current user uid from MySQL: $mySqlUid');
 
-        // ✅ เข้าหน้า Main เลย ไม่แสดง popup
+        // นำทางไปหน้า Mainpage
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -760,59 +756,25 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
           );
         }
       } else {
-        // จัดการ error cases
-        var errorData = jsonDecode(response.body);
-        String errorMessage;
-        String errorTitle;
-
-        switch (response.statusCode) {
-          case 400:
-            errorTitle = 'ข้อมูลไม่ถูกต้อง';
-            errorMessage = 'ข้อมูลการเข้าสู่ระบบไม่ครบถ้วนหรือไม่ถูกต้อง';
-            break;
-          case 401:
-            errorTitle = 'การตรวจสอบล้มเหลว';
-            errorMessage = 'ไม่สามารถตรวจสอบ Google Token ได้';
-            break;
-          case 500:
-            errorTitle = 'เซิร์ฟเวอร์ขัดข้อง';
-            errorMessage = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์ กรุณาลองใหม่ในภายหลัง';
-            break;
-          default:
-            errorTitle = 'เกิดข้อผิดพลาด';
-            errorMessage =
-                errorData['error'] ?? 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้';
-        }
-
+        log('API login-google error: ${response.body}');
         showModernDialog(
           context: context,
           icon: Icons.error_outline,
           iconColor: Colors.red,
-          title: errorTitle,
-          message: errorMessage,
+          title: 'เกิดข้อผิดพลาด',
+          message: 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่',
         );
-
-        log('Google login error (${response.statusCode}): ${errorData['error']}');
       }
-    } on Exception catch (e) {
-      log('Google sign-in exception: $e');
+    } catch (e, stack) {
+      log('Google login error',
+          name: 'LoginGoogle', error: e.toString(), stackTrace: stack);
+
       showModernDialog(
         context: context,
         icon: Icons.error_outline,
         iconColor: Colors.red,
-        title: 'เกิดข้อผิดพลาดกับ Google',
-        message:
-            'ไม่สามารถเชื่อมต่อกับ Google ได้ กรุณาตรวจสอบอินเทอร์เน็ตและลองใหม่',
-      );
-    } catch (e) {
-      log('Google sign-in error: $e');
-      showModernDialog(
-        context: context,
-        icon: Icons.error_outline,
-        iconColor: Colors.red,
-        title: 'เกิดข้อผิดพลาดที่ไม่คาดคิด',
-        message:
-            'กรุณาลองใหม่อีกครั้ง หากปัญหายังคงอยู่ กรุณาติดต่อผู้ดูแลระบบ',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่',
       );
     } finally {
       if (mounted) {
@@ -941,39 +903,5 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
         );
       },
     );
-  }
-
-  // Auto Login Check Method (เรียกใช้ใน initState ถ้าต้องการ)
-  Future<void> checkAutoLogin() async {
-    final userId = gs.read('user');
-    final loginType = gs.read('login_type');
-
-    if (userId != null && loginType != null) {
-      // มีข้อมูล login เก่าอยู่ - สามารถไปหน้าหลักได้เลย
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Mainpage()),
-      );
-    }
-  }
-
-  // Logout Method (สำหรับใช้ในหน้าอื่น)
-  Future<void> logout() async {
-    try {
-      // Sign out from Google
-      await _googleSignIn.signOut();
-
-      // Clear storage
-      await gs.erase();
-
-      // Navigate to login
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const Loginpage()),
-        (route) => false,
-      );
-    } catch (e) {
-      log('Logout error: $e');
-    }
   }
 }
