@@ -29,8 +29,8 @@ class GetAllUser {
         name: json["name"] ?? '',
         email: json["email"] ?? '',
         password: json["password"] ?? '',
-        personalDescription: json["personal_description"], // อนุญาต null
-        profileImage: json["profile_image"], // อนุญาต null
+        personalDescription: json["personal_description"] ?? '',
+        profileImage: json["profile_image"] ?? '', 
       );
 
   Map<String, dynamic> toJson() => {

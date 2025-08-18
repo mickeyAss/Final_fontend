@@ -44,7 +44,7 @@ class Category {
     int cid;
     String cname;
     String cimage;
-    Ctype ctype;
+    String ctype;
 
     Category({
         required this.cid,
@@ -57,28 +57,20 @@ class Category {
         cid: json["cid"],
         cname: json["cname"],
         cimage: json["cimage"],
-        ctype: ctypeValues.map[json["ctype"]]!,
+        ctype: json["ctype"],
     );
 
     Map<String, dynamic> toJson() => {
         "cid": cid,
         "cname": cname,
         "cimage": cimage,
-        "ctype": ctypeValues.reverse[ctype],
+        "ctype": ctype,
     };
 }
 
-enum Ctype {
-    M
-}
-
-final ctypeValues = EnumValues({
-    "M": Ctype.M
-});
-
 class Hashtag {
     int tagId;
-    TagName tagName;
+    String tagName;
 
     Hashtag({
         required this.tagId,
@@ -87,22 +79,14 @@ class Hashtag {
 
     factory Hashtag.fromJson(Map<String, dynamic> json) => Hashtag(
         tagId: json["tag_id"],
-        tagName: tagNameValues.map[json["tag_name"]]!,
+        tagName: json["tag_name"],
     );
 
     Map<String, dynamic> toJson() => {
         "tag_id": tagId,
-        "tag_name": tagNameValues.reverse[tagName],
+        "tag_name": tagName,
     };
 }
-
-enum TagName {
-    EMPTY
-}
-
-final tagNameValues = EnumValues({
-    "มินิมอล": TagName.EMPTY
-});
 
 class Image {
     int imageId;
@@ -130,8 +114,8 @@ class Image {
 
 class Post {
     int postId;
-    String? postTopic;
-    String? postDescription;
+    String postTopic;
+    String postDescription;
     DateTime postDate;
     int postFkUid;
     int amountOfLike;
@@ -174,9 +158,9 @@ class Post {
 
 class User {
     int uid;
-    Name name;
-    Email email;
-    PersonalDescription personalDescription;
+    String name;
+    String email;
+    dynamic personalDescription;
     String profileImage;
 
     User({
@@ -189,59 +173,17 @@ class User {
 
     factory User.fromJson(Map<String, dynamic> json) => User(
         uid: json["uid"],
-        name: nameValues.map[json["name"]]!,
-        email: emailValues.map[json["email"]]!,
-        personalDescription: personalDescriptionValues.map[json["personal_description"]]!,
+        name: json["name"],
+        email: json["email"],
+        personalDescription: json["personal_description"],
         profileImage: json["profile_image"],
     );
 
     Map<String, dynamic> toJson() => {
         "uid": uid,
-        "name": nameValues.reverse[name],
-        "email": emailValues.reverse[email],
-        "personal_description": personalDescriptionValues.reverse[personalDescription],
+        "name": name,
+        "email": email,
+        "personal_description": personalDescription,
         "profile_image": profileImage,
     };
-}
-
-enum Email {
-    MICSARA_GMAIL_COM,
-    TEAM_GMAIL_COM
-}
-
-final emailValues = EnumValues({
-    "micsara@gmail.com": Email.MICSARA_GMAIL_COM,
-    "team@gmail.com": Email.TEAM_GMAIL_COM
-});
-
-enum Name {
-    SARAWUT_SUTTHIPANYO,
-    TEAM
-}
-
-final nameValues = EnumValues({
-    "Sarawut Sutthipanyo": Name.SARAWUT_SUTTHIPANYO,
-    "team": Name.TEAM
-});
-
-enum PersonalDescription {
-    EMPTY,
-    MICKEY
-}
-
-final personalDescriptionValues = EnumValues({
-    "": PersonalDescription.EMPTY,
-    "MICKEY": PersonalDescription.MICKEY
-});
-
-class EnumValues<T> {
-    Map<String, T> map;
-    late Map<T, String> reverseMap;
-
-    EnumValues(this.map);
-
-    Map<T, String> get reverse {
-            reverseMap = map.map((k, v) => MapEntry(v, k));
-            return reverseMap;
-    }
 }

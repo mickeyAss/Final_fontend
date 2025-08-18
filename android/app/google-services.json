@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "976182138807",
+    "firebase_url": "https://final-project-2f65c-default-rtdb.firebaseio.com",
     "project_id": "final-project-2f65c",
     "storage_bucket": "final-project-2f65c.firebasestorage.app"
   },
@@ -19,14 +20,6 @@
           "android_info": {
             "package_name": "com.example.firebaseapp",
             "certificate_hash": "d0b343a5467fd00ea39eafaa78e24abbf259bdd5"
-          }
-        },
-        {
-          "client_id": "976182138807-bsa4herqt3b1hmbld6ullqjrecnpdfsq.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.firebaseapp",
-            "certificate_hash": "c43a6937823bd1021f17917a01483a02055f5f49"
           }
         },
         {
