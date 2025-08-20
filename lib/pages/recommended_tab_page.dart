@@ -1,15 +1,18 @@
 import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
+import 'package:get/get.dart';
 import 'dart:developer' as dev;
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
+import 'package:get/get_core/src/get_main.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/like_post.dart';
 import 'package:fontend_pro/models/get_comment.dart';
 import 'package:fontend_pro/models/get_all_category.dart';
+import 'package:fontend_pro/pages/other_user_profile.dart';
 import 'package:fontend_pro/models/get_all_post.dart' as model;
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
@@ -985,13 +988,22 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            postItem.user.name,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
+                                          InkWell(
+                                            onTap: () {
+                                              // ส่ง postItem.user.uid ไปหน้า OtherUserProfilePage
+                                              Get.to(
+                                                () => OtherUserProfilePage(
+                                                    userId: postItem.user.uid),
+                                              );
+                                            },
+                                            child: Text(
+                                              postItem.user.name,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            overflow: TextOverflow.ellipsis,
                                           ),
                                           const SizedBox(height: 2),
                                           Row(
