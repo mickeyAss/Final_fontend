@@ -17,7 +17,7 @@ class _RegisterPageState extends State<RegisterPage>
   TextEditingController emailNoCt1 = TextEditingController();
   TextEditingController passwordNoCt1 = TextEditingController();
   TextEditingController conpasswordNoCt1 = TextEditingController();
-  
+
   // Controllers for body measurements
   TextEditingController heightController = TextEditingController();
   TextEditingController weightController = TextEditingController();
@@ -121,7 +121,7 @@ class _RegisterPageState extends State<RegisterPage>
                       const SizedBox(height: 20),
                       _buildHeader(),
                       const SizedBox(height: 40),
-                      _currentStep == 0 
+                      _currentStep == 0
                           ? _buildBasicInfoSection()
                           : _buildBodyMeasurementsSection(),
                     ],
@@ -256,7 +256,7 @@ class _RegisterPageState extends State<RegisterPage>
               ],
             ),
             child: Icon(
-              _currentStep == 0 
+              _currentStep == 0
                   ? Icons.person_add_alt_1_rounded
                   : Icons.accessibility_new_rounded,
               color: Colors.white,
@@ -265,7 +265,7 @@ class _RegisterPageState extends State<RegisterPage>
           ),
           const SizedBox(height: 24),
           Text(
-            _currentStep == 0 
+            _currentStep == 0
                 ? 'ยินดีต้อนรับเข้าสู่โลกของคุณ'
                 : 'ข้อมูลร่างกายของคุณ',
             style: const TextStyle(
@@ -277,7 +277,7 @@ class _RegisterPageState extends State<RegisterPage>
           ),
           const SizedBox(height: 12),
           Text(
-            _currentStep == 0 
+            _currentStep == 0
                 ? 'สมัครสมาชิกเพื่อค้นหาสไตล์ที่ใช่\nและรับประสบการณ์ที่ออกแบบมาเพื่อคุณ'
                 : 'กรอกข้อมูลร่างกายเพื่อให้เราแนะนำ\nขนาดเสื้อผ้าที่เหมาะสมกับคุณ',
             style: TextStyle(
@@ -701,13 +701,15 @@ class _RegisterPageState extends State<RegisterPage>
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  onPressed: _isLoading ? null : () {
-                    if (_currentStep == 0) {
-                      _validateAndProceedToNext();
-                    } else {
-                      register();
-                    }
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          if (_currentStep == 0) {
+                            _validateAndProceedToNext();
+                          } else {
+                            register();
+                          }
+                        },
                   child: _isLoading
                       ? const SizedBox(
                           width: 24,
@@ -795,7 +797,7 @@ class _RegisterPageState extends State<RegisterPage>
     await box.write('register_name', nameNoCt1.text.trim());
     await box.write('register_email', emailNoCt1.text.trim());
     await box.write('register_password', passwordNoCt1.text.trim());
-    
+
     // Save body measurements
     if (heightController.text.trim().isNotEmpty) {
       await box.write('register_height', heightController.text.trim());
@@ -803,17 +805,18 @@ class _RegisterPageState extends State<RegisterPage>
     if (weightController.text.trim().isNotEmpty) {
       await box.write('register_weight', weightController.text.trim());
     }
-    if (_selectedShirtSize.isNotEmpty) {
-      await box.write('register_shirt_size', _selectedShirtSize);
-    }
     if (chestController.text.trim().isNotEmpty) {
       await box.write('register_chest', chestController.text.trim());
     }
     if (waistController.text.trim().isNotEmpty) {
-      await box.write('register_waist_circumference', waistController.text.trim());
+      await box.write(
+          'register_waist_circumference', waistController.text.trim());
     }
     if (hipController.text.trim().isNotEmpty) {
       await box.write('register_hip', hipController.text.trim());
+    }
+    if (_selectedShirtSize.isNotEmpty) {
+      await box.write('register_shirt_size', _selectedShirtSize);
     }
 
     setState(() {

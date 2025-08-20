@@ -574,28 +574,6 @@ class _RecommendedTabState extends State<RecommendedTab> {
     }
   }
 
-  // เพิ่มฟังก์ชันตรวจสอบสถานะการติดตามแบบเฉพาะเจาะจง (ถ้าต้องการใช้)
-  Future<bool> checkFollowingStatus(int targetUserId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    try {
-      final response = await http.get(
-        Uri.parse(
-            '$url/user/is-following?follower_id=$loggedInUid&following_id=$targetUserId'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['isFollowing'] ?? false;
-      }
-    } catch (e) {
-      dev.log('Error checking following status: $e');
-    }
-
-    return false;
-  }
-
   // เพิ่มฟังก์ชัน buildFollowButton สำหรับจัดการปุ่มติดตาม
   Widget buildFollowButton(model.GetAllPost postItem) {
     final isFollowing = followingUserIds.contains(postItem.user.uid);
@@ -1964,28 +1942,5 @@ class _RecommendedTabState extends State<RecommendedTab> {
     } else {
       dev.log('Error loading user data: ${response.statusCode}');
     }
-  }
-
-  Future<List<model.GetAllPost>?> loadDataPost() async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    try {
-      final response = await http.get(Uri.parse("$url/image_post/get"));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonData = jsonDecode(response.body);
-        final posts =
-            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
-
-        dev.log('Received post data: ${posts.length}');
-        return posts;
-      } else {
-        dev.log('Error loading post data: ${response.statusCode}');
-      }
-    } catch (e) {
-      dev.log('Exception during post loading: $e');
-    }
-    return null;
   }
 }

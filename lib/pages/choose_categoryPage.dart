@@ -26,9 +26,9 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
     log('Register Height: ${box.read('register_height')}');
     log('Register Weight: ${box.read('register_weight')}');
     log('Register Chest: ${box.read('register_chest')}');
-    log('Register Waist: ${box.read('register_waist')}');
-    log('Register Hips: ${box.read('register_hips')}');
-    log('Register Shirt Size: ${box.read('register_shirtSize')}');
+    log('Register Waist: ${box.read('register_waist_circumference')}');
+    log('Register Hips: ${box.read('register_hip')}');
+    log('Register Shirt Size: ${box.read('register_shirt_size')}');
   }
 
   @override
@@ -126,7 +126,6 @@ class _ChooseCategorypageState extends State<ChooseCategorypage> {
               ),
             ],
           ),
-
           Expanded(
             child: IndexedStack(
               index: selectedGenderIndex,

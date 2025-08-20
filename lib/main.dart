@@ -11,20 +11,21 @@ import 'package:get/get_navigation/src/root/get_material_app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); 
+  await Firebase.initializeApp();
   await GetStorage.init();
-  
+
   final gs = GetStorage();
   var user = gs.read('user');
   print('user ---> $user');
 
-  String firstPage = (user == null) ? '/login' : '/mainPage'; 
+// ถ้า user ยังไม่มี -> ไปหน้า login, ถ้ามีแล้ว -> ไปหน้า mainPage
+  String firstPage = (user == null) ? '/login' : '/mainPage';
 
   runApp(MyApp(initialRoute: firstPage));
-}  
+}
 
 class MyApp extends StatelessWidget {
-  final String initialRoute;  
+  final String initialRoute;
 
   const MyApp({super.key, required this.initialRoute});
 
@@ -37,7 +38,7 @@ class MyApp extends StatelessWidget {
         GetPage(name: '/mainPage', page: () => const Mainpage()),
       ],
       theme: ThemeData(
-        textTheme:GoogleFonts.k2dTextTheme(Theme.of(context).textTheme),
+        textTheme: GoogleFonts.k2dTextTheme(Theme.of(context).textTheme),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
         primaryColor: Colors.black,
