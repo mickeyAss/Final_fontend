@@ -25,13 +25,13 @@ if (flutterVersionName == null) {
 
 android {
     namespace = "com.example.firebaseapp" // เปลี่ยนตรงนี้
-    compileSdk = 34
+    compileSdk = 35
     ndkVersion "25.1.8937393"
 
     defaultConfig {
         applicationId = "com.example.firebaseapp" // เปลี่ยนตรงนี้
         minSdk = 33
-        targetSdk = 34
+        targetSdk = 35
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
     }
