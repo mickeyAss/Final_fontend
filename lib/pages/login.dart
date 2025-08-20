@@ -239,7 +239,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 10),
 
-                  // ✅ ปรับปรุงปุ่ม Login ให้ Loading แบบเรียบง่าย
+                  // ปรับปรุงปุ่ม Login ให้ Loading แบบเรียบง่าย
                   Container(
                     width: double.infinity,
                     height: 56,
@@ -358,7 +358,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 30),
 
-                  // ✅ ปรับปรุงปุ่ม Google ให้ Loading แบบเรียบง่าย
+                  // ปรับปรุงปุ่ม Google ให้ Loading แบบเรียบง่าย
                   Container(
                     width: double.infinity,
                     height: 56,
@@ -602,7 +602,6 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
         body: jsonEncode({
           "email": loginRequest.email,
           "password": loginRequest.password,
-          "isGoogleLogin": false,
         }),
       );
 
@@ -622,7 +621,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
           log('เข้าสู่ระบบสำเร็จ');
 
-          // ✅ เข้าหน้า Main เลย ไม่แสดง popup
+          // เข้าหน้า Main เลย ไม่แสดง popup
           if (mounted) {
             Navigator.pushReplacement(
               context,

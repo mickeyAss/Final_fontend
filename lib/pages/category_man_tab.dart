@@ -15,7 +15,7 @@ class CategoryManTab extends StatefulWidget {
   State<CategoryManTab> createState() => _CategoryManTabState();
 }
 
-// ✅ ตัวแปร global (จะได้รับค่าหลังโหลด FutureBuilder)
+// ตัวแปร global (จะได้รับค่าหลังโหลด FutureBuilder)
 List<GetAllCategory> categories = [];
 
 class _CategoryManTabState extends State<CategoryManTab> {
