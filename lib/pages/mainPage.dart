@@ -35,7 +35,7 @@ class _MainpageState extends State<Mainpage>
   Timer? fallbackTimer;
   String? currentUserId;
   bool isFirebaseConnected = false;
-  bool isFirstLoad = true; // ✅ เพิ่ม flag
+  bool isFirstLoad = true; //  เพิ่ม flag
 
   // สำหรับ Notification Popup
   OverlayEntry? _overlayEntry;
@@ -85,55 +85,73 @@ class _MainpageState extends State<Mainpage>
   }
 
   Future<void> _initFirebase() async {
-    try {
-      await Firebase.initializeApp();
-      if (currentUserId == null || currentUserId!.isEmpty) {
-        debugPrint('Error: User ID is null or empty, falling back to API');
-        _fallbackToApiPolling();
-        return;
-      }
+  try {
+    // เริ่มต้น Firebase
+    await Firebase.initializeApp();
 
-      notifRef = FirebaseDatabase.instance.ref('notifications');
-
-      // ตรวจสอบการเชื่อมต่อ Firebase
-      DatabaseReference connectedRef =
-          FirebaseDatabase.instance.ref('.info/connected');
-      connectedRef.onValue.listen((event) {
-        bool connected = event.snapshot.value as bool? ?? false;
-        bool wasConnected = isFirebaseConnected;
-        isFirebaseConnected = connected;
-        debugPrint('Firebase connection status: $connected');
-
-        if (!connected && fallbackTimer == null) {
-          _fallbackToApiPolling();
-        } else if (connected && !wasConnected) {
-          fallbackTimer?.cancel();
-          fallbackTimer = null;
-        }
-      });
-
-      _setupNotificationListener();
-      if (!isFirebaseConnected) {
-        _fetchUnreadNotificationCount();
-      }
-    } catch (e) {
-      debugPrint('Error initializing Firebase: $e');
+    // ถ้า userId ว่าง → ใช้ API polling แทน
+    if (currentUserId == null || currentUserId!.isEmpty) {
+      debugPrint('Error: User ID is null or empty, falling back to API');
       _fallbackToApiPolling();
+      return;
     }
-  }
 
-  void _setupNotificationListener() {
-    notifSubscription = notifRef.onValue.listen(
-      (DatabaseEvent event) {
-        _processFirebaseData(event.snapshot.value);
-      },
-      onError: (error) {
-        debugPrint('Firebase listener error: $error');
-        isFirebaseConnected = false;
+    // อ้างอิงไปที่ path "notifications" ใน Firebase Realtime Database
+    notifRef = FirebaseDatabase.instance.ref('notifications');
+
+    // อ้างอิง path พิเศษ ".info/connected" ของ Firebase 
+    // เพื่อตรวจสอบว่าเชื่อมต่อ Firebase อยู่หรือไม่
+    DatabaseReference connectedRef =
+        FirebaseDatabase.instance.ref('.info/connected');
+
+    // ตั้ง listener ฟังค่า connection status
+    connectedRef.onValue.listen((event) {
+      bool connected = event.snapshot.value as bool? ?? false;
+      bool wasConnected = isFirebaseConnected;
+      isFirebaseConnected = connected;
+      debugPrint('Firebase connection status: $connected');
+
+      // ถ้า disconnect และยังไม่มี timer polling → เปิด API polling
+      if (!connected && fallbackTimer == null) {
         _fallbackToApiPolling();
-      },
-    );
+
+      // ถ้ากลับมา connected อีกครั้ง → ยกเลิก timer polling
+      } else if (connected && !wasConnected) {
+        fallbackTimer?.cancel();
+        fallbackTimer = null;
+      } 
+    });
+
+    // เริ่มฟังการเปลี่ยนแปลงของ notifications
+    _setupNotificationListener();
+
+    // ถ้าเพิ่งเริ่มยังไม่เชื่อม Firebase ได้ → ดึงจาก API มาก่อน
+    if (!isFirebaseConnected) {
+      _fetchUnreadNotificationCount();
+    }
+  } catch (e) {
+    //  ถ้า error ตอน init Firebase → fallback ไปใช้ API polling
+    debugPrint('Error initializing Firebase: $e');
+    _fallbackToApiPolling();
   }
+}
+
+void _setupNotificationListener() {
+  //  ตั้ง listener ฟัง event "onValue" ที่ path "notifications"
+  notifSubscription = notifRef.onValue.listen(
+    (DatabaseEvent event) {
+      // เวลามีข้อมูลเปลี่ยน → ส่งต่อไปประมวลผล
+      _processFirebaseData(event.snapshot.value);
+    },
+    onError: (error) {
+      // ถ้า listener error → ถือว่า Firebase ล้ม → fallback ไปใช้ API polling
+      debugPrint('Firebase listener error: $error');
+      isFirebaseConnected = false;
+      _fallbackToApiPolling();
+    },
+  );
+}
+
 
   void _processFirebaseData(dynamic data) {
     if (currentUserId == null || currentUserId!.isEmpty) {
@@ -188,7 +206,7 @@ class _MainpageState extends State<Mainpage>
       });
     }
 
-    isFirstLoad = false; // ✅ ปิดการโหลดครั้งแรก
+    isFirstLoad = false; // ปิดการโหลดครั้งแรก
   }
 
   void _fallbackToApiPolling() {
@@ -240,7 +258,7 @@ class _MainpageState extends State<Mainpage>
       debugPrint('Error fetching notification count from API: $e');
     }
 
-    isFirstLoad = false; // ✅ ปิดการโหลดครั้งแรก
+    isFirstLoad = false; // ปิดการโหลดครั้งแรก
   }
 
   @override

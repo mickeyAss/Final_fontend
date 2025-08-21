@@ -21,21 +21,20 @@ class Searchpage extends StatefulWidget {
 }
 
 class _SearchpageState extends State<Searchpage> {
-  List<GetAllUser> user = [];
-  List<GetAllUser> filteredUsers = [];
+  List<GetAllUser> user = []; // users ทั้งหมด
+  List<GetAllUser> filteredUsers = []; // users ที่กรองจากการ search
   final GetStorage gs = GetStorage();
 
-  List<GetPostHashtags> hashtagsWithPosts = [];
-  List<GetPostHashtags> searchedHashtags = [];
+  List<GetPostHashtags> hashtagsWithPosts = []; // hashtags ยอดนิยมพร้อมโพสต์
+  List<GetPostHashtags> searchedHashtags = []; // hashtags ที่ค้นหาเจอ
   bool _isLoadingHashtags = true;
   bool _isSearchingHashtags = false;
 
-  // For selected hashtag posts display
-  GetPostHashtags? _selectedHashtag;
-  List<dynamic> _selectedHashtagPosts = [];
+  GetPostHashtags? _selectedHashtag; // hashtag ที่เลือก
+  List<dynamic> _selectedHashtagPosts = []; // โพสต์ของ hashtag ที่เลือก
   bool _isLoadingSelectedHashtagPosts = false;
 
-  late int loggedInUid;
+  late int loggedInUid; // uid ของผู้ใช้ที่ล็อกอิน
   TextEditingController searchController = TextEditingController();
   String currentSearchQuery = '';
   bool isSearchingHashtag = false;
@@ -328,7 +327,6 @@ class _SearchpageState extends State<Searchpage> {
                         color: Colors.black87,
                       ),
                     ),
-                   
                   ],
                 ),
               ),
