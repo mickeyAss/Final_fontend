@@ -242,8 +242,6 @@ class _RegisterPageState extends State<RegisterPage>
     return Center(
       child: Column(
         children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -580,6 +578,24 @@ class _RegisterPageState extends State<RegisterPage>
         ),
         decoration: InputDecoration(
           labelText: label,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.grey.shade700, size: 20),
+          ),
+          suffixIcon: onToggleVisibility != null
+              ? IconButton(
+                  icon: Icon(
+                    obscure ? Icons.visibility : Icons.visibility_off,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: onToggleVisibility,
+                )
+              : null,
           filled: true,
           fillColor: Colors.grey.shade50,
           border: OutlineInputBorder(

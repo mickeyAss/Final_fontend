@@ -1147,13 +1147,15 @@ class _FollowingTabState extends State<FollowingTab> {
                                             child: Container(
                                               padding: const EdgeInsets.all(12),
                                               decoration: BoxDecoration(
-                                                color: Colors.black
+                                                color: Color.fromARGB(
+                                                        255, 247, 32, 32)
                                                     .withOpacity(0.8),
                                                 shape: BoxShape.circle,
                                                 boxShadow: [
                                                   BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.3),
+                                                   color: Color.fromARGB(
+                                                        255, 247, 32, 32)
+                                                    .withOpacity(0.3),
                                                     blurRadius: 20,
                                                     spreadRadius: 2,
                                                   ),
@@ -1196,8 +1198,7 @@ class _FollowingTabState extends State<FollowingTab> {
                                     ],
                                   ),
                                 ),
-
-                              // Action buttons (Instagram style)
+// Action buttons (Instagram style)
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 8),
@@ -1213,11 +1214,13 @@ class _FollowingTabState extends State<FollowingTab> {
                                             : Icons.favorite_border,
                                         color: likedMap[postItem.post.postId] ==
                                                 true
-                                            ? Color.fromARGB(255, 247, 32, 32)
+                                            ? const Color.fromARGB(
+                                                255, 247, 32, 32)
                                             : Colors.black,
                                         size: 24,
                                       ),
                                     ),
+
                                     // Likes count
                                     if ((likeCountMap[postItem.post.postId] ??
                                             0) >
@@ -1226,7 +1229,7 @@ class _FollowingTabState extends State<FollowingTab> {
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12),
                                         child: Text(
-                                          '${likeCountMap[postItem.post.postId]} ',
+                                          '${likeCountMap[postItem.post.postId]}',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w600,
                                             fontSize: 14,
@@ -1235,13 +1238,12 @@ class _FollowingTabState extends State<FollowingTab> {
                                       ),
 
                                     const SizedBox(width: 16),
+
                                     // Comment button
                                     GestureDetector(
                                       onTap: () {
                                         _showCommentBottomSheet(
-                                            context,
-                                            postItem.post
-                                                .postId); // postId ของโพสต์นั้น
+                                            context, postItem.post.postId);
                                       },
                                       child: const Icon(
                                         Icons.chat,
@@ -1249,6 +1251,7 @@ class _FollowingTabState extends State<FollowingTab> {
                                         size: 24,
                                       ),
                                     ),
+
                                     const SizedBox(width: 16),
 
                                     const Spacer(),
@@ -1256,8 +1259,7 @@ class _FollowingTabState extends State<FollowingTab> {
                                     // Save button
                                     GestureDetector(
                                       onTap: () {
-                                        savePost(postItem.post
-                                            .postId); // ฟังก์ชัน toggle save / unsave
+                                        savePost(postItem.post.postId);
                                       },
                                       child: Icon(
                                         savedMap[postItem.post.postId] == true
@@ -1265,7 +1267,7 @@ class _FollowingTabState extends State<FollowingTab> {
                                             : Icons.bookmark_border,
                                         color: savedMap[postItem.post.postId] ==
                                                 true
-                                            ? const Color.fromARGB(255, 0, 0, 0)
+                                            ? Color.fromARGB(255, 255, 200, 0)
                                             : Colors.black,
                                         size: 24,
                                       ),
@@ -1273,6 +1275,35 @@ class _FollowingTabState extends State<FollowingTab> {
                                   ],
                                 ),
                               ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                child: FutureBuilder<GetComment>(
+                                  future: _fetchComments(postItem.post.postId),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasData &&
+                                        snapshot.data!.comments.isNotEmpty) {
+                                      final commentCount =
+                                          snapshot.data!.comments.length;
+                                      return GestureDetector(
+                                        onTap: () => _showCommentBottomSheet(
+                                            context, postItem.post.postId),
+                                        child: Text(
+                                          commentCount == 1
+                                              ? 'ดูความคิดเห็น 1 รายการ'
+                                              : 'ดูความคิดเห็นทั้งหมด $commentCount รายการ',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
+                                ),
+                              ),
+
                               // Categories (simplified)
                               if (postItem.categories.isNotEmpty)
                                 Padding(

@@ -446,7 +446,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                       ),
                     ),
                   ),
-                  // ปุ่มสำหรับติดตาม/เลิกติดตาม และส่งข้อความ
+                  // ปุ่มสำหรับติดตาม/เลิกติดตาม 
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -490,42 +490,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 2,
-                            child: Container(
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(6),
-                                  onTap: () {
-                                    // แสดง Snackbar แจ้งว่าฟีเจอร์ยังไม่พร้อมใช้งาน
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('ฟีเจอร์ส่งข้อความยังไม่พร้อมใช้งาน'),
-                                        duration: Duration(seconds: 2),
-                                      ),
-                                    );
-                                  },
-                                  child: const Center(
-                                    child: Text(
-                                      "ข้อความ",
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                        
                         ],
                       ),
                     ),
@@ -701,32 +666,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                   ),
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.share_outlined),
-                title: const Text('แชร์โปรไฟล์'),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('ฟีเจอร์แชร์โปรไฟล์ยังไม่พร้อมใช้งาน'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.copy),
-                title: const Text('คัดลอกลิงก์โปรไฟล์'),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('ฟีเจอร์คัดลอกลิงก์ยังไม่พร้อมใช้งาน'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-              ),
+              
               ListTile(
                 leading: const Icon(Icons.report_outlined),
                 title: const Text('รายงาน'),
@@ -735,15 +675,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                   _showReportDialog();
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.block),
-                title: const Text('บล็อก'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showBlockDialog();
-                },
-              ),
-              const SizedBox(height: 20),
+          
             ],
           ),
         );

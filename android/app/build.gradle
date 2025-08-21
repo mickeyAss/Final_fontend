@@ -30,7 +30,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.firebaseapp" // เปลี่ยนตรงนี้
-        minSdk = 33
+        minSdk = 23
         targetSdk = 35
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName

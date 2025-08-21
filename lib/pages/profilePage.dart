@@ -705,32 +705,12 @@ class _ProfilepageState extends State<Profilepage> {
               ),
               ListTile(
                 leading: const Icon(Icons.settings_outlined),
-                title: const Text('การตั้งค่า'),
+                title: const Text('ลบบัญชี'),
                 onTap: () {
                   Navigator.pop(context);
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: const Text('กิจกรรมของคุณ'),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.qr_code),
-                title: const Text('QR Code'),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.bookmark_border),
-                title: const Text('บันทึกแล้ว'),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
+             
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.logout),

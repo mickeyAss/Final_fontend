@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
+import 'package:fontend_pro/pages/profilePage.dart';
 import 'package:get/get.dart';
 import 'dart:developer' as dev;
 import 'package:intl/intl.dart';
@@ -968,11 +969,18 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         children: [
                                           InkWell(
                                             onTap: () {
-                                              // ส่ง postItem.user.uid ไปหน้า OtherUserProfilePage
-                                              Get.to(
-                                                () => OtherUserProfilePage(
-                                                    userId: postItem.user.uid),
-                                              );
+                                              if (postItem.user.uid ==
+                                                  loggedInUid) {
+                                                // UID ตรงกับผู้ล็อกอิน → ไปหน้า Profile ของตัวเอง
+                                                Get.to(
+                                                    () => const Profilepage());
+                                              } else {
+                                                // UID ไม่ตรง → ไปหน้า OtherUserProfilePage
+                                                Get.to(() =>
+                                                    OtherUserProfilePage(
+                                                        userId:
+                                                            postItem.user.uid));
+                                              }
                                             },
                                             child: Text(
                                               postItem.user.name,
@@ -1284,11 +1292,13 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                             : Icons.favorite_border,
                                         color: likedMap[postItem.post.postId] ==
                                                 true
-                                            ? Color.fromARGB(255, 247, 32, 32)
+                                            ? const Color.fromARGB(
+                                                255, 247, 32, 32)
                                             : Colors.black,
                                         size: 24,
                                       ),
                                     ),
+
                                     // Likes count
                                     if ((likeCountMap[postItem.post.postId] ??
                                             0) >
@@ -1297,7 +1307,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12),
                                         child: Text(
-                                          '${likeCountMap[postItem.post.postId]} ',
+                                          '${likeCountMap[postItem.post.postId]}',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w600,
                                             fontSize: 14,
@@ -1311,9 +1321,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                     GestureDetector(
                                       onTap: () {
                                         _showCommentBottomSheet(
-                                            context,
-                                            postItem.post
-                                                .postId); // postId ของโพสต์นั้น
+                                            context, postItem.post.postId);
                                       },
                                       child: const Icon(
                                         Icons.chat,
@@ -1337,12 +1345,41 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                             : Icons.bookmark_border,
                                         color: savedMap[postItem.post.postId] ==
                                                 true
-                                            ? const Color.fromARGB(255, 0, 0, 0)
+                                            ? Color.fromARGB(255, 255, 200, 0)
                                             : Colors.black,
                                         size: 24,
                                       ),
                                     ),
                                   ],
+                                ),
+                              ),
+
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                child: FutureBuilder<GetComment>(
+                                  future: _fetchComments(postItem.post.postId),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasData &&
+                                        snapshot.data!.comments.isNotEmpty) {
+                                      final commentCount =
+                                          snapshot.data!.comments.length;
+                                      return GestureDetector(
+                                        onTap: () => _showCommentBottomSheet(
+                                            context, postItem.post.postId),
+                                        child: Text(
+                                          commentCount == 1
+                                              ? 'ดูความคิดเห็น 1 รายการ'
+                                              : 'ดูความคิดเห็นทั้งหมด $commentCount รายการ',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
                                 ),
                               ),
 

@@ -759,11 +759,11 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   Future<void> _submitComment(int postId, String commentText) async {
     final gs = GetStorage();
     final userId = gs.read('user');
-    
+
     try {
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
-      
+
       final res = await http.post(
         Uri.parse('$url/image_post/comment'),
         headers: {'Content-Type': 'application/json'},
@@ -773,7 +773,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
           'comment_text': commentText,
         }),
       );
-      
+
       if (res.statusCode == 200) {
         // แสดงข้อความสำเร็จ
         if (mounted) {
@@ -790,7 +790,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
               duration: Duration(seconds: 2),
             ),
           );
-          
+
           // รีเฟรชหน้าเพื่ออัพเดทจำนวน comments
           setState(() {});
         }
@@ -990,12 +990,14 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundImage: user.profileImage != null && user.profileImage!.isNotEmpty
+                    backgroundImage: user.profileImage != null &&
+                            user.profileImage!.isNotEmpty
                         ? NetworkImage(user.profileImage!)
                         : null,
-                    child: user.profileImage == null || user.profileImage!.isEmpty
-                        ? const Icon(Icons.person)
-                        : null,
+                    child:
+                        user.profileImage == null || user.profileImage!.isEmpty
+                            ? const Icon(Icons.person)
+                            : null,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1039,17 +1041,26 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         setState(() {
                           showHeart = true;
                         });
-                        _animationController.forward();
+
+                        // ซ่อนหัวใจอัตโนมัติหลัง 800ms
+                        Future.delayed(const Duration(milliseconds: 800), () {
+                          if (mounted) {
+                            setState(() {
+                              showHeart = false;
+                            });
+                          }
+                        });
+
                         toggleLike();
                       },
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
+                          // รูปภาพ
                           Image.network(
                             postDetail!.images[index].image,
                             fit: BoxFit.cover,
                             width: double.infinity,
-                            // เพิ่ม error handler สำหรับรูปภาพ
                             errorBuilder: (context, error, stackTrace) {
                               return Container(
                                 color: Colors.grey[200],
@@ -1061,13 +1072,41 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                               );
                             },
                           ),
+
+                          // Heart animation แบบ AnimatedScale + AnimatedOpacity
                           if (showHeart)
-                            ScaleTransition(
-                              scale: _scaleAnimation,
-                              child: Icon(
-                                Icons.favorite,
-                                color: Colors.red.withOpacity(0.8),
-                                size: 120,
+                            Center(
+                              child: AnimatedScale(
+                                scale: showHeart ? 1.2 : 0.0,
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.elasticOut,
+                                child: AnimatedOpacity(
+                                  opacity: showHeart ? 1.0 : 0.0,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          const Color.fromARGB(255, 247, 32, 32)
+                                              .withOpacity(0.8),
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color.fromARGB(
+                                                  255, 247, 32, 32)
+                                              .withOpacity(0.3),
+                                          blurRadius: 20,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.favorite,
+                                      color: Colors.white,
+                                      size: 36,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                         ],
@@ -1094,37 +1133,30 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         ),
                         onPressed: toggleLike,
                       ),
-                      
+
                       // Comment Button - เชื่อมต่อกับ bottom sheet
                       IconButton(
                         icon: const Icon(
-                          Icons.chat_bubble_outline,
+                          Icons.chat,
                           color: Colors.black,
                           size: 28,
                         ),
-                        onPressed: () => _showCommentBottomSheet(context, widget.postId),
-                      ),
-                      
-                      // Share Button
-                      IconButton(
-                        icon: const Icon(
-                          Icons.send,
-                          color: Colors.black,
-                          size: 28,
-                        ),
-                        onPressed: () {},
+                        onPressed: () =>
+                            _showCommentBottomSheet(context, widget.postId),
                       ),
                     ],
                   ),
-                  
+
                   // Save Button
                   IconButton(
                     icon: Icon(
                       savedMap[widget.postId] == true
                           ? Icons.bookmark
                           : Icons.bookmark_border,
-                      color: Colors.black,
-                      size: 28,
+                      color: savedMap[widget.postId] == true
+                          ? Color.fromARGB(255, 255, 200, 0)
+                          : Colors.black,
+                      size: 24,
                     ),
                     onPressed: () {
                       savePost(widget.postId);
@@ -1148,18 +1180,20 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                       fontSize: 14,
                     ),
                   ),
-                  
+
                   // Comments count - เพิ่มการแสดงจำนวน comments
                   const SizedBox(height: 2),
                   FutureBuilder<GetComment>(
                     future: _fetchComments(widget.postId),
                     builder: (context, snapshot) {
-                      if (snapshot.hasData && snapshot.data!.comments.isNotEmpty) {
+                      if (snapshot.hasData &&
+                          snapshot.data!.comments.isNotEmpty) {
                         final commentCount = snapshot.data!.comments.length;
                         return GestureDetector(
-                          onTap: () => _showCommentBottomSheet(context, widget.postId),
+                          onTap: () =>
+                              _showCommentBottomSheet(context, widget.postId),
                           child: Text(
-                            commentCount == 1 
+                            commentCount == 1
                                 ? 'ดูความคิดเห็น 1 รายการ'
                                 : 'ดูความคิดเห็นทั้งหมด $commentCount รายการ',
                             style: TextStyle(
@@ -1193,7 +1227,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                       ),
                     ),
                   // ใช้ null safety สำหรับ postDescription
-                  if (post.postDescription != null && post.postDescription!.isNotEmpty)
+                  if (post.postDescription != null &&
+                      post.postDescription!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
