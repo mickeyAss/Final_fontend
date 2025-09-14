@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
+import 'package:get/get_core/src/get_main.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/like_post.dart';
 import 'package:fontend_pro/models/get_comment.dart';
 import 'package:fontend_pro/models/post_detail.dart' as model;
+import 'package:get/get_navigation/src/snackbar/snackbar.dart';
 
 class UserDetailPostPage extends StatefulWidget {
   final int postId;
@@ -1023,7 +1026,53 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                   ),
                   IconButton(
                     icon: const Icon(Icons.more_horiz),
-                    onPressed: () {},
+                    onPressed: () {
+                      // Step 1: กดที่เมนู -> โชว์เมนูเลือก "รายงานโพสต์"
+                      showModalBottomSheet(
+                        context: context,
+                        builder: (context) {
+                          return ListTile(
+                            leading: Icon(Icons.report, color: Colors.red),
+                            title: const Text("รายงานโพสต์"),
+                            onTap: () {
+                              Navigator.pop(context); // ปิดเมนูแรก
+                              // Step 2: แสดงเหตุผลการรายงาน
+                              showModalBottomSheet(
+                                context: context,
+                                builder: (context) {
+                                  final reasons = [
+                                    "สแปม",
+                                    "เนื้อหาไม่เหมาะสม",
+                                    "ละเมิดลิขสิทธิ์",
+                                    "อื่น ๆ",
+                                  ];
+
+                                  return ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: reasons.length,
+                                    itemBuilder: (context, index) {
+                                      return ListTile(
+                                        title: Text(reasons[index]),
+                                        onTap: () {
+                                          Navigator.pop(context);
+                                          _reportPost(
+                                            context,
+                                            post.postId,
+                                            reasons[index],
+                                            gs.read(
+                                                'user'), // uid ของคนที่กดรายงาน (ปัจจุบัน login อยู่)
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1255,5 +1304,45 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
         ),
       ),
     );
+  }
+
+  Future<void> _reportPost(
+      BuildContext context, int postId, String reason, int reporterId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final response = await http.post(
+        Uri.parse("$url/image_post/report-posts"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "post_id": postId,
+          "reporter_id": reporterId,
+          "reason": reason,
+        }),
+      );
+
+      final resBody = jsonDecode(response.body);
+      final message = resBody['message'] ?? "รายงานโพสต์สำเร็จ";
+      final isAlreadyReported = message.contains("รายงานไปแล้ว");
+
+      Get.snackbar(
+        "สถานะ",
+        message,
+        backgroundColor: isAlreadyReported ? Colors.orange : Colors.green,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      Get.snackbar(
+        "เกิดข้อผิดพลาด",
+        "$e",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+    }
   }
 }

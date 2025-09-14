@@ -13,11 +13,13 @@ String getPostHashtagsToJson(List<GetPostHashtags> data) =>
 class GetPostHashtags {
   int tagId;
   String tagName;
+  final int usageCount; // เพิ่มตรงนี้
   List<Post> posts;
 
   GetPostHashtags({
     required this.tagId,
     required this.tagName,
+    required this.usageCount,
     required this.posts,
   });
 
@@ -25,6 +27,7 @@ class GetPostHashtags {
       GetPostHashtags(
         tagId: json["tag_id"],
         tagName: json["tag_name"],
+        usageCount: json['usage_count'] ?? 0,
         posts: (json["posts"] as List<dynamic>?)
                 ?.map((x) => Post.fromJson(x))
                 .toList() ??

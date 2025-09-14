@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
+import 'package:get/get_core/src/get_main.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/get_all_user.dart';
+import 'package:fontend_pro/pages/other_user_profile.dart';
 
 class UserAddFriendspage extends StatefulWidget {
   const UserAddFriendspage({super.key});
@@ -489,39 +492,45 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                       Stack(
                         children: [
                           Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.grey[200]!,
-                                width: 2,
-                              ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Image.network(
-                                users.profileImage ?? '',
-                                width: 56,
-                                height: 56,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[100],
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Icon(
-                                    Icons.person_rounded,
-                                    size: 28,
-                                    color: Colors.grey[500],
-                                  ),
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.grey[200]!,
+                                  width: 2,
                                 ),
                               ),
-                            ),
-                          ),
+                              child: GestureDetector(
+                                onTap: () {
+                                  Get.to(() =>
+                                      OtherUserProfilePage(userId: users.uid));
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Image.network(
+                                    users.profileImage ?? '',
+                                    width: 56,
+                                    height: 56,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Icon(
+                                        Icons.person_rounded,
+                                        size: 28,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )),
                           if (isFollowing)
                             Positioned(
                               bottom: 0,
@@ -549,12 +558,18 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              users.name,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
+                            GestureDetector(
+                              onTap: () {
+                                Get.to(() =>
+                                    OtherUserProfilePage(userId: users.uid));
+                              },
+                              child: Text(
+                                users.name,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 4),

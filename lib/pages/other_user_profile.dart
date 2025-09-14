@@ -446,7 +446,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                       ),
                     ),
                   ),
-                  // ปุ่มสำหรับติดตาม/เลิกติดตาม 
+                  // ปุ่มสำหรับติดตาม/เลิกติดตาม
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -457,14 +457,17 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                             child: Container(
                               height: 32,
                               decoration: BoxDecoration(
-                                color: _isFollowing ? Colors.grey[200] : Colors.blue,
+                                color: _isFollowing
+                                    ? Colors.grey[200]
+                                    : Colors.blue,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(6),
-                                  onTap: _isFollowLoading ? null : _toggleFollow,
+                                  onTap:
+                                      _isFollowLoading ? null : _toggleFollow,
                                   child: Center(
                                     child: _isFollowLoading
                                         ? const SizedBox(
@@ -476,10 +479,12 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                                             ),
                                           )
                                         : Text(
-                                            _isFollowing ? "กำลังติดตาม" : "ติดตาม",
+                                            _isFollowing
+                                                ? "กำลังติดตาม"
+                                                : "ติดตาม",
                                             style: TextStyle(
-                                              color: _isFollowing 
-                                                  ? Colors.black 
+                                              color: _isFollowing
+                                                  ? Colors.black
                                                   : Colors.white,
                                               fontWeight: FontWeight.w600,
                                               fontSize: 14,
@@ -490,7 +495,6 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                               ),
                             ),
                           ),
-                        
                         ],
                       ),
                     ),
@@ -597,7 +601,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       itemCount: userPosts!.length,
       itemBuilder: (context, index) {
         final post = userPosts![index];
-        String? imageUrl = post.images.isNotEmpty ? post.images.first.image : null;
+        String? imageUrl =
+            post.images.isNotEmpty ? post.images.first.image : null;
         int? postId = post.post.postId;
 
         return GestureDetector(
@@ -666,7 +671,6 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                   ),
                 ),
               ),
-              
               ListTile(
                 leading: const Icon(Icons.report_outlined),
                 title: const Text('รายงาน'),
@@ -675,7 +679,6 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                   _showReportDialog();
                 },
               ),
-          
             ],
           ),
         );
@@ -683,52 +686,124 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
     );
   }
 
+  // แก้ไขฟังก์ชัน _showReportDialog
   void _showReportDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'รายงานผู้ใช้',
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: const Text(
-            'คุณต้องการรายงานผู้ใช้นี้หรือไม่?',
-            style: TextStyle(
-              color: Colors.black87,
-              fontSize: 15,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(foregroundColor: Colors.black),
-              child: const Text('ยกเลิก'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('ฟีเจอร์รายงานยังไม่พร้อมใช้งาน'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('รายงาน'),
-            ),
-          ],
+        return ReportUserDialog(
+          onReport: (reason) async {
+            await _reportUser(reason);
+          },
         );
       },
     );
+  }
+
+  // ฟังก์ชันเรียก API report-user (ปรับปรุงแล้ว)
+  Future<void> _reportUser(String reason) async {
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่สามารถรายงานได้ กรุณาเข้าสู่ระบบใหม่'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // แสดง loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('กำลังรายงาน...'),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      final config = await Configuration.getConfig();
+      final url = config['apiEndpoint'];
+      final uri = Uri.parse('$url/image_post/report-user');
+
+      log('Sending report request: reporter_id=$currentUserId, reported_id=${widget.userId}, reason=$reason');
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          "reporter_id": currentUserId,
+          "reported_id": widget.userId,
+          "reason": reason,
+        }),
+      );
+
+      // ปิด loading dialog
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      log('Report response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('รายงานผู้ใช้สำเร็จ ขอบคุณสำหรับการแจ้ง'),
+              duration: Duration(seconds: 3),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        String errorMessage = 'เกิดข้อผิดพลาด';
+        try {
+          final data = jsonDecode(response.body);
+          errorMessage = data['message'] ?? errorMessage;
+        } catch (e) {
+          log('Error parsing error response: $e');
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // ปิด loading dialog ถ้ายังเปิดอยู่
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      log('Error reporting user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการรายงาน กรุณาลองใหม่อีกครั้ง'),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showBlockDialog() {
@@ -875,5 +950,119 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         followingCount = 0;
       });
     }
+  }
+}
+
+// สร้าง ReportUserDialog เป็น StatefulWidget แยก
+class ReportUserDialog extends StatefulWidget {
+  final Function(String) onReport;
+
+  const ReportUserDialog({
+    Key? key,
+    required this.onReport,
+  }) : super(key: key);
+
+  @override
+  State<ReportUserDialog> createState() => _ReportUserDialogState();
+}
+
+class _ReportUserDialogState extends State<ReportUserDialog> {
+  String? selectedReason;
+
+  final List<String> reportReasons = [
+    "สแปม / โฆษณา",
+    "พฤติกรรมไม่เหมาะสม",
+    "ปลอมตัว / ขโมยข้อมูล",
+    "อื่นๆ",
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: const Text(
+        'รายงานผู้ใช้',
+        style: TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: reportReasons.map((reason) {
+            return InkWell(
+              onTap: () {
+                setState(() {
+                  selectedReason = reason;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  children: [
+                    Radio<String>(
+                      value: reason,
+                      groupValue: selectedReason,
+                      activeColor: Colors.blue,
+                      onChanged: (value) {
+                        setState(() {
+                          selectedReason = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        reason,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          ),
+          child: const Text('ยกเลิก'),
+        ),
+        ElevatedButton(
+          onPressed: selectedReason == null
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                  widget.onReport(selectedReason!);
+                },
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                selectedReason == null ? Colors.grey[300] : Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: Text(
+            'รายงาน',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: selectedReason == null ? Colors.grey[600] : Colors.white,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

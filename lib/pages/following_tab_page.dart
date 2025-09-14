@@ -989,7 +989,61 @@ class _FollowingTabState extends State<FollowingTab> {
                                         const SizedBox(width: 4),
                                         IconButton(
                                           onPressed: () {
-                                            // Show menu
+                                            // Step 1: กดที่เมนู -> โชว์เมนูเลือก "รายงานโพสต์"
+                                            showModalBottomSheet(
+                                              context: context,
+                                              builder: (context) {
+                                                return ListTile(
+                                                  leading: Icon(Icons.report,
+                                                      color: Colors.red),
+                                                  title:
+                                                      const Text("รายงานโพสต์"),
+                                                  onTap: () {
+                                                    Navigator.pop(
+                                                        context); // ปิดเมนูแรก
+                                                    // Step 2: แสดงเหตุผลการรายงาน
+                                                    showModalBottomSheet(
+                                                      context: context,
+                                                      builder: (context) {
+                                                        final reasons = [
+                                                          "สแปม",
+                                                          "เนื้อหาไม่เหมาะสม",
+                                                          "ละเมิดลิขสิทธิ์",
+                                                          "อื่น ๆ",
+                                                        ];
+
+                                                        return ListView.builder(
+                                                          shrinkWrap: true,
+                                                          itemCount:
+                                                              reasons.length,
+                                                          itemBuilder:
+                                                              (context, index) {
+                                                            return ListTile(
+                                                              title: Text(
+                                                                  reasons[
+                                                                      index]),
+                                                              onTap: () {
+                                                                Navigator.pop(
+                                                                    context);
+                                                                _reportPost(
+                                                                  context,
+                                                                  postItem.post
+                                                                      .postId,
+                                                                  reasons[
+                                                                      index],
+                                                                  gs.read(
+                                                                      'user'), // uid ของคนที่กดรายงาน (ปัจจุบัน login อยู่)
+                                                                );
+                                                              },
+                                                            );
+                                                          },
+                                                        );
+                                                      },
+                                                    );
+                                                  },
+                                                );
+                                              },
+                                            );
                                           },
                                           icon: Icon(
                                             Icons.more_vert,
@@ -1153,9 +1207,9 @@ class _FollowingTabState extends State<FollowingTab> {
                                                 shape: BoxShape.circle,
                                                 boxShadow: [
                                                   BoxShadow(
-                                                   color: Color.fromARGB(
-                                                        255, 247, 32, 32)
-                                                    .withOpacity(0.3),
+                                                    color: Color.fromARGB(
+                                                            255, 247, 32, 32)
+                                                        .withOpacity(0.3),
                                                     blurRadius: 20,
                                                     spreadRadius: 2,
                                                   ),
@@ -1891,6 +1945,46 @@ class _FollowingTabState extends State<FollowingTab> {
     );
     if (res.statusCode != 200) {
       debugPrint('ส่งคอมเมนต์ไม่สำเร็จ: ${res.body}');
+    }
+  }
+
+  Future<void> _reportPost(
+      BuildContext context, int postId, String reason, int reporterId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final response = await http.post(
+        Uri.parse("$url/image_post/report-posts"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "post_id": postId,
+          "reporter_id": reporterId,
+          "reason": reason,
+        }),
+      );
+
+      final resBody = jsonDecode(response.body);
+      final message = resBody['message'] ?? "รายงานโพสต์สำเร็จ";
+      final isAlreadyReported = message.contains("รายงานไปแล้ว");
+
+      Get.snackbar(
+        "สถานะ",
+        message,
+        backgroundColor: isAlreadyReported ? Colors.orange : Colors.green,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      Get.snackbar(
+        "เกิดข้อผิดพลาด",
+        "$e",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
     }
   }
 }

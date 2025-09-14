@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
-import 'package:fontend_pro/pages/profilePage.dart';
 import 'package:get/get.dart';
 import 'dart:developer' as dev;
 import 'package:intl/intl.dart';
@@ -11,6 +10,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/like_post.dart';
+import 'package:fontend_pro/pages/profilePage.dart';
 import 'package:fontend_pro/models/get_comment.dart';
 import 'package:fontend_pro/models/get_all_category.dart';
 import 'package:fontend_pro/pages/other_user_profile.dart';
@@ -68,10 +68,15 @@ class RecommendedTab extends StatefulWidget {
   const RecommendedTab({super.key, required this.pageController});
 
   @override
-  State<RecommendedTab> createState() => _RecommendedTabState();
+  State<RecommendedTab> createState() => RecommendedTabState();
 }
 
-class _RecommendedTabState extends State<RecommendedTab> {
+class RecommendedTabState extends State<RecommendedTab>
+    with AutomaticKeepAliveClientMixin {
+  // เพิ่ม AutomaticKeepAliveClientMixin เพื่อรักษา state
+  @override
+  bool get wantKeepAlive => true;
+
   List<GetAllCategory> category = [];
   List<model.GetAllPost> allPosts = [];
   List<model.GetAllPost> filteredPosts = [];
@@ -83,30 +88,27 @@ class _RecommendedTabState extends State<RecommendedTab> {
   Map<int, bool> showHeartMap = {};
   Map<int, int> likeCountMap = {};
   Map<int, bool> likedMap = {};
-
-  Map<int, bool> savedMap = {}; // เก็บว่าบันทึกหรือยัง
-  Map<int, int> saveCountMap = {}; // เก็บจำนวนคนบันทึกโพสต์
-
+  Map<int, bool> savedMap = {};
+  Map<int, int> saveCountMap = {};
   Map<int, int> currentPageMap = {};
   Map<int, PageController> pageControllers = {};
 
   bool isInitialLoading = true;
   bool isRefreshing = false;
-
-  List<Map<String, dynamic>> commentsList = []; // เพิ่มตรงนี้
-
+  List<Map<String, dynamic>> commentsList = [];
   late int loggedInUid;
-
-  // เก็บ uid ของผู้ใช้ที่ติดตามอยู่ (สถานะติดตาม)
   Set<int> followingUserIds = {};
+  dynamic user;
 
+  // ปรับปรุงการจัดการ firstLoad
+  bool _isFirstLoadAfterPost = false;
+  bool _hasInitialized = false;
   @override
   void initState() {
     super.initState();
     loadInitialData();
-    var user = gs.read('user');
+    user = gs.read('user');
     dev.log(user.toString());
-
     loadSavedPosts();
 
     dynamic rawUid = gs.read('user');
@@ -121,12 +123,17 @@ class _RecommendedTabState extends State<RecommendedTab> {
 
   @override
   void dispose() {
-    // ลบการยกเลิก timer
-    // _timer?.cancel();
     super.dispose();
   }
 
-  // ลบฟังก์ชัน _startTimer ออก
+  // เพิ่ม method สำหรับรีเซ็ต state เมื่อเปลี่ยนหน้า
+  void resetToNormalFeed() {
+    if (_isFirstLoadAfterPost) {
+      _isFirstLoadAfterPost = false;
+      // รีโหลดเป็น normal feed
+      loadAllPosts(firstLoad: false);
+    }
+  }
 
   // ฟังก์ชันแปลงเวลาเป็นรูปแบบ Instagram
   String _formatTimeAgo(DateTime postDate) {
@@ -153,30 +160,52 @@ class _RecommendedTabState extends State<RecommendedTab> {
     }
   }
 
+  // ปรับปรุง loadInitialData
   Future<void> loadInitialData() async {
+    if (_hasInitialized) return;
+
     setState(() {
       isInitialLoading = true;
     });
+
     await loadCategories();
-    await loadAllPosts();
+    await loadAllPosts(firstLoad: false); // เริ่มต้นด้วย normal feed
+
     setState(() {
       isInitialLoading = false;
+      _hasInitialized = true;
     });
   }
 
-  // เพิ่มฟังก์ชัน refresh สำหรับ pull-to-refresh
+  // ปรับปรุง refreshAfterPosting
+  Future<void> refreshAfterPosting() async {
+    setState(() {
+      _isFirstLoadAfterPost = true; // ตั้งค่าให้แสดงโพสต์ใหม่
+    });
+
+    await loadAllPosts(firstLoad: true);
+
+    // ตั้ง timer เพื่อรีเซ็ตกลับเป็น normal feed หลัง 30 วินาที
+    Timer(const Duration(seconds: 30), () {
+      if (mounted && _isFirstLoadAfterPost) {
+        resetToNormalFeed();
+      }
+    });
+  }
+
+  // ปรับปรุง refreshData
   Future<void> refreshData() async {
-    if (isRefreshing) return; // ป้องกัน multiple refresh
+    if (isRefreshing) return;
 
     setState(() {
       isRefreshing = true;
+      _isFirstLoadAfterPost = false; // รีเซ็ตเป็น normal feed
     });
 
     try {
       await loadCategories();
-      await loadAllPosts();
+      await loadAllPosts(firstLoad: false); // รีเฟรชเป็น normal feed
 
-      // แสดง snackbar แจ้งให้ทราบว่าข้อมูลอัพเดทแล้ว
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -240,8 +269,79 @@ class _RecommendedTabState extends State<RecommendedTab> {
     }
   }
 
-  // เพิ่มฟังก์ชันใหม่สำหรับโหลดสถานะการติดตาม
+  // อัพเดท loadFollowingStatus เดิมให้เรียกใช้ฟังก์ชันใหม่
   Future<void> loadFollowingStatus() async {
+    await _loadFollowingStatusForPosts(allPosts);
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  // ปรับปรุง loadAllPosts ให้รองรับการตรวจสอบ _isFirstLoadAfterPost
+  Future<void> loadAllPosts({bool firstLoad = false}) async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+      final uid = gs.read('user');
+
+      // ใช้ _isFirstLoadAfterPost แทน firstLoad parameter
+      final shouldShowOwnPosts = firstLoad || _isFirstLoadAfterPost;
+
+      final postResponse = await http.get(
+        Uri.parse("$url/image_post/get?uid=$uid&firstLoad=$shouldShowOwnPosts"),
+      );
+
+      final likedResponse = await http.get(
+        Uri.parse("$url/image_post/liked-posts/$uid"),
+      );
+
+      if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
+        final List<dynamic> jsonData = jsonDecode(postResponse.body);
+        final List<model.GetAllPost> allPostsFromApi =
+            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
+
+        final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
+        final likedSet = Set<int>.from(likedIds);
+
+        await _loadFollowingStatusForPosts(allPostsFromApi);
+
+        // Backend จะจัดการการกรองโพสต์ตัวเองแล้ว
+        allPosts = allPostsFromApi;
+        filteredPosts = _filterPostsByPrivacy(allPosts);
+
+        showHeartMap.clear();
+        likeCountMap.clear();
+        likedMap.clear();
+
+        for (var postItem in allPosts) {
+          final postId = postItem.post.postId;
+          likeCountMap[postId] = postItem.post.amountOfLike;
+          likedMap[postId] = likedSet.contains(postId);
+        }
+
+        for (int i = 0; i < filteredPosts.length; i++) {
+          showHeartMap[i] = false;
+        }
+
+        if (mounted) setState(() {});
+      } else {
+        throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
+      }
+    } catch (e) {
+      dev.log('Error loading posts: $e');
+      allPosts = [];
+      filteredPosts = [];
+      likedMap.clear();
+      likeCountMap.clear();
+      showHeartMap.clear();
+      followingUserIds.clear();
+      if (mounted) setState(() {});
+    }
+  }
+
+// ฟังก์ชันใหม่สำหรับโหลดสถานะการติดตามเฉพาะโพสต์ที่ได้รับมา
+  Future<void> _loadFollowingStatusForPosts(
+      List<model.GetAllPost> posts) async {
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
 
@@ -250,7 +350,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
       followingUserIds.clear();
 
       // ตรวจสอบสถานะการติดตามสำหรับทุกคนในโพสต์
-      Set<int> uniqueUserIds = allPosts.map((post) => post.user.uid).toSet();
+      Set<int> uniqueUserIds = posts.map((post) => post.user.uid).toSet();
 
       for (int targetUserId in uniqueUserIds) {
         if (targetUserId != loggedInUid) {
@@ -268,70 +368,35 @@ class _RecommendedTabState extends State<RecommendedTab> {
           }
         }
       }
-
-      // อัพเดต UI
-      if (mounted) {
-        setState(() {});
-      }
     } catch (e) {
       dev.log('Error loading following status: $e');
     }
   }
 
-  // แก้ไขฟังก์ชัน loadAllPosts เพื่อโหลดสถานะการติดตามด้วย
-  Future<void> loadAllPosts() async {
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-      final uid = gs.read('user');
-
-      final postResponse = await http.get(Uri.parse("$url/image_post/get"));
-      final likedResponse =
-          await http.get(Uri.parse("$url/image_post/liked-posts/$uid"));
-
-      if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
-        final List<dynamic> jsonData = jsonDecode(postResponse.body);
-        allPosts =
-            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
-        filteredPosts = allPosts;
-
-        // 1. เก็บโพสต์ที่ผู้ใช้เคยกดไลก์
-        final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
-        final likedSet = Set<int>.from(likedIds);
-
-        // 2. เคลียร์ข้อมูลก่อน
-        showHeartMap.clear();
-        likeCountMap.clear();
-        likedMap.clear();
-
-        // 3. กำหนดค่า likedMap และ likeCountMap ตามโพสต์ที่โหลดมา
-        for (var postItem in allPosts) {
-          final postId = postItem.post.postId;
-          likeCountMap[postId] = postItem.post.amountOfLike;
-          likedMap[postId] = likedSet.contains(postId);
-        }
-
-        // 4. สร้าง map สำหรับแสดงหัวใจ
-        for (int i = 0; i < filteredPosts.length; i++) {
-          showHeartMap[i] = false;
-        }
-
-        // 5. โหลดสถานะการติดตาม
-        await loadFollowingStatus();
-      } else {
-        throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
+// ฟังก์ชันใหม่สำหรับกรองโพสต์ตามสถานะความเป็นส่วนตัว
+  List<model.GetAllPost> _filterPostsByPrivacy(List<model.GetAllPost> posts) {
+    return posts.where((post) {
+      // ถ้าเป็นโพสต์ของตัวเอง ให้แสดงเสมอ
+      if (post.user.uid == loggedInUid) {
+        return true;
       }
-    } catch (e) {
-      dev.log('Error loading posts: $e');
-      allPosts = [];
-      filteredPosts = [];
-      likedMap.clear();
-      likeCountMap.clear();
-      showHeartMap.clear();
-      followingUserIds.clear();
-    }
+
+      // ถ้าเป็นโพสต์สาธารณะ ให้แสดงเสมอ
+      if (post.post.postStatus == model.PostStatus.public) {
+        return true;
+      }
+
+      // ถ้าเป็นโพสต์เฉพาะเพื่อน ให้แสดงเฉพาะคนที่ติดตามอยู่
+      if (post.post.postStatus == model.PostStatus.friends) {
+        return followingUserIds.contains(post.user.uid);
+      }
+
+      // default case - ไม่แสดง
+      return false;
+    }).toList();
   }
 
+// แก้ไขฟังก์ชัน filterPostsByCategory ให้รวมการกรองสถานะด้วย
   void filterPostsByCategory(int? cid) {
     setState(() {
       selectedCid = cid;
@@ -339,13 +404,20 @@ class _RecommendedTabState extends State<RecommendedTab> {
           ? -1
           : category.indexWhere((element) => element.cid == cid);
 
+      List<model.GetAllPost> postsToFilter;
+
       if (cid == null) {
-        filteredPosts = allPosts;
+        // ถ้าไม่เลือกหมวดหมู่ ใช้โพสต์ทั้งหมด
+        postsToFilter = allPosts;
       } else {
-        filteredPosts = allPosts.where((post) {
+        // ถ้าเลือกหมวดหมู่ กรองตามหมวดหมู่
+        postsToFilter = allPosts.where((post) {
           return post.categories.any((cat) => cat.cid == cid);
         }).toList();
       }
+
+      // กรองตามสถานะความเป็นส่วนตัวอีกครั้ง (เผื่อสถานะการติดตามเปลี่ยน)
+      filteredPosts = _filterPostsByPrivacy(postsToFilter);
 
       showHeartMap.clear();
       for (int i = 0; i < filteredPosts.length; i++) {
@@ -656,6 +728,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // สำหรับ AutomaticKeepAliveClientMixin
     if (isInitialLoading) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
@@ -677,6 +750,51 @@ class _RecommendedTabState extends State<RecommendedTab> {
         displacement: 40,
         child: Column(
           children: [
+            if (_isFirstLoadAfterPost)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  border: Border(
+                    bottom: BorderSide(color: Colors.blue.shade200),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.new_releases, color: Colors.blue, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'แสดงโพสต์ใหม่ของคุณ',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: resetToNormalFeed,
+                      child: Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'ปิด',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // Enhanced Category Filter Section
             Container(
               decoration: BoxDecoration(
@@ -1065,9 +1183,63 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                         const SizedBox(width: 4),
                                         IconButton(
                                           onPressed: () {
-                                            // Show menu
+                                            // Step 1: กดที่เมนู -> โชว์เมนูเลือก "รายงานโพสต์"
+                                            showModalBottomSheet(
+                                              context: context,
+                                              builder: (context) {
+                                                return ListTile(
+                                                  leading: Icon(Icons.report,
+                                                      color: Colors.red),
+                                                  title:
+                                                      const Text("รายงานโพสต์"),
+                                                  onTap: () {
+                                                    Navigator.pop(
+                                                        context); // ปิดเมนูแรก
+                                                    // Step 2: แสดงเหตุผลการรายงาน
+                                                    showModalBottomSheet(
+                                                      context: context,
+                                                      builder: (context) {
+                                                        final reasons = [
+                                                          "สแปม",
+                                                          "เนื้อหาไม่เหมาะสม",
+                                                          "ละเมิดลิขสิทธิ์",
+                                                          "อื่น ๆ",
+                                                        ];
+
+                                                        return ListView.builder(
+                                                          shrinkWrap: true,
+                                                          itemCount:
+                                                              reasons.length,
+                                                          itemBuilder:
+                                                              (context, index) {
+                                                            return ListTile(
+                                                              title: Text(
+                                                                  reasons[
+                                                                      index]),
+                                                              onTap: () {
+                                                                Navigator.pop(
+                                                                    context);
+                                                                _reportPost(
+                                                                  context,
+                                                                  postItem.post
+                                                                      .postId,
+                                                                  reasons[
+                                                                      index],
+                                                                  gs.read(
+                                                                      'user'), // uid ของคนที่กดรายงาน (ปัจจุบัน login อยู่)
+                                                                );
+                                                              },
+                                                            );
+                                                          },
+                                                        );
+                                                      },
+                                                    );
+                                                  },
+                                                );
+                                              },
+                                            );
                                           },
-                                          icon: Icon(
+                                          icon: const Icon(
                                             Icons.more_vert,
                                             color: Colors.black,
                                             size: 20,
@@ -1079,7 +1251,7 @@ class _RecommendedTabState extends State<RecommendedTab> {
                                           ),
                                         ),
                                       ],
-                                    ),
+                                    )
                                   ],
                                 ),
                               ),
@@ -1978,6 +2150,46 @@ class _RecommendedTabState extends State<RecommendedTab> {
       setState(() {});
     } else {
       dev.log('Error loading user data: ${response.statusCode}');
+    }
+  }
+
+  Future<void> _reportPost(
+      BuildContext context, int postId, String reason, int reporterId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final response = await http.post(
+        Uri.parse("$url/image_post/report-posts"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "post_id": postId,
+          "reporter_id": reporterId,
+          "reason": reason,
+        }),
+      );
+
+      final resBody = jsonDecode(response.body);
+      final message = resBody['message'] ?? "รายงานโพสต์สำเร็จ";
+      final isAlreadyReported = message.contains("รายงานไปแล้ว");
+
+      Get.snackbar(
+        "สถานะ",
+        message,
+        backgroundColor: isAlreadyReported ? Colors.orange : Colors.green,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      Get.snackbar(
+        "เกิดข้อผิดพลาด",
+        "$e",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
     }
   }
 }

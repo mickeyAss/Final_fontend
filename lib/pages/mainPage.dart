@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -18,7 +16,8 @@ import 'package:fontend_pro/pages/user_upload_photoPage.dart';
 import 'package:fontend_pro/models/get_notification.dart' as NotificationModel;
 
 class Mainpage extends StatefulWidget {
-  const Mainpage({super.key});
+  final int initialIndex;
+  const Mainpage({super.key, this.initialIndex = 0});
 
   @override
   State<Mainpage> createState() => _MainpageState();
@@ -28,26 +27,34 @@ class _MainpageState extends State<Mainpage>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   final GetStorage gs = GetStorage();
   int unreadCount = 0;
-  int _currentIndex = 0;
+  late int _currentIndex;
 
+  // Firebase & Polling
   late DatabaseReference notifRef;
   StreamSubscription<DatabaseEvent>? notifSubscription;
   Timer? fallbackTimer;
   String? currentUserId;
   bool isFirebaseConnected = false;
-  bool isFirstLoad = true; //  เพิ่ม flag
 
-  // สำหรับ Notification Popup
+  // Animation & Popup
   OverlayEntry? _overlayEntry;
   AnimationController? _animationController;
   late Animation<Offset> _slideAnimation;
   Timer? _hideTimer;
   bool _isAnimationInitialized = false;
-  bool _isShowingPopup = false; // ป้องกัน popup ซ้ำ
+  bool _isShowingPopup = false;
+
+  // GlobalKey สำหรับ RecommendedTab
+  final GlobalKey<RecommendedTabState> _recommendedTabKey = GlobalKey();
+
+  // เพิ่มตัวแปรสำหรับติดตามการเปลี่ยนหน้า
+  int _lastTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+    _lastTabIndex = _currentIndex;
     WidgetsBinding.instance.addObserver(this);
     _initializeUser();
     _initFirebase();
@@ -73,91 +80,74 @@ class _MainpageState extends State<Mainpage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _fetchUnreadNotificationCount();
+      // เมื่อกลับมาที่แอป ให้รีเซ็ต feed เป็นปกติ
+      _resetRecommendedTabIfNeeded();
+    }
+  }
+
+  // เพิ่ม method สำหรับรีเซ็ต RecommendedTab
+  void _resetRecommendedTabIfNeeded() {
+    if (_currentIndex == 0) {
+      _recommendedTabKey.currentState?.resetToNormalFeed();
     }
   }
 
   void _initializeUser() {
     currentUserId = gs.read('user')?.toString();
-    debugPrint('Current user id from GetStorage: $currentUserId');
-    if (currentUserId == null || currentUserId!.isEmpty) {
-      debugPrint('Warning: User ID is null or empty');
-    }
+    debugPrint('Current user id: $currentUserId');
   }
 
   Future<void> _initFirebase() async {
-  try {
-    // เริ่มต้น Firebase
-    await Firebase.initializeApp();
+    try {
+      await Firebase.initializeApp();
 
-    // ถ้า userId ว่าง → ใช้ API polling แทน
-    if (currentUserId == null || currentUserId!.isEmpty) {
-      debugPrint('Error: User ID is null or empty, falling back to API');
-      _fallbackToApiPolling();
-      return;
-    }
-
-    // อ้างอิงไปที่ path "notifications" ใน Firebase Realtime Database
-    notifRef = FirebaseDatabase.instance.ref('notifications');
-
-    // อ้างอิง path พิเศษ ".info/connected" ของ Firebase 
-    // เพื่อตรวจสอบว่าเชื่อมต่อ Firebase อยู่หรือไม่
-    DatabaseReference connectedRef =
-        FirebaseDatabase.instance.ref('.info/connected');
-
-    // ตั้ง listener ฟังค่า connection status
-    connectedRef.onValue.listen((event) {
-      bool connected = event.snapshot.value as bool? ?? false;
-      bool wasConnected = isFirebaseConnected;
-      isFirebaseConnected = connected;
-      debugPrint('Firebase connection status: $connected');
-
-      // ถ้า disconnect และยังไม่มี timer polling → เปิด API polling
-      if (!connected && fallbackTimer == null) {
+      if (currentUserId == null || currentUserId!.isEmpty) {
         _fallbackToApiPolling();
+        return;
+      }
 
-      // ถ้ากลับมา connected อีกครั้ง → ยกเลิก timer polling
-      } else if (connected && !wasConnected) {
-        fallbackTimer?.cancel();
-        fallbackTimer = null;
-      } 
-    });
+      notifRef = FirebaseDatabase.instance.ref('notifications');
+      DatabaseReference connectedRef =
+          FirebaseDatabase.instance.ref('.info/connected');
 
-    // เริ่มฟังการเปลี่ยนแปลงของ notifications
-    _setupNotificationListener();
+      connectedRef.onValue.listen((event) {
+        bool connected = event.snapshot.value as bool? ?? false;
+        bool wasConnected = isFirebaseConnected;
+        isFirebaseConnected = connected;
 
-    // ถ้าเพิ่งเริ่มยังไม่เชื่อม Firebase ได้ → ดึงจาก API มาก่อน
-    if (!isFirebaseConnected) {
-      _fetchUnreadNotificationCount();
-    }
-  } catch (e) {
-    //  ถ้า error ตอน init Firebase → fallback ไปใช้ API polling
-    debugPrint('Error initializing Firebase: $e');
-    _fallbackToApiPolling();
-  }
-}
+        if (!connected && fallbackTimer == null) {
+          _fallbackToApiPolling();
+        } else if (connected && !wasConnected) {
+          fallbackTimer?.cancel();
+          fallbackTimer = null;
+        }
+      });
 
-void _setupNotificationListener() {
-  //  ตั้ง listener ฟัง event "onValue" ที่ path "notifications"
-  notifSubscription = notifRef.onValue.listen(
-    (DatabaseEvent event) {
-      // เวลามีข้อมูลเปลี่ยน → ส่งต่อไปประมวลผล
-      _processFirebaseData(event.snapshot.value);
-    },
-    onError: (error) {
-      // ถ้า listener error → ถือว่า Firebase ล้ม → fallback ไปใช้ API polling
-      debugPrint('Firebase listener error: $error');
-      isFirebaseConnected = false;
+      _setupNotificationListener();
+
+      if (!isFirebaseConnected) {
+        _fetchUnreadNotificationCount();
+      }
+    } catch (e) {
+      debugPrint('Firebase init error: $e');
       _fallbackToApiPolling();
-    },
-  );
-}
+    }
+  }
 
+  void _setupNotificationListener() {
+    notifSubscription = notifRef.onValue.listen(
+      (DatabaseEvent event) {
+        _processFirebaseData(event.snapshot.value);
+      },
+      onError: (error) {
+        isFirebaseConnected = false;
+        _fallbackToApiPolling();
+      },
+    );
+  }
 
   void _processFirebaseData(dynamic data) {
-    if (currentUserId == null || currentUserId!.isEmpty) {
-      return;
-    }
-
+    if (currentUserId == null || currentUserId!.isEmpty) return;
     int count = 0;
 
     try {
@@ -166,27 +156,22 @@ void _setupNotificationListener() {
             Map<String, dynamic>.from(data);
 
         notifications.forEach((key, value) {
-          if (value != null && value is Map) {
-            final Map<String, dynamic> notif =
-                Map<String, dynamic>.from(value);
-
+          if (value is Map) {
+            final notif = Map<String, dynamic>.from(value);
             final receiverUid = notif['receiver_uid']?.toString();
             final isRead = notif['is_read'];
 
             if (receiverUid == currentUserId) {
               bool isUnread = false;
-              if (isRead is bool) {
+              if (isRead is bool)
                 isUnread = !isRead;
-              } else if (isRead is int) {
+              else if (isRead is int)
                 isUnread = (isRead == 0);
-              } else if (isRead is String) {
-                isUnread = (isRead == '0' ||
-                    isRead.toLowerCase() == 'false');
+              else if (isRead is String) {
+                isUnread = (isRead == '0' || isRead.toLowerCase() == 'false');
               }
 
-              if (isUnread) {
-                count++;
-              }
+              if (isUnread) count++;
             }
           }
         });
@@ -197,26 +182,22 @@ void _setupNotificationListener() {
     }
 
     if (mounted && count != unreadCount) {
-      if (!isFirstLoad && count > unreadCount && unreadCount >= 0) {
+      if (count > unreadCount) {
         int newNotifications = count - unreadCount;
         _showNotificationPopup(newNotifications);
       }
-      setState(() {
-        unreadCount = count;
-      });
+      setState(() => unreadCount = count);
     }
-
-    isFirstLoad = false; // ปิดการโหลดครั้งแรก
   }
 
   void _fallbackToApiPolling() {
     if (fallbackTimer != null) return;
     _fetchUnreadNotificationCount();
-    fallbackTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+    fallbackTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
         _fetchUnreadNotificationCount();
       } else {
-        timer.cancel();
+        fallbackTimer?.cancel();
         fallbackTimer = null;
       }
     });
@@ -228,37 +209,26 @@ void _setupNotificationListener() {
     try {
       var config = await Configuration.getConfig();
       var apiEndpoint = config['apiEndpoint'];
-      final url =
-          Uri.parse('$apiEndpoint/user/notifications/$currentUserId');
-
+      final url = Uri.parse('$apiEndpoint/user/notifications/$currentUserId');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final NotificationModel.GetNotification data =
             NotificationModel.getNotificationFromJson(response.body);
 
-        int count = data.notifications
-            .where((notification) => notification.isRead == 0)
-            .length;
+        int count = data.notifications.where((n) => n.isRead == 0).length;
 
         if (mounted) {
-          if (!isFirstLoad &&
-              !isFirebaseConnected &&
-              count > unreadCount &&
-              unreadCount >= 0) {
+          if (!isFirebaseConnected && count > unreadCount) {
             int newNotifications = count - unreadCount;
             _showNotificationPopup(newNotifications);
           }
-          setState(() {
-            unreadCount = count;
-          });
+          setState(() => unreadCount = count);
         }
       }
     } catch (e) {
-      debugPrint('Error fetching notification count from API: $e');
+      debugPrint('API polling error: $e');
     }
-
-    isFirstLoad = false; // ปิดการโหลดครั้งแรก
   }
 
   @override
@@ -275,23 +245,18 @@ void _setupNotificationListener() {
   void _showNotificationPopup(int newCount) {
     if (_isShowingPopup) return;
     if (!_isAnimationInitialized || _animationController == null) return;
-    if (_overlayEntry != null) {
-      _hideOverlay();
-    }
-    _isShowingPopup = true;
 
     _overlayEntry = OverlayEntry(
       builder: (context) => _buildNotificationPopup(newCount),
     );
 
     Overlay.of(context).insert(_overlayEntry!);
+    _isShowingPopup = true;
     _animationController!.forward();
     HapticFeedback.lightImpact();
 
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 4), () {
-      _hideOverlay();
-    });
+    _hideTimer = Timer(const Duration(seconds: 4), _hideOverlay);
   }
 
   Widget _buildNotificationPopup(int newCount) {
@@ -312,72 +277,34 @@ void _setupNotificationListener() {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Colors.blue.shade600,
-                    Colors.blue.shade700,
-                  ],
+                  colors: [Colors.blue.shade600, Colors.blue.shade700],
                 ),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 10,
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
                 ],
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.notifications_active,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
+                  const Icon(Icons.notifications_active,
+                      color: Colors.white, size: 24),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'การแจ้งเตือนใหม่',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          newCount == 1
-                              ? 'คุณมีการแจ้งเตือน 1 รายการใหม่'
-                              : 'คุณมีการแจ้งเตือน $newCount รายการใหม่',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      newCount == 1
+                          ? 'คุณมีการแจ้งเตือนใหม่ 1 รายการ'
+                          : 'คุณมีการแจ้งเตือนใหม่ $newCount รายการ',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => _hideOverlay(),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close,
-                        color: Colors.white.withOpacity(0.8),
-                        size: 20,
-                      ),
-                    ),
-                  ),
+                  const Icon(Icons.chevron_right, color: Colors.white),
                 ],
               ),
             ),
@@ -388,252 +315,293 @@ void _setupNotificationListener() {
   }
 
   void _hideOverlay() {
-    if (_overlayEntry != null &&
-        _isAnimationInitialized &&
-        _animationController != null) {
-      _animationController!.reverse().then((_) {
+    if (_overlayEntry != null) {
+      _animationController?.reverse().then((_) {
         _overlayEntry?.remove();
         _overlayEntry = null;
         _isShowingPopup = false;
       });
-    } else if (_overlayEntry != null) {
-      _overlayEntry?.remove();
-      _overlayEntry = null;
-      _isShowingPopup = false;
     }
     _hideTimer?.cancel();
   }
 
-  Route _createRouteToNotifications() {
-    return PageRouteBuilder(
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          const Notificationspage(),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        const begin = Offset(1.0, 0.0);
-        const end = Offset.zero;
-        const curve = Curves.ease;
-
-        final tween =
-            Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-        final offsetAnimation = animation.drive(tween);
-
-        return SlideTransition(
-          position: offsetAnimation,
-          child: child,
-        );
-      },
-    );
-  }
-
   void _navigateToNotifications() async {
     _hideOverlay();
-    await Navigator.of(context).push(_createRouteToNotifications());
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const Notificationspage()),
+    );
     _fetchUnreadNotificationCount();
   }
 
-  void refreshNotificationCount() {
-    _fetchUnreadNotificationCount();
+  // ปรับปรุง _onTabTapped
+  void _onTabTapped(int index) {
+    if (index == 2) {
+      // เปิดหน้าโพสต์และรอ result
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+          ),
+          child: const UserUploadPhotopage(),
+        ),
+      ).then((result) {
+        // ถ้าโพสต์สำเร็จ
+        if (result == 'post_created') {
+          // ย้ายไป tab "สำหรับคุณ" (RecommendedTab)
+          setState(() {
+            _currentIndex = 0;
+          });
+
+          // รอให้ widget build เสร็จก่อนเรียก refreshAfterPosting
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _recommendedTabKey.currentState?.refreshAfterPosting();
+          });
+        }
+      });
+    } else {
+      // ตรวจสอบการเปลี่ยนหน้า
+      if (_lastTabIndex == 0 && index != 0) {
+        // ออกจากหน้า RecommendedTab ไปหน้าอื่น
+        _recommendedTabKey.currentState?.resetToNormalFeed();
+      } else if (_lastTabIndex != 0 && index == 0) {
+        // กลับมาหน้า RecommendedTab จากหน้าอื่น
+        Future.delayed(const Duration(milliseconds: 200), () {
+          _recommendedTabKey.currentState?.resetToNormalFeed();
+        });
+      }
+
+      // Haptic feedback
+      HapticFeedback.lightImpact();
+
+      setState(() {
+        _lastTabIndex = _currentIndex;
+        _currentIndex = index;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> _pages = [
-      HomePageTab(),
-      Searchpage(),
-      UserUploadPhotopage(),
-      UserAddFriendspage(),
-      Profilepage(),
+      _buildHomeWithTabs(),
+      const Searchpage(),
+      Container(),
+      const UserAddFriendspage(),
+      const Profilepage(),
     ];
 
     return Scaffold(
-      body: SafeArea(
-        child: _currentIndex == 0
-            ? DefaultTabController(
-                length: 2,
-                initialIndex: 1,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TabBar(
-                              labelColor: Colors.black,
-                              unselectedLabelColor: Colors.black54,
-                              indicatorColor: Colors.black,
-                              tabs: const [
-                                Tab(text: 'กำลังติดตาม'),
-                                Tab(text: 'สำหรับคุณ'),
-                              ],
-                            ),
-                          ),
-                          Stack(
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  Icons.notifications_none,
-                                  color: isFirebaseConnected
-                                      ? Colors.black
-                                      : Colors.grey,
-                                ),
-                                onPressed: () {
-                                  _navigateToNotifications();
-                                },
-                              ),
-                              if (unreadCount > 0)
-                                Positioned(
-                                  right: 6,
-                                  top: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 20,
-                                      minHeight: 20,
-                                    ),
-                                    child: Text(
-                                      unreadCount > 99
-                                          ? '99+'
-                                          : unreadCount.toString(),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          FollowingTab(pageController: PageController()),
-                          RecommendedTab(pageController: PageController()),
-                        ],
-                      ),
-                    )
-                  ],
-                ),
-              )
-            : _pages[_currentIndex],
+      backgroundColor: Colors.white,
+      body: SafeArea(child: _pages[_currentIndex]),
+      bottomNavigationBar: _buildEnhancedBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildEnhancedBottomNavigationBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: Colors.grey.shade200,
+            width: 0.5,
+          ),
+        ),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+      child: SafeArea(
         child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 25,
-                offset: const Offset(0, 8),
-                spreadRadius: 2,
-              ),
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.white.withOpacity(0.9),
-                blurRadius: 1,
-                offset: const Offset(1, 1),
-                spreadRadius: -1,
-              ),
+          height: 60,
+          child: Row(
+            children: [
+              _buildNavItem(0, Icons.home_rounded, 'หน้าหลัก'),
+              _buildNavItem(1, Icons.search_rounded, 'ค้นหา'),
+              _buildFABNavItem(),
+              _buildNavItem(3, Icons.group_rounded, 'เพื่อน'),
+              _buildNavItem(4, Icons.person_rounded, 'โปรไฟล์'),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white,
-                    Colors.grey.shade50,
-                  ],
-                ),
-              ),
-              child: BottomNavigationBar(
-                type: BottomNavigationBarType.fixed,
-                currentIndex: _currentIndex,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                selectedItemColor: Colors.black87,
-                unselectedItemColor: Colors.grey.shade600,
-                selectedFontSize: 0,
-                unselectedFontSize: 0,
-                showSelectedLabels: false,
-                showUnselectedLabels: false,
-                onTap: (index) {
-                  if (index == 2) {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.white,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(20)),
-                      ),
-                      builder: (context) => const UserUploadPhotopage(),
-                    );
-                  } else {
-                    setState(() {
-                      _currentIndex = index;
-                    });
-                  }
-                },
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home_filled),
-                    label: 'Home',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.search),
-                    label: 'Search',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.add_circle_outline),
-                    label: 'Upload',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.group),
-                    label: 'Friends',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.person),
-                    label: 'Profile',
-                  ),
-                ],
-              ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _currentIndex == index;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _onTabTapped(index),
+        child: Container(
+          height: 60,
+          child: Center(
+            child: Icon(
+              icon,
+              color: isSelected ? Colors.black : Colors.grey.shade500,
+              size: 26,
             ),
           ),
         ),
       ),
     );
   }
-}
 
-class HomePageTab extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return TabBarView(
-      children: [
-        RecommendedTab(pageController: PageController()),
-        FollowingTab(pageController: PageController()),
-      ],
+  Widget _buildFABNavItem() {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _onTabTapped(2),
+        child: Container(
+          height: 60,
+          child: Center(
+            child: Icon(
+              Icons.add_box_outlined,
+              color: Colors.black,
+              size: 26,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeWithTabs() {
+    return DefaultTabController(
+      length: 2,
+      initialIndex: 1, // เปิดหน้า "สำหรับคุณ" เป็นหน้าแรก
+      child: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TabBar(
+                      labelColor: Colors.black,
+                      unselectedLabelColor: Colors.grey.shade600,
+                      indicatorColor: Colors.black,
+                      indicatorWeight: 3,
+                      indicatorSize: TabBarIndicatorSize.label,
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 16,
+                      ),
+                      onTap: (tabIndex) {
+                        // เมื่อเปลี่ยน tab ใน TabBar
+                        if (tabIndex == 1) {
+                          // กลับมา RecommendedTab - รีเซ็ตเป็น normal feed
+                          Future.delayed(const Duration(milliseconds: 100), () {
+                            _recommendedTabKey.currentState
+                                ?.resetToNormalFeed();
+                          });
+                        }
+                      },
+                      tabs: const [
+                        Tab(text: 'กำลังติดตาม'),
+                        Tab(text: 'สำหรับคุณ'),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    child: Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isFirebaseConnected
+                                ? Colors.black.withOpacity(0.1)
+                                : Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.notifications_rounded,
+                              color: isFirebaseConnected
+                                  ? Colors.black
+                                  : Colors.grey.shade500,
+                              size: 24,
+                            ),
+                            onPressed: _navigateToNotifications,
+                          ),
+                        ),
+                        if (unreadCount > 0)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 20,
+                                minHeight: 20,
+                              ),
+                              child: Text(
+                                unreadCount > 99
+                                    ? '99+'
+                                    : unreadCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                FollowingTab(pageController: PageController()),
+                // เพิ่ม key ให้ RecommendedTab
+                RecommendedTab(
+                  key: _recommendedTabKey,
+                  pageController: PageController(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

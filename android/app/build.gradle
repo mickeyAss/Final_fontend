@@ -28,6 +28,11 @@ android {
     compileSdk = 35
     ndkVersion "25.1.8937393"
 
+    
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId = "com.example.firebaseapp" // เปลี่ยนตรงนี้
         minSdk = 23
@@ -50,7 +55,9 @@ android {
             signingConfig = signingConfigs.debug
         }
     }
+
 }
+
 
 flutter {
     source = "../.."

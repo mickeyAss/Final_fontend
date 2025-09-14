@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:get_storage/get_storage.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:fontend_pro/pages/user_all_uploadPage.dart';
@@ -46,7 +48,6 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
-        // โหลดรูปเพิ่มเมื่อเหลือ 200 pixels จากท้าย
         if (!isLoadingMore && hasMore) {
           _loadMoreImages();
         }
@@ -103,7 +104,6 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
         return;
       }
 
-      // โหลด thumbnail สำหรับรูปใหม่
       for (final asset in newMedia) {
         try {
           final thumbData = await asset.thumbnailDataWithSize(
@@ -172,6 +172,39 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
     });
   }
 
+  /// ฟังก์ชันแปลงไฟล์ AssetEntity เป็น JPEG
+  Future<File?> convertAssetEntityToJpeg(AssetEntity asset) async {
+    final file = await asset.file;
+    if (file == null) return null;
+
+    try {
+      final bytes = await file.readAsBytes();
+      final image = img.decodeImage(bytes);
+      if (image == null) return null;
+
+      final jpegData = img.encodeJpg(image, quality: 90);
+      final newPath = file.path.replaceAll(RegExp(r'\.\w+$'), '.jpg');
+      final newFile = File(newPath);
+      await newFile.writeAsBytes(jpegData);
+      return newFile;
+    } catch (e) {
+      log('Error converting to JPEG: $e');
+      return null;
+    }
+  }
+
+  /// แปลงภาพที่เลือกทั้งหมดก่อนส่ง
+  Future<List<File>> _convertSelectedImages() async {
+    List<File> jpegFiles = [];
+    for (var asset in selectedImages) {
+      final jpegFile = await convertAssetEntityToJpeg(asset);
+      if (jpegFile != null) {
+        jpegFiles.add(jpegFile);
+      }
+    }
+    return jpegFiles;
+  }
+
   Future<void> _onNextPressed() async {
     if (selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -184,7 +217,11 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
       return;
     }
 
-    // เก็บ id ของรูปที่เลือกใน GetStorage
+    // แปลงภาพเป็น JPEG
+    final jpegFiles = await _convertSelectedImages();
+    log('แปลงภาพเสร็จแล้ว: ${jpegFiles.length} ไฟล์');
+
+    // เก็บ id ของรูปที่เลือกใน GetStorage (เหมือนเดิม)
     final List<String> selectedIds =
         selectedImages.map((e) => e.id).toList(growable: false);
     await gs.write('selected_image_ids', selectedIds);
@@ -263,7 +300,6 @@ class _UserUploadPhotopageState extends State<UserUploadPhotopage> {
                   ),
                 ),
               ),
-            // แสดงหมายเลขการเลือกถ้าเลือกแล้ว
             if (isSelected)
               Positioned(
                 bottom: 8,

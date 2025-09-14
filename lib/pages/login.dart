@@ -8,6 +8,7 @@ import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/pages/register.dart';
 import 'package:fontend_pro/pages/mainPage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fontend_pro/pages/admin_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/models/login_user_request.dart';
 
@@ -27,7 +28,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
   bool _isLoading = false;
   bool _isPasswordVisible = false;
 
-    final GoogleSignIn _googleSignIn = GoogleSignIn(
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email'],
   );
 
@@ -549,14 +550,11 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
     );
   }
 
-  // Email/Password Login Method
   void loginuser() async {
     if (_isLoading) return;
 
-    // ปิด keyboard
     FocusScope.of(context).unfocus();
 
-    // Validate input
     final email = emailNoCt1.text.trim();
     final password = passwordNoCt1.text.trim();
 
@@ -571,7 +569,6 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
       return;
     }
 
-    // Email validation
     if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
       showModernDialog(
         context: context,
@@ -591,17 +588,12 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
 
-      final loginRequest = LoginUserRequest(
-        email: email,
-        password: password,
-      );
-
       final response = await http.post(
         Uri.parse("$url/user/login"),
         headers: {"Content-Type": "application/json; charset=utf-8"},
         body: jsonEncode({
-          "email": loginRequest.email,
-          "password": loginRequest.password,
+          "email": email,
+          "password": password,
         }),
       );
 
@@ -614,23 +606,30 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
         if (responseData['message'] == 'Login successful') {
           var user = responseData['user'];
 
-          // บันทึกข้อมูลผู้ใช้
           await gs.write('user', user['uid']);
           await gs.write('user_data', user);
           await gs.write('login_type', 'email');
 
           log('เข้าสู่ระบบสำเร็จ');
 
-          // เข้าหน้า Main เลย ไม่แสดง popup
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => Mainpage()),
-            );
+          // เช็ค type ของผู้ใช้
+          if (user['type'] == 'admin') {
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => AdminPage()),
+              );
+            }
+          } else {
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => Mainpage()),
+              );
+            }
           }
         }
       } else {
-        // จัดการข้อผิดพลาด
         var errorData = jsonDecode(response.body);
         String errorTitle;
         String errorMessage;
