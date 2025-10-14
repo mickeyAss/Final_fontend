@@ -12,19 +12,21 @@ class AdminReportsResponse {
 
   factory AdminReportsResponse.fromJson(Map<String, dynamic> json) {
     return AdminReportsResponse(
-      postReports: json["postReports"] != null 
-          ? List<PostReport>.from(json["postReports"].map((x) => PostReport.fromJson(x)))
+      postReports: json["postReports"] != null
+          ? List<PostReport>.from(
+              json["postReports"].map((x) => PostReport.fromJson(x)))
           : [],
       userReports: json["userReports"] != null
-          ? List<UserReport>.from(json["userReports"].map((x) => UserReport.fromJson(x)))
+          ? List<UserReport>.from(
+              json["userReports"].map((x) => UserReport.fromJson(x)))
           : [],
     );
   }
 
   Map<String, dynamic> toJson() => {
-    "postReports": List<dynamic>.from(postReports.map((x) => x.toJson())),
-    "userReports": List<dynamic>.from(userReports.map((x) => x.toJson())),
-  };
+        "postReports": List<dynamic>.from(postReports.map((x) => x.toJson())),
+        "userReports": List<dynamic>.from(userReports.map((x) => x.toJson())),
+      };
 }
 
 // Post Report Model (based on your AdminReport)
@@ -52,31 +54,31 @@ class PostReport {
   });
 
   factory PostReport.fromJson(Map<String, dynamic> json) => PostReport(
-    postId: json["postId"],
-    topic: json["topic"],
-    description: json["description"],
-    date: DateTime.parse(json["date"]),
-    status: json["status"],
-    owner: Owner.fromJson(json["owner"]),
-    reportCount: json["reportCount"],
-    images: List<String>.from(json["images"].map((x) => x)),
-    reports: List<Report>.from(json["reports"].map((x) => Report.fromJson(x))),
-  );
+        postId: json["postId"],
+        topic: json["topic"],
+        description: json["description"],
+        date: DateTime.parse(json["date"]),
+        status: json["status"],
+        owner: Owner.fromJson(json["owner"]),
+        reportCount: json["reportCount"],
+        images: List<String>.from(json["images"].map((x) => x)),
+        reports:
+            List<Report>.from(json["reports"].map((x) => Report.fromJson(x))),
+      );
 
   Map<String, dynamic> toJson() => {
-    "postId": postId,
-    "topic": topic,
-    "description": description,
-    "date": date.toIso8601String(),
-    "status": status,
-    "owner": owner.toJson(),
-    "reportCount": reportCount,
-    "images": List<dynamic>.from(images.map((x) => x)),
-    "reports": List<dynamic>.from(reports.map((x) => x.toJson())),
-  };
+        "postId": postId,
+        "topic": topic,
+        "description": description,
+        "date": date.toIso8601String(),
+        "status": status,
+        "owner": owner.toJson(),
+        "reportCount": reportCount,
+        "images": List<dynamic>.from(images.map((x) => x)),
+        "reports": List<dynamic>.from(reports.map((x) => x.toJson())),
+      };
 }
 
-// User Report Model (based on your AdminReportUser)
 class UserReport {
   int reportId;
   int reportedId;
@@ -85,36 +87,60 @@ class UserReport {
   String? reporterName;
   String? reason;
   DateTime? createdAt;
+  final bool isBanned;
 
   UserReport({
     required this.reportId,
     required this.reportedId,
-    required this.reportedName,
+    this.reportedName,
     required this.reporterId,
-    required this.reporterName,
-    required this.reason,
-    required this.createdAt,
+    this.reporterName,
+    this.reason,
+    this.createdAt,
+    this.isBanned = false,
   });
 
-  factory UserReport.fromJson(Map<String, dynamic> json) => UserReport(
-    reportId: json["reportId"],
-    reportedId: json["reportedId"],
-    reportedName: json["reportedName"],
-    reporterId: json["reporterId"],
-    reporterName: json["reporterName"],
+  factory UserReport.fromJson(Map<String, dynamic> json) {
+  print("🔍 UserReport JSON: $json");
+  
+  // ดึงค่า is_banned และแปลงอย่างปลอดภัย
+  final isBannedValue = json["is_banned"];
+  bool isBanned = false;
+  
+  if (isBannedValue != null) {
+    if (isBannedValue is int) {
+      isBanned = isBannedValue == 1;
+    } else if (isBannedValue is bool) {
+      isBanned = isBannedValue;
+    }
+  }
+  
+  print("✅ isBanned parsed as: $isBanned (from $isBannedValue)");
+  
+  return UserReport(
+    reportId: json["report_id"] ?? 0,
+    reportedId: json["reported_id"] ?? 0,
+    reportedName: json["reported_name"] ?? "Unknown",
+    reporterId: json["reporter_id"] ?? 0,
+    reporterName: json["reporter_name"] ?? "Unknown",
     reason: json["reason"],
-    createdAt: json["createdAt"] != null ? DateTime.parse(json["createdAt"]) : null,
+    createdAt: json["created_at"] != null
+        ? DateTime.parse(json["created_at"])
+        : null,
+    isBanned: isBanned,
   );
+}
 
   Map<String, dynamic> toJson() => {
-    "reportId": reportId,
-    "reportedId": reportedId,
-    "reportedName": reportedName,
-    "reporterId": reporterId,
-    "reporterName": reporterName,
-    "reason": reason,
-    "createdAt": createdAt?.toIso8601String(),
-  };
+        "report_id": reportId,
+        "reported_id": reportedId,
+        "reported_name": reportedName,
+        "reporter_id": reporterId,
+        "reporter_name": reporterName,
+        "reason": reason,
+        "created_at": createdAt?.toIso8601String(),
+        "is_banned": isBanned ? 1 : 0,
+      };
 }
 
 // Owner model for posts
@@ -128,14 +154,14 @@ class Owner {
   });
 
   factory Owner.fromJson(Map<String, dynamic> json) => Owner(
-    name: json["name"] ?? "",
-    profileImage: json["profileImage"] ?? "",
-  );
+        name: json["name"] ?? "",
+        profileImage: json["profileImage"] ?? "",
+      );
 
   Map<String, dynamic> toJson() => {
-    "name": name,
-    "profileImage": profileImage,
-  };
+        "name": name,
+        "profileImage": profileImage,
+      };
 }
 
 // Individual report within a post report
@@ -155,37 +181,37 @@ class Report {
   });
 
   factory Report.fromJson(Map<String, dynamic> json) => Report(
-    reportId: json["report_id"] ?? json["reportId"] ?? 0,
-    reporterId: json["reporter_id"] ?? json["reporterId"] ?? 0,
-    reporterName: json["reporter_name"] ?? json["reporterName"],
-    reason: json["reason"],
-    createdAt: json["created_at"] != null 
-        ? DateTime.parse(json["created_at"])
-        : json["createdAt"] != null
-            ? DateTime.parse(json["createdAt"])
-            : null,
-  );
+        reportId: json["report_id"] ?? json["reportId"] ?? 0,
+        reporterId: json["reporter_id"] ?? json["reporterId"] ?? 0,
+        reporterName: json["reporter_name"] ?? json["reporterName"],
+        reason: json["reason"],
+        createdAt: json["created_at"] != null
+            ? DateTime.parse(json["created_at"])
+            : json["createdAt"] != null
+                ? DateTime.parse(json["createdAt"])
+                : null,
+      );
 
   Map<String, dynamic> toJson() => {
-    "report_id": reportId,
-    "reporter_id": reporterId,
-    "reporter_name": reporterName,
-    "reason": reason,
-    "created_at": createdAt?.toIso8601String(),
-  };
+        "report_id": reportId,
+        "reporter_id": reporterId,
+        "reporter_name": reporterName,
+        "reason": reason,
+        "created_at": createdAt?.toIso8601String(),
+      };
 }
 
 // Helper functions for parsing different response formats
-List<PostReport> postReportsFromJson(String str) => 
+List<PostReport> postReportsFromJson(String str) =>
     List<PostReport>.from(json.decode(str).map((x) => PostReport.fromJson(x)));
 
-String postReportsToJson(List<PostReport> data) => 
+String postReportsToJson(List<PostReport> data) =>
     json.encode(List<dynamic>.from(data.map((x) => x.toJson())));
 
-List<UserReport> userReportsFromJson(String str) => 
+List<UserReport> userReportsFromJson(String str) =>
     List<UserReport>.from(json.decode(str).map((x) => UserReport.fromJson(x)));
 
-String userReportsToJson(List<UserReport> data) => 
+String userReportsToJson(List<UserReport> data) =>
     json.encode(List<dynamic>.from(data.map((x) => x.toJson())));
 
 // For backward compatibility with your existing AdminReport

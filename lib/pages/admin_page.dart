@@ -9,6 +9,7 @@ import 'package:fontend_pro/config/config.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/models/admin_report.dart';
+import 'package:fontend_pro/pages/admin_profile_user.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -17,7 +18,8 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMixin {
+class _AdminPageState extends State<AdminPage>
+    with SingleTickerProviderStateMixin {
   AdminReportsResponse? reportsData;
   bool isLoading = true;
   String selectedFilter = "all"; // all, high, medium, low
@@ -40,17 +42,17 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
 
   Future<void> fetchAllReports() async {
     setState(() => isLoading = true);
-    
+
     try {
       // เรียก API ทั้งสองเส้นแยกกัน
       final results = await Future.wait([
         fetchPostReports(),
         fetchUserReports(),
       ]);
-      
+
       final postReports = results[0] as List<PostReport>;
       final userReports = results[1] as List<UserReport>;
-      
+
       setState(() {
         reportsData = AdminReportsResponse(
           postReports: postReports,
@@ -58,8 +60,9 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         );
         isLoading = false;
       });
-      
-      debugPrint("✅ All reports loaded: ${postReports.length} post reports and ${userReports.length} user reports");
+
+      debugPrint(
+          "✅ All reports loaded: ${postReports.length} post reports and ${userReports.length} user reports");
     } catch (e) {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,12 +86,12 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
 
       if (response.statusCode == 200) {
         debugPrint("🔍 Post Reports Response: ${response.body}");
-        
+
         final List<dynamic> jsonData = json.decode(response.body);
         final List<PostReport> postReports = jsonData
             .map<PostReport>((item) => PostReport.fromJson(item))
             .toList();
-            
+
         debugPrint("✅ ${postReports.length} post reports loaded");
         return postReports;
       } else {
@@ -111,12 +114,12 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
 
       if (response.statusCode == 200) {
         debugPrint("🔍 User Reports Response: ${response.body}");
-        
+
         final List<dynamic> jsonData = json.decode(response.body);
         final List<UserReport> userReports = jsonData
             .map<UserReport>((item) => UserReport.fromJson(item))
             .toList();
-            
+
         debugPrint("✅ ${userReports.length} user reports loaded");
         return userReports;
       } else {
@@ -139,8 +142,8 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
 
-      final response = await http
-          .delete(Uri.parse("$url/image_post/delete-post/$postId"));
+      final response =
+          await http.delete(Uri.parse("$url/image_post/delete-post/$postId"));
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -318,8 +321,11 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildStatCard("โพสต์ทั้งหมด", (reportsData?.postReports.length ?? 0).toString(),
-                        Icons.list_alt, Colors.white),
+                    _buildStatCard(
+                        "โพสต์ทั้งหมด",
+                        (reportsData?.postReports.length ?? 0).toString(),
+                        Icons.list_alt,
+                        Colors.white),
                     _buildStatCard(
                         "ผู้ใช้ทั้งหมด",
                         userReports.length.toString(),
@@ -328,8 +334,9 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                     _buildStatCard(
                         "ระดับสูง",
                         (reportsData?.postReports
-                            .where((r) => r.reportCount >= 5)
-                            .length ?? 0)
+                                    .where((r) => r.reportCount >= 5)
+                                    .length ??
+                                0)
                             .toString(),
                         Icons.priority_high,
                         Colors.white),
@@ -349,7 +356,8 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                   children: [
                     // Filter Bar for Post Reports
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
@@ -365,14 +373,14 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                         ),
                       ),
                     ),
-                    
+
                     // Post Reports List
                     Expanded(
                       child: _buildPostReportsContent(postReports),
                     ),
                   ],
                 ),
-                
+
                 // User Reports Tab
                 _buildUserReportsContent(userReports),
               ],
@@ -385,9 +393,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
 
   Widget _buildPostReportsContent(List<PostReport> postReports) {
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.red)
-      );
+      return const Center(child: CircularProgressIndicator(color: Colors.red));
     }
 
     if (postReports.isEmpty) {
@@ -398,7 +404,9 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              selectedFilter == "all" ? "ยังไม่มีรายงานโพสต์" : "ไม่มีรายงานโพสต์ในกลุ่มนี้",
+              selectedFilter == "all"
+                  ? "ยังไม่มีรายงานโพสต์"
+                  : "ไม่มีรายงานโพสต์ในกลุ่มนี้",
               style: TextStyle(fontSize: 18, color: Colors.grey[600]),
             ),
             const SizedBox(height: 8),
@@ -428,9 +436,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
 
   Widget _buildUserReportsContent(List<UserReport> userReports) {
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.red)
-      );
+      return const Center(child: CircularProgressIndicator(color: Colors.red));
     }
 
     if (userReports.isEmpty) {
@@ -494,7 +500,8 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.orange,
                     borderRadius: BorderRadius.circular(12),
@@ -510,9 +517,9 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Reported User Info
             Container(
               padding: const EdgeInsets.all(12),
@@ -569,7 +576,8 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.report_problem, color: Colors.blue, size: 20),
+                  const Icon(Icons.report_problem,
+                      color: Colors.blue, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -660,12 +668,15 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
-                    // TODO: Implement view user profile
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("ฟีเจอร์ดูโปรไฟล์ผู้ใช้กำลังพัฒนา"),
-                        backgroundColor: Colors.blue,
-                      ),
+                    // ScaffoldMessenger.of(context).showSnackBar(
+                    //   const SnackBar(
+                    //     content: Text("ฟีเจอร์ดูโปรไฟล์ผู้ใช้กำลังพัฒนา"),
+                    //     backgroundColor: Colors.blue,
+                    //   ),
+                    // );
+
+                    Get.to(
+                      () => AdminprofileUserPage(userId: userReport.reportedId),
                     );
                   },
                   icon: const Icon(Icons.visibility, size: 16),
@@ -675,17 +686,30 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _showBanUserDialog(userReport);
-                  },
-                  icon: const Icon(Icons.block, size: 16),
-                  label: const Text("แบนผู้ใช้"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[700],
-                    foregroundColor: Colors.white,
+
+                // 👇 แสดงปุ่มตามสถานะการแบน
+                if (userReport.isBanned)
+                  // ถ้าถูกแบนอยู่ แสดงปุ่มปลดแบน
+                  ElevatedButton.icon(
+                    onPressed: () => _showUnbanUserDialog(userReport),
+                    icon: const Icon(Icons.check_circle, size: 16),
+                    label: const Text("ปลดแบน"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
+                    ),
+                  )
+                else
+                  // ถ้ายังไม่ถูกแบน แสดงปุ่มแบน
+                  ElevatedButton.icon(
+                    onPressed: () => _showBanUserDialog(userReport),
+                    icon: const Icon(Icons.block, size: 16),
+                    label: const Text("แบนผู้ใช้"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red[700],
+                      foregroundColor: Colors.white,
+                    ),
                   ),
-                ),
               ],
             ),
           ],
@@ -698,26 +722,105 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("⚠️ ยืนยันแบนผู้ใช้"),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.block, color: Colors.red, size: 28),
+            const SizedBox(width: 8),
+            const Text(
+              "⚠️ ยืนยันแบนผู้ใช้",
+              style: TextStyle(fontSize: 18),
+            ),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("คุณต้องการแบนผู้ใช้นี้หรือไม่?"),
-            const SizedBox(height: 8),
-            Text(
-              "ผู้ถูกรายงาน: ${userReport.reportedName ?? 'ไม่ระบุ'}",
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text("ID: ${userReport.reportedId}"),
-            Text("เหตุผล: ${userReport.reason ?? 'ไม่ระบุ'}"),
-            const SizedBox(height: 8),
             const Text(
-              "หมายเหตุ: การแบนผู้ใช้จะป้องกันไม่ให้เข้าสู่ระบบได้",
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.red,
-                fontStyle: FontStyle.italic,
+              "คุณต้องการแบนผู้ใช้นี้หรือไม่?",
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.person, size: 16, color: Colors.red),
+                      const SizedBox(width: 4),
+                      const Text(
+                        "ผู้ถูกรายงาน: ",
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    userReport.reportedName ?? 'ไม่ระบุ',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "ID: ${userReport.reportedId}",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  if (userReport.reason?.isNotEmpty == true) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      "เหตุผล:",
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    Text(
+                      userReport.reason!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber,
+                      color: Colors.orange[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "การแบนผู้ใช้จะป้องกันไม่ให้ผู้ใช้เข้าสู่ระบบได้",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange[900],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -725,24 +828,175 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("ยกเลิก"),
+            child: const Text(
+              "ยกเลิก",
+              style: TextStyle(fontSize: 16),
+            ),
           ),
-          ElevatedButton(
-            onPressed: () {
+          ElevatedButton.icon(
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              // TODO: Implement ban user API call
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("ฟีเจอร์แบนผู้ใช้กำลังพัฒนา"),
-                  backgroundColor: Colors.orange,
+
+              // แสดง loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(color: Colors.red),
                 ),
               );
+
+              // เรียกใช้ฟังก์ชันแบน
+              await banUser(userReport.reportedId);
+
+              // ปิด loading dialog
+              if (mounted) Navigator.of(context).pop();
             },
+            icon: const Icon(Icons.block, size: 18),
+            label: const Text(
+              "แบนผู้ใช้",
+              style: TextStyle(fontSize: 16),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: const Text("แบนผู้ใช้"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUnbanUserDialog(UserReport userReport) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 28),
+            const SizedBox(width: 8),
+            const Text(
+              "✅ ยืนยันปลดแบนผู้ใช้",
+              style: TextStyle(fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "คุณต้องการปลดแบนผู้ใช้นี้หรือไม่?",
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.person, size: 16, color: Colors.green),
+                      const SizedBox(width: 4),
+                      const Text(
+                        "ผู้ถูกแบน: ",
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    userReport.reportedName ?? 'ไม่ระบุ',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "ID: ${userReport.reportedId}",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "ผู้ใช้จะสามารถเข้าสู่ระบบได้อีกครั้ง",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue[900],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              "ยกเลิก",
+              style: TextStyle(fontSize: 16),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+
+              // แสดง loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(color: Colors.green),
+                ),
+              );
+
+              // เรียกใช้ฟังก์ชันปลดแบน
+              await unbanUser(userReport.reportedId);
+
+              // ปิด loading dialog
+              if (mounted) Navigator.of(context).pop();
+            },
+            icon: const Icon(Icons.check_circle, size: 18),
+            label: const Text(
+              "ปลดแบนผู้ใช้",
+              style: TextStyle(fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
           ),
         ],
       ),
@@ -1075,7 +1329,8 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                                       fontWeight: FontWeight.bold),
                                 ),
                                 Text("เจ้าของ: ${reportData.owner.name}"),
-                                Text("ถูกรายงาน: ${reportData.reportCount} ครั้ง"),
+                                Text(
+                                    "ถูกรายงาน: ${reportData.reportCount} ครั้ง"),
                               ],
                             ),
                             actions: [
@@ -1212,6 +1467,192 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         SnackBar(
           content: Text("เกิดข้อผิดพลาดขณะออกจากระบบ: $e"),
           backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> banUser(int targetUid) async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+      final adminUid = gs.read('user');
+
+      debugPrint("[Ban User] Admin UID: $adminUid, Target UID: $targetUid");
+
+      final response = await http.put(
+        Uri.parse("$url/user/ban-user"),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'admin_uid': adminUid,
+          'target_uid': targetUid,
+        }),
+      );
+
+      debugPrint(
+          "[Ban User] Response: ${response.statusCode} - ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(data['message'] ?? 'แบนผู้ใช้สำเร็จ'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // รีเฟรชข้อมูล
+        await fetchAllReports();
+      } else if (response.statusCode == 403) {
+        final errorData = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child:
+                      Text(errorData['error'] ?? 'คุณไม่มีสิทธิ์ทำรายการนี้'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else if (response.statusCode == 404) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('ไม่พบผู้ใช้'),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        throw Exception('แบนผู้ใช้ไม่สำเร็จ');
+      }
+    } catch (e) {
+      debugPrint("[Ban User] Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> unbanUser(int targetUid) async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+      final adminUid = gs.read('user');
+
+      debugPrint("[Unban User] Admin UID: $adminUid, Target UID: $targetUid");
+
+      final response = await http.put(
+        Uri.parse("$url/user/unban-user"),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'admin_uid': adminUid,
+          'target_uid': targetUid,
+        }),
+      );
+
+      debugPrint(
+          "[Unban User] Response: ${response.statusCode} - ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(data['message'] ?? 'ปลดแบนผู้ใช้สำเร็จ'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // รีเฟรชข้อมูล
+        await fetchAllReports();
+      } else if (response.statusCode == 403) {
+        final errorData = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child:
+                      Text(errorData['error'] ?? 'คุณไม่มีสิทธิ์ทำรายการนี้'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else if (response.statusCode == 404) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('ไม่พบผู้ใช้'),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        throw Exception('ปลดแบนผู้ใช้ไม่สำเร็จ');
+      }
+    } catch (e) {
+      debugPrint("[Unban User] Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
         ),
       );
     }

@@ -647,6 +647,103 @@ class RecommendedTabState extends State<RecommendedTab>
     }
   }
 
+  Future<void> _deleteComment(int commentId, int postId) async {
+    final gs = GetStorage();
+    final userId = gs.read('user');
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final response = await http.post(
+        Uri.parse('$url/image_post/delete-comment'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'comment_id': commentId,
+          'user_id': userId,
+          'post_id': postId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final deletedBy = data['deletedBy'] ?? 'ผู้ใช้';
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('ลบความคิดเห็นสำเร็จ (โดย: $deletedBy)'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else if (response.statusCode == 404) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('ไม่พบความคิดเห็น')),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else if (response.statusCode == 403) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.block, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('คุณไม่มีสิทธิ์ลบความคิดเห็นนี้')),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        throw Exception('Failed to delete comment');
+      }
+    } catch (e) {
+      dev.log('Error deleting comment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(child: Text('เกิดข้อผิดพลาดในการลบความคิดเห็น')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   // เพิ่มฟังก์ชัน buildFollowButton สำหรับจัดการปุ่มติดตาม
   Widget buildFollowButton(model.GetAllPost postItem) {
     final isFollowing = followingUserIds.contains(postItem.user.uid);
@@ -1830,6 +1927,17 @@ class RecommendedTabState extends State<RecommendedTab>
                                   const SizedBox(height: 4),
                               itemBuilder: (context, index) {
                                 final c = comments[index];
+                                final isMyComment = c.uid == loggedInUid;
+
+                                // ตรวจสอบว่าเป็นเจ้าของโพสต์หรือไม่
+                                final currentPost = filteredPosts.firstWhere(
+                                  (post) => post.post.postId == postId,
+                                  orElse: () => filteredPosts.first,
+                                );
+                                final isPostOwner =
+                                    currentPost.user.uid == loggedInUid;
+                                final canDelete = isMyComment || isPostOwner;
+
                                 return Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
@@ -1876,13 +1984,53 @@ class RecommendedTabState extends State<RecommendedTab>
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Text(
-                                                  c.name,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                    color: Colors.black87,
-                                                  ),
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      c.name,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontSize: 14,
+                                                        color: Colors.black87,
+                                                      ),
+                                                    ),
+                                                    if (isPostOwner &&
+                                                        !isMyComment) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2,
+                                                        ),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color:
+                                                              Colors.blue[50],
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(4),
+                                                          border: Border.all(
+                                                            color: Colors
+                                                                .blue[200]!,
+                                                            width: 0.5,
+                                                          ),
+                                                        ),
+                                                        child: Text(
+                                                          'เจ้าของโพสต์',
+                                                          style: TextStyle(
+                                                            fontSize: 9,
+                                                            color: Colors
+                                                                .blue[700],
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Row(
@@ -1908,30 +2056,214 @@ class RecommendedTabState extends State<RecommendedTab>
                                               ],
                                             ),
                                           ),
+                                          if (canDelete)
+                                            PopupMenuButton<String>(
+                                              icon: Icon(
+                                                Icons.more_vert,
+                                                size: 18,
+                                                color: Colors.grey[600],
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              itemBuilder: (context) => [
+                                                // แสดงปุ่มแก้ไขเฉพาะเจ้าของคอมเมนต์
+                                                if (isMyComment)
+                                                  PopupMenuItem(
+                                                    value: 'edit',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.edit_outlined,
+                                                          color:
+                                                              Colors.blue[700],
+                                                          size: 18,
+                                                        ),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        Text(
+                                                          'แก้ไขความคิดเห็น',
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                                .blue[700],
+                                                            fontSize: 13,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.delete_outline,
+                                                        color: Colors.red,
+                                                        size: 18,
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        'ลบความคิดเห็น',
+                                                        style: TextStyle(
+                                                          color:
+                                                              Colors.red[700],
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                              onSelected: (value) async {
+                                                if (value == 'edit') {
+                                                  await _editComment(
+                                                      context,
+                                                      c.commentId,
+                                                      postId,
+                                                      c.commentText);
+                                                  setModalState(
+                                                      () {}); // รีเฟรช modal
+                                                } else if (value == 'delete') {
+                                                  final confirm =
+                                                      await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (context) =>
+                                                        AlertDialog(
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(16),
+                                                      ),
+                                                      title: Row(
+                                                        children: [
+                                                          Icon(
+                                                            Icons
+                                                                .delete_forever,
+                                                            color:
+                                                                Colors.red[400],
+                                                          ),
+                                                          const SizedBox(
+                                                              width: 8),
+                                                          const Text(
+                                                              'ลบความคิดเห็น'),
+                                                        ],
+                                                      ),
+                                                      content: Column(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          const Text(
+                                                              'คุณต้องการลบความคิดเห็นนี้หรือไม่?'),
+                                                          const SizedBox(
+                                                              height: 8),
+                                                          if (isPostOwner &&
+                                                              !isMyComment)
+                                                            Container(
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .all(8),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: Colors
+                                                                    .orange[50],
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            8),
+                                                                border:
+                                                                    Border.all(
+                                                                  color: Colors
+                                                                          .orange[
+                                                                      200]!,
+                                                                ),
+                                                              ),
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons
+                                                                        .info_outline,
+                                                                    size: 16,
+                                                                    color: Colors
+                                                                            .orange[
+                                                                        700],
+                                                                  ),
+                                                                  const SizedBox(
+                                                                      width: 8),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'คุณกำลังลบความคิดเห็นของผู้อื่นในฐานะเจ้าของโพสต์',
+                                                                      style:
+                                                                          TextStyle(
+                                                                        fontSize:
+                                                                            12,
+                                                                        color: Colors
+                                                                            .orange[700],
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                        ],
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                  context,
+                                                                  false),
+                                                          child: const Text(
+                                                              'ยกเลิก'),
+                                                        ),
+                                                        ElevatedButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                  context,
+                                                                  true),
+                                                          style: ElevatedButton
+                                                              .styleFrom(
+                                                            backgroundColor:
+                                                                Colors.red,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                            shape:
+                                                                RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          8),
+                                                            ),
+                                                          ),
+                                                          child:
+                                                              const Text('ลบ'),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+
+                                                  if (confirm == true) {
+                                                    await _deleteComment(
+                                                        c.commentId, postId);
+                                                    setModalState(
+                                                        () {}); // รีเฟรช modal
+                                                  }
+                                                }
+                                              },
+                                            ),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: Colors.grey[200]!,
-                                            width: 0.5,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          c.commentText,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black87,
-                                            height: 1.4,
-                                          ),
+                                      Text(
+                                        c.commentText,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black87,
+                                          height: 1.4,
                                         ),
                                       ),
                                     ],
@@ -2190,6 +2522,172 @@ class RecommendedTabState extends State<RecommendedTab>
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 2),
       );
+    }
+  }
+
+  Future<void> _editComment(BuildContext context, int commentId, int postId,
+      String currentText) async {
+    final TextEditingController editController =
+        TextEditingController(text: currentText);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.edit, color: Colors.blue[400]),
+            const SizedBox(width: 8),
+            const Text('แก้ไขความคิดเห็น'),
+          ],
+        ),
+        content: TextField(
+          controller: editController,
+          maxLines: 5,
+          maxLength: 1000,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'แก้ไขความคิดเห็นของคุณ...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            contentPadding: const EdgeInsets.all(12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (editController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('กรุณาใส่ความคิดเห็น'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('บันทึก'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final newText = editController.text.trim();
+    if (newText.isEmpty) return;
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+      final userId = gs.read('user');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('กำลังแก้ไขความคิดเห็น...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+      final response = await http.put(
+        Uri.parse('$url/image_post/edit-comment/$commentId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': userId,
+          'post_id': postId,
+          'comment_text': newText,
+        }),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final editedBy = data['editedBy'] ?? 'ผู้ใช้';
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('แก้ไขความคิดเห็นสำเร็จ (โดย: $editedBy)'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          final errorData = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(errorData['error'] ?? 'แก้ไขไม่สำเร็จ')),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      dev.log('Error editing comment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(child: Text('เกิดข้อผิดพลาดในการแก้ไขความคิดเห็น')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 }

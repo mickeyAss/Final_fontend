@@ -5,11 +5,13 @@ import 'package:http/http.dart' as http;
 import 'dart:developer'; // อย่าลืม import
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
+import 'package:fontend_pro/pages/ban_user.dart';
 import 'package:fontend_pro/pages/register.dart';
 import 'package:fontend_pro/pages/mainPage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fontend_pro/pages/admin_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:fontend_pro/pages/forget_password.dart';
 import 'package:fontend_pro/models/login_user_request.dart';
 
 class Loginpage extends StatefulWidget {
@@ -218,13 +220,11 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
-                        showModernDialog(
-                          context: context,
-                          icon: Icons.info_outline,
-                          iconColor: Colors.blue,
-                          title: 'ฟีเจอร์ยังไม่พร้อมใช้งาน',
-                          message:
-                              'ระบบลืมรหัสผ่านกำลังพัฒนา กรุณาติดต่อผู้ดูแลระบบ',
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ForgotPasswordPage(),
+                          ),
                         );
                       },
                       child: Text(
@@ -611,6 +611,17 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
           await gs.write('login_type', 'email');
 
           log('เข้าสู่ระบบสำเร็จ');
+
+          // ตรวจสอบว่าผู้ใช้ถูกแบนหรือไม่
+          if (user['is_banned'] == 1) {
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const BanUserPage()),
+              );
+            }
+            return; // หยุดการนำทางต่อ
+          }
 
           // เช็ค type ของผู้ใช้
           if (user['type'] == 'admin') {

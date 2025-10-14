@@ -34,7 +34,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
 
   GetStorage gs = GetStorage();
 
-  // สำหรับ animation หัวใจ
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   bool showHeart = false;
@@ -176,7 +175,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
       Uri uri;
 
       if (!isLiked) {
-        // กรณี like
         uri = Uri.parse('$url/image_post/like');
         final response = await http.post(
           uri,
@@ -196,7 +194,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
           });
         }
       } else {
-        // กรณี unlike (ยกเลิกไลก์)
         uri = Uri.parse('$url/image_post/unlike');
         final response = await http.post(
           uri,
@@ -295,9 +292,620 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
     }
   }
 
+  Future<void> _deletePost(BuildContext context, int postId) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ลบโพสต์'),
+        content: const Text(
+            'คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('กำลังลบโพสต์...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.delete(
+        Uri.parse('$url/image_post/delete-post/$postId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text('ลบโพสต์สำเร็จ'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (context.mounted) {
+              Navigator.of(context).pop(true);
+            }
+          });
+        } else {
+          final errorData = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(errorData['message'] ?? 'ลบโพสต์ไม่สำเร็จ'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      debugPrint('Error deleting post: $e');
+    }
+  }
+
+  Future<bool> _deleteComment(
+    BuildContext context,
+    int commentId,
+    int userId,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.delete_forever, color: Colors.red[400]),
+            const SizedBox(width: 8),
+            const Text('ลบความคิดเห็น'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('คุณแน่ใจหรือไม่ว่าต้องการลบความคิดเห็นนี้?'),
+            const SizedBox(height: 8),
+            if (postDetail != null &&
+                userId == postDetail!.post.postFkUid &&
+                userId != commentId)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        size: 16, color: Colors.orange[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'คุณกำลังลบความคิดเห็นของผู้อื่นในฐานะเจ้าของโพสต์',
+                        style:
+                            TextStyle(fontSize: 12, color: Colors.orange[700]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return false;
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('กำลังลบความคิดเห็น...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.post(
+        Uri.parse('$url/image_post/delete-comment'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'comment_id': commentId,
+          'user_id': userId,
+          'post_id': widget.postId,
+        }),
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        if (response.statusCode == 200) {
+          final responseData = jsonDecode(response.body);
+          final deletedBy = responseData['deletedBy'] ?? 'ผู้ใช้';
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('ลบความคิดเห็นสำเร็จ (โดย: $deletedBy)'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          setState(() {}); // รีเฟรช state หลัก
+          return true; // ✅ คืนค่า true เมื่อสำเร็จ
+        } else {
+          final errorData = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(errorData['error'] ?? 'ลบความคิดเห็นไม่สำเร็จ'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return false;
+        }
+      }
+      return false;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _editPost(BuildContext context) async {
+    if (postDetail == null) return;
+
+    final topicController =
+        TextEditingController(text: postDetail!.post.postTopic);
+    final descController =
+        TextEditingController(text: postDetail!.post.postDescription ?? '');
+
+    List<int> selectedHashtags =
+        postDetail!.hashtags.map((h) => h.tagId).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return AnimatedPadding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              duration: const Duration(milliseconds: 300),
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.85,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey[200]!),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Expanded(
+                            child: Text(
+                              'แก้ไขโพสต์',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              await _saveEditedPost(
+                                context,
+                                topicController.text,
+                                descController.text,
+                                selectedHashtags,
+                              );
+                            },
+                            child: const Text(
+                              'บันทึก',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (postDetail!.images.isNotEmpty) ...[
+                              const Text(
+                                'รูปภาพ (ไม่สามารถแก้ไขได้)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 100,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: postDetail!.images.length,
+                                  itemBuilder: (context, index) {
+                                    return Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      width: 100,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: Colors.grey[300]!),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          postDetail!.images[index].image,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            const Text(
+                              'หัวข้อ',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: topicController,
+                              decoration: InputDecoration(
+                                hintText: 'หัวข้อโพสต์',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'คำอธิบาย',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: descController,
+                              maxLines: 4,
+                              decoration: InputDecoration(
+                                hintText: 'เขียนคำอธิบาย...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'หมวดหมู่ (ไม่สามารถแก้ไขได้)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: postDetail!.categories.map((cat) {
+                                return Chip(
+                                  label: Text(cat.cname),
+                                  backgroundColor: Colors.grey[200],
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'แฮชแท็กปัจจุบัน',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: postDetail!.hashtags.map((tag) {
+                                return Chip(
+                                  label: Text('#${tag.tagName}'),
+                                  backgroundColor: Colors.blue[50],
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _saveEditedPost(
+    BuildContext context,
+    String topic,
+    String description,
+    List<int> hashtagIds,
+  ) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('กำลังบันทึก...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+        backgroundColor: Colors.orange,
+      ),
+    );
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.put(
+        Uri.parse('$url/image_post/post/edit/${widget.postId}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': loggedInUserId,
+          'post_topic': topic,
+          'post_description': description,
+          'hashtags': hashtagIds,
+        }),
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text('แก้ไขโพสต์สำเร็จ'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          Navigator.pop(context);
+          await fetchPostDetail();
+        } else {
+          final errorData = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(errorData['error'] ?? 'แก้ไขโพสต์ไม่สำเร็จ'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      debugPrint('Error editing post: $e');
+    }
+  }
+
   void _showCommentBottomSheet(BuildContext context, int postId) {
-    TextEditingController _commentController = TextEditingController();
-    FocusNode _focusNode = FocusNode();
+    TextEditingController commentController = TextEditingController();
+    FocusNode focusNode = FocusNode();
 
     showModalBottomSheet(
       context: context,
@@ -330,7 +938,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 ),
                 child: Column(
                   children: [
-                    // Handle Bar
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Container(
@@ -342,8 +949,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         ),
                       ),
                     ),
-
-                    // Header
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 8),
@@ -388,8 +993,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         ],
                       ),
                     ),
-
-                    // Comments List
                     Expanded(
                       child: FutureBuilder<GetComment>(
                         future: _fetchComments(postId),
@@ -469,6 +1072,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                   const SizedBox(height: 4),
                               itemBuilder: (context, index) {
                                 final c = comments[index];
+                                final isCommentOwner = loggedInUserId == c.uid;
+
                                 return Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
@@ -547,6 +1152,73 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                               ],
                                             ),
                                           ),
+                                          // แสดงปุ่มลบถ้าเป็นเจ้าของคอมเมนต์ หรือเจ้าของโพสต์
+                                          // แสดงปุ่มลบถ้าเป็นเจ้าของคอมเมนต์ หรือเจ้าของโพสต์
+                                          if (isCommentOwner ||
+                                              loggedInUserId ==
+                                                  postDetail!.post.postFkUid)
+                                            PopupMenuButton<String>(
+                                              onSelected: (value) async {
+                                                if (value == 'edit') {
+                                                  final success =
+                                                      await _editComment(
+                                                    context,
+                                                    c.commentId,
+                                                    c.commentText,
+                                                  );
+                                                  if (success && mounted) {
+                                                    setModalState(
+                                                        () {}); // รีเฟรช UI ทันที
+                                                  }
+                                                } else if (value == 'delete') {
+                                                  final success =
+                                                      await _deleteComment(
+                                                    context,
+                                                    c.commentId,
+                                                    loggedInUserId,
+                                                  );
+                                                  if (success && mounted) {
+                                                    setModalState(
+                                                        () {}); // รีเฟรช UI ทันที
+                                                  }
+                                                }
+                                              },
+                                              itemBuilder:
+                                                  (BuildContext context) => [
+                                                // แสดงปุ่มแก้ไขเฉพาะเจ้าของคอมเมนต์
+                                                if (isCommentOwner)
+                                                  const PopupMenuItem<String>(
+                                                    value: 'edit',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(Icons.edit,
+                                                            color: Colors.blue,
+                                                            size: 18),
+                                                        SizedBox(width: 8),
+                                                        Text('แก้ไข',
+                                                            style: TextStyle(
+                                                                color: Colors
+                                                                    .blue)),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                const PopupMenuItem<String>(
+                                                  value: 'delete',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(Icons.delete,
+                                                          color: Colors.red,
+                                                          size: 18),
+                                                      SizedBox(width: 8),
+                                                      Text('ลบ',
+                                                          style: TextStyle(
+                                                              color:
+                                                                  Colors.red)),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
@@ -582,8 +1254,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         },
                       ),
                     ),
-
-                    // Comment Input
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -619,8 +1289,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                   ),
                                 ),
                                 child: TextField(
-                                  controller: _commentController,
-                                  focusNode: _focusNode,
+                                  controller: commentController,
+                                  focusNode: focusNode,
                                   maxLines: null,
                                   textCapitalization:
                                       TextCapitalization.sentences,
@@ -645,7 +1315,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                             ),
                             const SizedBox(width: 8),
                             ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: _commentController,
+                              valueListenable: commentController,
                               builder: (context, value, child) {
                                 final hasText = value.text.trim().isNotEmpty;
                                 return AnimatedContainer(
@@ -656,14 +1326,12 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                     child: InkWell(
                                       onTap: hasText
                                           ? () async {
-                                              final text = _commentController
-                                                  .text
-                                                  .trim();
+                                              final text =
+                                                  commentController.text.trim();
                                               if (text.isNotEmpty) {
-                                                _commentController.clear();
-                                                _focusNode.unfocus();
+                                                commentController.clear();
+                                                focusNode.unfocus();
 
-                                                // Show loading state
                                                 ScaffoldMessenger.of(context)
                                                     .showSnackBar(
                                                   SnackBar(
@@ -696,8 +1364,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
 
                                                 await _submitComment(
                                                     postId, text);
-                                                setModalState(
-                                                    () {}); // รีโหลด FutureBuilder
+                                                setModalState(() {});
                                               }
                                             }
                                           : null,
@@ -778,7 +1445,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
       );
 
       if (res.statusCode == 200) {
-        // แสดงข้อความสำเร็จ
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -794,11 +1460,9 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
             ),
           );
 
-          // รีเฟรชหน้าเพื่ออัพเดทจำนวน comments
           setState(() {});
         }
       } else {
-        // แสดงข้อความผิดพลาด
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -817,7 +1481,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
         debugPrint('ส่งคอมเมนต์ไม่สำเร็จ: ${res.statusCode} - ${res.body}');
       }
     } catch (e) {
-      // จัดการ error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -855,7 +1518,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   }
 
   Widget _buildCategoriesSection() {
-    // เช็คว่า categories ไม่เป็น null และมีข้อมูล
     if (postDetail?.categories == null || postDetail!.categories.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -888,7 +1550,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   }
 
   Widget _buildHashtagsSection() {
-    // เช็คว่า hashtags ไม่เป็น null และมีข้อมูล
     if (postDetail?.hashtags == null || postDetail!.hashtags.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -986,7 +1647,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header - User Info
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -1027,48 +1687,77 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                   IconButton(
                     icon: const Icon(Icons.more_horiz),
                     onPressed: () {
-                      // Step 1: กดที่เมนู -> โชว์เมนูเลือก "รายงานโพสต์"
+                      final isOwner = loggedInUserId == user.uid;
+
                       showModalBottomSheet(
                         context: context,
                         builder: (context) {
-                          return ListTile(
-                            leading: Icon(Icons.report, color: Colors.red),
-                            title: const Text("รายงานโพสต์"),
-                            onTap: () {
-                              Navigator.pop(context); // ปิดเมนูแรก
-                              // Step 2: แสดงเหตุผลการรายงาน
-                              showModalBottomSheet(
-                                context: context,
-                                builder: (context) {
-                                  final reasons = [
-                                    "สแปม",
-                                    "เนื้อหาไม่เหมาะสม",
-                                    "ละเมิดลิขสิทธิ์",
-                                    "อื่น ๆ",
-                                  ];
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isOwner)
+                                ListTile(
+                                  leading: const Icon(Icons.edit,
+                                      color: Colors.blue),
+                                  title: const Text("แก้ไขโพสต์"),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _editPost(context);
+                                  },
+                                ),
+                              if (isOwner)
+                                ListTile(
+                                  leading: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  title: const Text(
+                                    "ลบโพสต์",
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _deletePost(context, widget.postId);
+                                  },
+                                ),
+                              if (!isOwner)
+                                ListTile(
+                                  leading: const Icon(Icons.report,
+                                      color: Colors.red),
+                                  title: const Text("รายงานโพสต์"),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    showModalBottomSheet(
+                                      context: context,
+                                      builder: (context) {
+                                        final reasons = [
+                                          "สแปม",
+                                          "เนื้อหาไม่เหมาะสม",
+                                          "ละเมิดลิขสิทธิ์",
+                                          "อื่น ๆ",
+                                        ];
 
-                                  return ListView.builder(
-                                    shrinkWrap: true,
-                                    itemCount: reasons.length,
-                                    itemBuilder: (context, index) {
-                                      return ListTile(
-                                        title: Text(reasons[index]),
-                                        onTap: () {
-                                          Navigator.pop(context);
-                                          _reportPost(
-                                            context,
-                                            post.postId,
-                                            reasons[index],
-                                            gs.read(
-                                                'user'), // uid ของคนที่กดรายงาน (ปัจจุบัน login อยู่)
-                                          );
-                                        },
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            },
+                                        return ListView.builder(
+                                          shrinkWrap: true,
+                                          itemCount: reasons.length,
+                                          itemBuilder: (context, index) {
+                                            return ListTile(
+                                              title: Text(reasons[index]),
+                                              onTap: () {
+                                                Navigator.pop(context);
+                                                _reportPost(
+                                                  context,
+                                                  post.postId,
+                                                  reasons[index],
+                                                  gs.read('user'),
+                                                );
+                                              },
+                                            );
+                                          },
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                            ],
                           );
                         },
                       );
@@ -1077,8 +1766,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 ],
               ),
             ),
-
-            // Images Carousel with double-tap heart animation
             if (postDetail!.images.isNotEmpty)
               SizedBox(
                 height: 400,
@@ -1091,7 +1778,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                           showHeart = true;
                         });
 
-                        // ซ่อนหัวใจอัตโนมัติหลัง 800ms
                         Future.delayed(const Duration(milliseconds: 800), () {
                           if (mounted) {
                             setState(() {
@@ -1105,7 +1791,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // รูปภาพ
                           Image.network(
                             postDetail!.images[index].image,
                             fit: BoxFit.cover,
@@ -1121,8 +1806,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                               );
                             },
                           ),
-
-                          // Heart animation แบบ AnimatedScale + AnimatedOpacity
                           if (showHeart)
                             Center(
                               child: AnimatedScale(
@@ -1164,8 +1847,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                   },
                 ),
               ),
-
-            // Action Buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -1173,7 +1854,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 children: [
                   Row(
                     children: [
-                      // Like Button
                       IconButton(
                         icon: Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border,
@@ -1182,8 +1862,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         ),
                         onPressed: toggleLike,
                       ),
-
-                      // Comment Button - เชื่อมต่อกับ bottom sheet
                       IconButton(
                         icon: const Icon(
                           Icons.chat,
@@ -1195,8 +1873,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                       ),
                     ],
                   ),
-
-                  // Save Button
                   IconButton(
                     icon: Icon(
                       savedMap[widget.postId] == true
@@ -1214,14 +1890,11 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 ],
               ),
             ),
-
-            // Likes and Comments count
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Likes count
                   Text(
                     '${post.amountOfLike} likes',
                     style: const TextStyle(
@@ -1229,8 +1902,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                       fontSize: 14,
                     ),
                   ),
-
-                  // Comments count - เพิ่มการแสดงจำนวน comments
                   const SizedBox(height: 2),
                   FutureBuilder<GetComment>(
                     future: _fetchComments(widget.postId),
@@ -1258,8 +1929,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 ],
               ),
             ),
-
-            // Caption
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Column(
@@ -1275,7 +1944,6 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  // ใช้ null safety สำหรับ postDescription
                   if (post.postDescription != null &&
                       post.postDescription!.isNotEmpty)
                     Padding(
@@ -1292,13 +1960,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 ],
               ),
             ),
-
-            // Categories Section
             _buildCategoriesSection(),
-
-            // Hashtags Section
             _buildHashtagsSection(),
-
             const SizedBox(height: 16),
           ],
         ),
@@ -1343,6 +2006,181 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 2),
       );
+    }
+  }
+
+  Future<bool> _editComment(
+    BuildContext context,
+    int commentId,
+    String currentText,
+  ) async {
+    final TextEditingController editController =
+        TextEditingController(text: currentText);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.edit, color: Colors.blue[400]),
+            const SizedBox(width: 8),
+            const Text('แก้ไขความคิดเห็น'),
+          ],
+        ),
+        content: TextField(
+          controller: editController,
+          maxLines: 5,
+          maxLength: 1000,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'แก้ไขความคิดเห็นของคุณ...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            contentPadding: const EdgeInsets.all(12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (editController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('กรุณาใส่ความคิดเห็น'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('บันทึก'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return false;
+
+    final newText = editController.text.trim();
+    if (newText.isEmpty) return false;
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('กำลังแก้ไขความคิดเห็น...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.put(
+        Uri.parse('$url/image_post/edit-comment/$commentId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': loggedInUserId,
+          'post_id': widget.postId,
+          'comment_text': newText,
+        }),
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final editedBy = data['editedBy'] ?? 'ผู้ใช้';
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('แก้ไขความคิดเห็นสำเร็จ (โดย: $editedBy)'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          setState(() {}); // รีเฟรช state หลัก
+          return true; // ✅ คืนค่า true เมื่อสำเร็จ
+        } else {
+          final errorData = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child:
+                        Text(errorData['error'] ?? 'แก้ไขความคิดเห็นไม่สำเร็จ'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return false;
+        }
+      }
+      return false;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return false;
     }
   }
 }
