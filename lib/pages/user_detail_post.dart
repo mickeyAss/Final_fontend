@@ -657,6 +657,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.black,
                               ),
                             ),
                           ),
@@ -962,7 +963,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         children: [
                           const Icon(
                             Icons.chat_bubble_outline,
-                            color: Colors.blue,
+                            color: Color.fromARGB(255, 0, 0, 0),
                             size: 20,
                           ),
                           const SizedBox(width: 8),
@@ -1131,21 +1132,26 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                                 const SizedBox(height: 2),
                                                 Row(
                                                   children: [
-                                                    Icon(
-                                                      Icons.access_time,
-                                                      size: 12,
-                                                      color: Colors.grey[500],
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      _formatTimeAgo(
-                                                          c.createdAt),
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        color: Colors.grey[500],
-                                                        fontWeight:
-                                                            FontWeight.w400,
-                                                      ),
+                                                    
+                                                    Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.access_time,
+                                                          size: 12,
+                                                          color: Colors.grey[500],
+                                                        ),
+                                                        const SizedBox(width: 4),
+                                                        Text(
+                                                          _formatTimeAgo(
+                                                              c.createdAt),
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            color: Colors.grey[500],
+                                                            fontWeight:
+                                                                FontWeight.w400,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),
@@ -1192,13 +1198,12 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                                     child: Row(
                                                       children: [
                                                         Icon(Icons.edit,
-                                                            color: Colors.blue,
+                                                            color: Color.fromARGB(255, 0, 0, 0),
                                                             size: 18),
                                                         SizedBox(width: 8),
                                                         Text('แก้ไข',
                                                             style: TextStyle(
-                                                                color: Colors
-                                                                    .blue)),
+                                                                color: Color.fromARGB(255, 0, 0, 0))),
                                                       ],
                                                     ),
                                                   ),

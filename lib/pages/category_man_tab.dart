@@ -187,24 +187,23 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                 ),
                                                 padding:
                                                     const EdgeInsets.all(16),
-                                                child: Icon(
-                                                  Icons.info_rounded,
+                                                child: const Icon(
+                                                  Icons.info_outline,
                                                   size: 48,
-                                                  color: Colors.blueAccent,
+                                                  color: Colors.black87,
                                                 ),
                                               ),
 
                                               const SizedBox(height: 20),
 
                                               // Title
-                                              Text(
+                                               Text(
                                                 item.cname,
                                                 textAlign: TextAlign.center,
-                                                style: TextStyle(
+                                                style: const TextStyle(
                                                   fontSize: 26,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors
-                                                      .blueAccent.shade700,
+                                                  color: Colors.black87,
                                                   letterSpacing: 0.5,
                                                 ),
                                               ),
@@ -237,7 +236,7 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                   style:
                                                       ElevatedButton.styleFrom(
                                                     backgroundColor:
-                                                        Colors.blueAccent,
+                                                        Colors.black87,
                                                     shape:
                                                         RoundedRectangleBorder(
                                                       borderRadius:
@@ -248,18 +247,19 @@ class _CategoryManTabState extends State<CategoryManTab> {
                                                         .symmetric(
                                                         vertical: 14),
                                                     elevation: 5,
-                                                    shadowColor: Colors
-                                                        .blueAccent.shade200,
+                                                    shadowColor: const Color.fromARGB(255, 0, 0, 0),
                                                   ),
                                                   onPressed: () =>
                                                       Navigator.of(context)
                                                           .pop(),
                                                   child: const Text(
                                                     'ปิด',
-                                                    style: TextStyle(
-                                                        fontSize: 18,
-                                                        fontWeight:
-                                                            FontWeight.w600),
+                                                   style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.white,
+                                                    ),
                                                   ),
                                                 ),
                                               ),

@@ -382,10 +382,18 @@ class _RegisterPageState extends State<RegisterPage>
           ),
           const SizedBox(height: 8),
           Text(
-            'ข้อมูลเหล่านี้จะช่วยให้เราแนะนำขนาดเสื้อผ้าที่เหมาะสมกับคุณ (ไม่บังคับ)',
+            'ข้อมูลเหล่านี้จะช่วยให้เราแนะนำขนาดเสื้อผ้าที่เหมาะสมกับคุณ',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade600,
+            ),
+          ),
+           const SizedBox(height: 8),
+           Text(
+            '*ไม่จำเป็นต้องกรอก',
+            style: TextStyle(
+              fontSize: 14,
+              color: const Color.fromARGB(255, 255, 0, 0),
             ),
           ),
           const SizedBox(height: 24),
@@ -412,32 +420,44 @@ class _RegisterPageState extends State<RegisterPage>
           ),
           _buildShirtSizeSelector(),
           const SizedBox(height: 8),
-          const Text(
-            'ขนาดรอบตัว (cm)',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-              color: Colors.black87,
-            ),
+          Row(
+            children: [
+              const Text(
+                'ขนาดรอบตัว (นิ้ว)',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 8),
+               Text(
+                '*ไม่จำเป็นต้องกรอก',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: const Color.fromARGB(255, 255, 0, 0),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           _buildMeasurementField(
             'รอบอก',
             chestController,
             Icons.accessibility_new,
-            'cm',
+            'นิ้ว',
           ),
           _buildMeasurementField(
             'รอบเอว',
             waistController,
             Icons.accessibility_new,
-            'cm',
+            'นิ้ว',
           ),
           _buildMeasurementField(
             'รอบสะโพก',
             hipController,
             Icons.accessibility_new,
-            'cm',
+            'นิ้ว',
           ),
         ],
       ),

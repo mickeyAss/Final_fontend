@@ -38,7 +38,13 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
             future: futureCategories,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: Image.asset(
+                    'assets/images/Logo.png',
+                    width: 60,
+                    height: 60,
+                  ),
+                );
               } else if (snapshot.hasError) {
                 return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {

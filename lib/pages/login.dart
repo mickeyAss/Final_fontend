@@ -157,7 +157,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                               end: Alignment.bottomCenter,
                             ).createShader(bounds),
                             child: const Text(
-                              "ยินดีต้อนรับกลับ!",
+                              "ยินดีต้อนรับ!",
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
