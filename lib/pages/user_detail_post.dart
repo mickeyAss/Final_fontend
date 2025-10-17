@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:fontend_pro/models/get_all_category.dart';
+import 'package:fontend_pro/models/get_hashtags.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -37,6 +39,10 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   bool showHeart = false;
+
+  Map<int, bool> commentLikedMap = {};
+  Map<int, int> commentLikeCountMap = {};
+  bool isTogglingCommentLike = false;
 
   @override
   void initState() {
@@ -292,7 +298,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
     }
   }
 
-  Future<void> _deletePost(BuildContext context, int postId) async {
+  // ฟังก์ชันลบโพสต์
+  Future<bool> _deletePost(BuildContext context, int postId) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -313,8 +320,9 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
       ),
     );
 
-    if (shouldDelete != true) return;
+    if (shouldDelete != true) return false;
 
+    // แสดง SnackBar Loading
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -351,6 +359,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
         if (response.statusCode == 200) {
+          // ลบสำเร็จ
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Row(
@@ -364,12 +373,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
               duration: Duration(seconds: 2),
             ),
           );
-
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (context.mounted) {
-              Navigator.of(context).pop(true);
-            }
-          });
+          return true; // ส่งผลลัพธ์กลับไปให้ parent
         } else {
           final errorData = jsonDecode(response.body);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -387,6 +391,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
               duration: const Duration(seconds: 3),
             ),
           );
+          return false;
         }
       }
     } catch (e) {
@@ -407,6 +412,88 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
         );
       }
       debugPrint('Error deleting post: $e');
+      return false;
+    }
+
+    return false;
+  }
+
+  // เพิ่มฟังก์ชันสำหรับตรวจสอบว่าผู้ใช้ไลค์คอมเมนต์หรือไม่
+  Future<void> checkCommentLikes(List<int> commentIds) async {
+    if (loggedInUserId == 0 || commentIds.isEmpty) return;
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      for (var commentId in commentIds) {
+        final uri = Uri.parse(
+            '$url/image_post/is-comment-liked?user_id=$loggedInUserId&comment_id=$commentId');
+        final response = await http.get(uri);
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          setState(() {
+            commentLikedMap[commentId] = data['liked'] ?? false;
+          });
+        }
+
+        // ดึงจำนวนไลค์
+        final countUri =
+            Uri.parse('$url/image_post/comment-like-count/$commentId');
+        final countResponse = await http.get(countUri);
+
+        if (countResponse.statusCode == 200) {
+          final countData = json.decode(countResponse.body);
+          setState(() {
+            commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking comment likes: $e');
+    }
+  }
+
+// ฟังก์ชันสำหรับกดไลค์/ยกเลิกไลค์คอมเมนต์
+  Future<void> toggleCommentLike(int commentId) async {
+    if (isTogglingCommentLike || loggedInUserId == 0) return;
+
+    setState(() {
+      isTogglingCommentLike = true;
+    });
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final isLiked = commentLikedMap[commentId] ?? false;
+      final endpoint =
+          isLiked ? '/image_post/unlike-comment' : '/image_post/like-comment';
+      final uri = Uri.parse('$url$endpoint');
+
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          "user_id": loggedInUserId,
+          "comment_id": commentId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          commentLikedMap[commentId] = data['liked'] ?? false;
+          commentLikeCountMap[commentId] = data['like_count'] ?? 0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error toggling comment like: $e');
+    } finally {
+      setState(() {
+        isTogglingCommentLike = false;
+      });
     }
   }
 
@@ -587,322 +674,405 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
     }
   }
 
-  Future<void> _editPost(BuildContext context) async {
-    if (postDetail == null) return;
+  // State variables
+  List<GetAllCategory> selectedCategories = []; // หมวดหมู่ที่เลือกแล้ว
 
-    final topicController =
-        TextEditingController(text: postDetail!.post.postTopic);
-    final descController =
-        TextEditingController(text: postDetail!.post.postDescription ?? '');
-
-    List<int> selectedHashtags =
-        postDetail!.hashtags.map((h) => h.tagId).toList();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return AnimatedPadding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              duration: const Duration(milliseconds: 300),
-              child: Container(
-                height: MediaQuery.of(context).size.height * 0.85,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey[200]!),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Expanded(
-                            child: Text(
-                              'แก้ไขโพสต์',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              await _saveEditedPost(
-                                context,
-                                topicController.text,
-                                descController.text,
-                                selectedHashtags,
-                              );
-                            },
-                            child: const Text(
-                              'บันทึก',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (postDetail!.images.isNotEmpty) ...[
-                              const Text(
-                                'รูปภาพ (ไม่สามารถแก้ไขได้)',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 100,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: postDetail!.images.length,
-                                  itemBuilder: (context, index) {
-                                    return Container(
-                                      margin: const EdgeInsets.only(right: 8),
-                                      width: 100,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                            color: Colors.grey[300]!),
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          postDetail!.images[index].image,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                            const Text(
-                              'หัวข้อ',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: topicController,
-                              decoration: InputDecoration(
-                                hintText: 'หัวข้อโพสต์',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'คำอธิบาย',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: descController,
-                              maxLines: 4,
-                              decoration: InputDecoration(
-                                hintText: 'เขียนคำอธิบาย...',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'หมวดหมู่ (ไม่สามารถแก้ไขได้)',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              children: postDetail!.categories.map((cat) {
-                                return Chip(
-                                  label: Text(cat.cname),
-                                  backgroundColor: Colors.grey[200],
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'แฮชแท็กปัจจุบัน',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              children: postDetail!.hashtags.map((tag) {
-                                return Chip(
-                                  label: Text('#${tag.tagName}'),
-                                  backgroundColor: Colors.blue[50],
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _saveEditedPost(
-    BuildContext context,
-    String topic,
-    String description,
-    List<int> hashtagIds,
-  ) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text('กำลังบันทึก...'),
-          ],
-        ),
-        duration: Duration(seconds: 30),
-        backgroundColor: Colors.orange,
-      ),
-    );
-
+// ฟังก์ชันโหลดหมวดหมู่จาก API
+  Future<List<GetAllCategory>> fetchAllCategories() async {
     try {
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
 
-      final response = await http.put(
-        Uri.parse('$url/image_post/post/edit/${widget.postId}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': loggedInUserId,
-          'post_topic': topic,
-          'post_description': description,
-          'hashtags': hashtagIds,
-        }),
-      );
+      final response = await http.get(Uri.parse('$url/category/get'));
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        return data.map((e) => GetAllCategory.fromJson(e)).toList();
+      } else {
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      return [];
+    }
+  }
+Future<void> _editPost(BuildContext context) async {
+  if (postDetail == null) return;
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  final topicController = TextEditingController(text: postDetail!.post.postTopic);
+  final descController = TextEditingController(text: postDetail!.post.postDescription ?? '');
+  final hashtagController = TextEditingController();
 
-        if (response.statusCode == 200) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 16),
-                  SizedBox(width: 8),
-                  Text('แก้ไขโพสต์สำเร็จ'),
-                ],
+  // State ของหมวดหมู่และแฮชแท็ก
+  List<GetAllCategory> selectedCategories = postDetail!.categories.map((cat) => GetAllCategory(
+    cid: cat.cid,
+    cname: cat.cname,
+    cimage: '',
+    ctype: Ctype.F,
+    cdescription: '',
+  )).toList();
+
+  List<GetHashtags> selectedHashtags = postDetail!.hashtags.map((h) => GetHashtags(
+    isNew: false,
+    data: [Datum(tagId: h.tagId, tagName: h.tagName)],
+  )).toList();
+
+  // Future สำหรับหมวดหมู่
+  Future<List<GetAllCategory>>? _categoriesFuture = fetchAllCategories();
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) {
+          void safeSetState(VoidCallback fn) {
+            if (mounted) fn();
+          }
+
+          return AnimatedPadding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            duration: const Duration(milliseconds: 300),
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-
-          Navigator.pop(context);
-          await fetchPostDetail();
-        } else {
-          final errorData = jsonDecode(response.body);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
+              child: Column(
                 children: [
-                  const Icon(Icons.error, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                        const Expanded(
+                          child: Text(
+                            'แก้ไขโพสต์',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final categoryIds = selectedCategories.map((c) => c.cid).toList();
+                            final hashtagIdsOrNames = <Object>[];
+                            for (var gh in selectedHashtags) {
+                              for (var tag in gh.data) {
+                                if (tag.tagId != 0) {
+                                  hashtagIdsOrNames.add(tag.tagId);
+                                } else {
+                                  hashtagIdsOrNames.add(tag.tagName);
+                                }
+                              }
+                            }
+
+                            await _saveEditedPost(
+                              context,
+                              topicController.text,
+                              descController.text,
+                              hashtagIdsOrNames,
+                              categoryIds,
+                            );
+                          },
+                          child: const Text(
+                            'บันทึก',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Body
                   Expanded(
-                    child: Text(errorData['error'] ?? 'แก้ไขโพสต์ไม่สำเร็จ'),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // รูปภาพ
+                          if (postDetail!.images.isNotEmpty) ...[
+                            const Text('รูปภาพ (ไม่สามารถแก้ไขได้)',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 100,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: postDetail!.images.length,
+                                itemBuilder: (context, index) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    width: 100,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.grey[300]!),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(postDetail!.images[index].image, fit: BoxFit.cover),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // หัวข้อ
+                          const Text('หัวข้อ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: topicController,
+                            decoration: InputDecoration(
+                              hintText: 'หัวข้อโพสต์',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // คำอธิบาย
+                          const Text('คำอธิบาย', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: descController,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: 'เขียนคำอธิบาย...',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // หมวดหมู่
+                          const Text('หมวดหมู่', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: selectedCategories.map((cat) {
+                              return Chip(
+                                label: Text(cat.cname),
+                                deleteIcon: const Icon(Icons.close),
+                                onDeleted: () {
+                                  safeSetState(() {
+                                    selectedCategories.remove(cat);
+                                    _categoriesFuture = fetchAllCategories();
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 8),
+                          FutureBuilder<List<GetAllCategory>>(
+                            future: _categoriesFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              if (snapshot.hasError) {
+                                return Text('โหลดหมวดหมู่ไม่สำเร็จ: ${snapshot.error}');
+                              }
+                              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                                return const Text('ไม่มีหมวดหมู่ให้เลือก');
+                              }
+
+                              final allCategories = snapshot.data!;
+                              final remainingCategories = allCategories
+                                  .where((c) => !selectedCategories.any((sc) => sc.cid == c.cid))
+                                  .toList();
+
+                              if (remainingCategories.isEmpty) {
+                                return const Text('เลือกหมวดหมู่ครบแล้ว');
+                              }
+
+                              return DropdownButton<GetAllCategory>(
+                                hint: const Text('เพิ่มหมวดหมู่'),
+                                value: null,
+                                items: remainingCategories
+                                    .map((cat) => DropdownMenuItem(value: cat, child: Text(cat.cname)))
+                                    .toList(),
+                                onChanged: (cat) {
+                                  if (cat != null) safeSetState(() {
+                                    selectedCategories.add(cat);
+                                    _categoriesFuture = fetchAllCategories();
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          // แฮชแท็ก
+                          const Text('แฮชแท็ก', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: selectedHashtags
+                                .expand((gh) => gh.data)
+                                .map((tag) {
+                              return Chip(
+                                label: Text('#${tag.tagName}'),
+                                deleteIcon: const Icon(Icons.close),
+                                onDeleted: () {
+                                  safeSetState(() {
+                                    final parent = selectedHashtags.firstWhere(
+                                      (gh) => gh.data.contains(tag),
+                                      orElse: () => GetHashtags(isNew: true, data: []),
+                                    );
+                                    parent.data.remove(tag);
+                                    if (parent.data.isEmpty) selectedHashtags.remove(parent);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // เพิ่มแฮชแท็กใหม่
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: hashtagController,
+                                  decoration: InputDecoration(
+                                    hintText: 'เพิ่มแฮชแท็กใหม่',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  ),
+                                  onSubmitted: (value) {
+                                    if (value.trim().isEmpty) return;
+                                    safeSetState(() {
+                                      if (selectedHashtags.isEmpty) {
+                                        selectedHashtags.add(GetHashtags(
+                                            isNew: true, data: [Datum(tagId: 0, tagName: value.trim())]));
+                                      } else {
+                                        selectedHashtags[0].data.add(Datum(tagId: 0, tagName: value.trim()));
+                                      }
+                                      hashtagController.clear();
+                                    });
+                                  },
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add, color: Colors.blue),
+                                onPressed: () {
+                                  final value = hashtagController.text.trim();
+                                  if (value.isEmpty) return;
+                                  safeSetState(() {
+                                    if (selectedHashtags.isEmpty) {
+                                      selectedHashtags.add(GetHashtags(
+                                          isNew: true, data: [Datum(tagId: 0, tagName: value)]));
+                                    } else {
+                                      selectedHashtags[0].data.add(Datum(tagId: 0, tagName: value));
+                                    }
+                                    hashtagController.clear();
+                                  });
+                                },
+                              )
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
             ),
           );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-      debugPrint('Error editing post: $e');
+        },
+      );
+    },
+  );
+}
+
+
+
+// ฟังก์ชันโหลดหมวดหมู่
+  Future<List<GetAllCategory>> _loadAllCategories() async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final response = await http.get(Uri.parse('$url/category/get'));
+    if (response.statusCode == 200) {
+      return getAllCategoryFromJson(response.body);
+    } else {
+      return [];
     }
   }
+
+
+
+
+// ฟังก์ชันบันทึกโพสต์
+Future<void> _saveEditedPost(
+  BuildContext context,
+  String topic,
+  String description,
+  List<Object> hashtags,
+  List<int> categoryIds,
+) async {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Row(
+        children: [
+          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
+          SizedBox(width: 12),
+          Text('กำลังบันทึก...'),
+        ],
+      ),
+      duration: Duration(seconds: 30),
+      backgroundColor: Colors.orange,
+    ),
+  );
+
+  try {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    final response = await http.put(
+      Uri.parse('$url/image_post/post/edit/${widget.postId}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'user_id': loggedInUserId,
+        'post_topic': topic,
+        'post_description': description,
+        'hashtags': hashtags,
+        'categories': categoryIds,
+      }),
+    );
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('แก้ไขโพสต์สำเร็จ'), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
+        );
+        Navigator.pop(context);
+        await fetchPostDetail();
+      } else {
+        final errorData = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorData['error'] ?? 'แก้ไขโพสต์ไม่สำเร็จ'), backgroundColor: Colors.red, duration: const Duration(seconds: 3)),
+        );
+      }
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 3)),
+      );
+    }
+    debugPrint('Error editing post: $e');
+  }
+}
+
 
   void _showCommentBottomSheet(BuildContext context, int postId) {
     TextEditingController commentController = TextEditingController();
@@ -1008,7 +1178,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                     CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.blue),
+                                          Color.fromARGB(255, 0, 0, 0)),
                                     ),
                                     SizedBox(height: 12),
                                     Text(
@@ -1074,6 +1244,10 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                               itemBuilder: (context, index) {
                                 final c = comments[index];
                                 final isCommentOwner = loggedInUserId == c.uid;
+                                final isLiked =
+                                    commentLikedMap[c.commentId] ?? false;
+                                final likeCount =
+                                    commentLikeCountMap[c.commentId] ?? 0;
 
                                 return Container(
                                   padding: const EdgeInsets.all(12),
@@ -1132,21 +1306,23 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                                 const SizedBox(height: 2),
                                                 Row(
                                                   children: [
-                                                    
                                                     Row(
                                                       children: [
                                                         Icon(
                                                           Icons.access_time,
                                                           size: 12,
-                                                          color: Colors.grey[500],
+                                                          color:
+                                                              Colors.grey[500],
                                                         ),
-                                                        const SizedBox(width: 4),
+                                                        const SizedBox(
+                                                            width: 4),
                                                         Text(
                                                           _formatTimeAgo(
                                                               c.createdAt),
                                                           style: TextStyle(
                                                             fontSize: 11,
-                                                            color: Colors.grey[500],
+                                                            color: Colors
+                                                                .grey[500],
                                                             fontWeight:
                                                                 FontWeight.w400,
                                                           ),
@@ -1157,6 +1333,46 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                                 ),
                                               ],
                                             ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          // 🎯 เพิ่มส่วน Like Button
+                                          Row(
+                                            children: [
+                                              GestureDetector(
+                                                onTap: () {
+                                                  toggleCommentLike(
+                                                      c.commentId);
+                                                  setModalState(
+                                                      () {}); // รีเฟรช UI ใน modal
+                                                },
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      isLiked
+                                                          ? Icons.favorite
+                                                          : Icons
+                                                              .favorite_border,
+                                                      size: 18,
+                                                      color: isLiked
+                                                          ? Colors.red
+                                                          : Colors.grey[600],
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      likeCount > 0
+                                                          ? '$likeCount'
+                                                          : '',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[600],
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                           // แสดงปุ่มลบถ้าเป็นเจ้าของคอมเมนต์ หรือเจ้าของโพสต์
                                           // แสดงปุ่มลบถ้าเป็นเจ้าของคอมเมนต์ หรือเจ้าของโพสต์
@@ -1198,12 +1414,22 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                                     child: Row(
                                                       children: [
                                                         Icon(Icons.edit,
-                                                            color: Color.fromARGB(255, 0, 0, 0),
+                                                            color:
+                                                                Color.fromARGB(
+                                                                    255,
+                                                                    0,
+                                                                    0,
+                                                                    0),
                                                             size: 18),
                                                         SizedBox(width: 8),
                                                         Text('แก้ไข',
                                                             style: TextStyle(
-                                                                color: Color.fromARGB(255, 0, 0, 0))),
+                                                                color: Color
+                                                                    .fromARGB(
+                                                                        255,
+                                                                        0,
+                                                                        0,
+                                                                        0))),
                                                       ],
                                                     ),
                                                   ),
@@ -1424,8 +1650,15 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
     final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
+
     if (res.statusCode == 200) {
-      return getCommentFromJson(res.body);
+      final commentData = getCommentFromJson(res.body);
+
+      // ✅ ดึง commentId ทั้งหมดแล้วเรียก checkCommentLikes
+      final commentIds = commentData.comments.map((c) => c.commentId).toList();
+      await checkCommentLikes(commentIds);
+
+      return commentData;
     } else {
       throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
     }

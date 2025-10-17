@@ -57,6 +57,10 @@ class _SearchpageState extends State<Searchpage> {
   bool _isRefreshing = false;
   String? _errorMessage;
 
+  List<dynamic> categorySearchResults = [];
+  bool _isSearchingCategory = false;
+  List<dynamic> matchedCategories = [];
+
   @override
   void initState() {
     super.initState();
@@ -614,7 +618,55 @@ class _SearchpageState extends State<Searchpage> {
     }
   }
 
-// แก้ไขฟังก์ชัน _clearSearch ให้รวม imageSearchResults
+  Future<void> searchPostByCategory(String categoryName) async {
+    if (categoryName.trim().isEmpty) return;
+
+    setState(() {
+      _isSearchingCategory = true;
+      categorySearchResults.clear();
+      matchedCategories.clear();
+    });
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.get(
+        Uri.parse(
+            "$url/category/search-by-category?cname=${Uri.encodeQueryComponent(categoryName)}"),
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+
+        setState(() {
+          matchedCategories = body['matched_categories'] ?? [];
+          categorySearchResults = body['posts'] ?? [];
+        });
+
+        log("พบโพสต์จาก category: ${categorySearchResults.length} โพสต์");
+      } else if (response.statusCode == 404) {
+        log("ไม่พบหมวดหมู่หรือโพสต์");
+        setState(() {
+          categorySearchResults = [];
+          matchedCategories = [];
+        });
+      } else {
+        log("Category search failed: ${response.statusCode}");
+      }
+    } catch (e) {
+      log("Error searching by category: $e");
+      setState(() {
+        categorySearchResults = [];
+        matchedCategories = [];
+      });
+    } finally {
+      setState(() {
+        _isSearchingCategory = false;
+      });
+    }
+  }
+
   void _clearSearch() {
     searchController.clear();
     setState(() {
@@ -624,11 +676,419 @@ class _SearchpageState extends State<Searchpage> {
       searchedHashtags.clear();
       contentSearchResults.clear();
       imageSearchResults.clear();
+      categorySearchResults.clear();
+      matchedCategories.clear();
       _imageSearchLabels = '';
       _selectedHashtag = null;
       _selectedHashtagPosts.clear();
-      _isSearchingByImage = false; // เพิ่มการรีเซ็ต
+      _isSearchingByImage = false;
+      _isSearchingCategory = false;
     });
+  }
+
+// 4. เพิ่มฟังก์ชันสำหรับสร้าง Widget แสดงผลการค้นหา category
+  Widget _buildCategorySearchHeader() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange.withOpacity(0.1),
+            Colors.deepOrange.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.orange.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.category,
+                  size: 20,
+                  color: Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'หมวดหมู่ที่พบ',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                    Text(
+                      '${matchedCategories.length} หมวดหมู่ • ${categorySearchResults.length} โพสต์',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (matchedCategories.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: matchedCategories.map<Widget>((category) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.orange.withOpacity(0.2),
+                        Colors.deepOrange.withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.4),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (category['cimage'] != null &&
+                          category['cimage'].toString().isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.network(
+                            category['cimage'],
+                            width: 16,
+                            height: 16,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.category,
+                                    size: 16, color: Colors.orange),
+                          ),
+                        )
+                      else
+                        const Icon(Icons.category,
+                            size: 16, color: Colors.orange),
+                      const SizedBox(width: 6),
+                      Text(
+                        category['cname'] ?? '',
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategorySearchResult(dynamic post) {
+    final images = post['images'] as List<dynamic>;
+    final hasImages = images.isNotEmpty;
+    final mainImage = hasImages ? images[0] : null;
+    final category = post['category'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.orange.withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          final postId = post['post_id'];
+          if (postId != null) {
+            Get.to(() => UserDetailPostPage(postId: postId));
+          }
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.05),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.grey[300],
+                    backgroundImage:
+                        post['user']?['profile_image']?.isNotEmpty == true
+                            ? NetworkImage(post['user']['profile_image'])
+                            : null,
+                    child: post['user']?['profile_image']?.isEmpty != false
+                        ? Icon(Icons.person, size: 18, color: Colors.grey[600])
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post['user']?['name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        if (post['post_date'] != null)
+                          Text(
+                            _formatDate(post['post_date']),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Category badge
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.orange.withOpacity(0.8),
+                          Colors.deepOrange.withOpacity(0.8),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.category,
+                            size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          category['name'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (post['post_topic']?.isNotEmpty == true) ...[
+                    Text(
+                      post['post_topic'],
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (post['post_description']?.isNotEmpty == true) ...[
+                    Text(
+                      post['post_description'],
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey[700],
+                        height: 1.5,
+                      ),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Category info
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.orange.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        if (category['image'] != null &&
+                            category['image'].toString().isNotEmpty)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              category['image'],
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.category,
+                                    color: Colors.orange),
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.category,
+                                color: Colors.orange),
+                          ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                category['name'] ?? '',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                              if (category['description'] != null)
+                                Text(
+                                  category['description'],
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Images
+                  if (hasImages) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: Image.network(
+                              mainImage,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                color: Colors.grey[200],
+                                child: const Icon(Icons.broken_image,
+                                    color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                          if (images.length > 1)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.7),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.collections,
+                                        color: Colors.white, size: 12),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '${images.length}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _selectHashtag(GetPostHashtags hashtag) {
@@ -1088,160 +1548,144 @@ class _SearchpageState extends State<Searchpage> {
     );
   }
 
-  // ฟังก์ชัน searchImageByLabel ทั้งหมดที่แก้ไขแล้ว
-Future<void> searchImageByLabel(File imageFile) async {
-  setState(() {
-    _isSearchingByImage = true;
-    imageSearchResults.clear();
-    _imageSearchLabels = '';
-    searchedHashtags.clear();
-    _selectedHashtag = null;
-    _selectedHashtagPosts.clear();
-    isSearchingHashtag = false;
-    currentSearchQuery = "image_search";
-  });
-
-  try {
-    // 1. อ่านไฟล์และแปลงเป็น Base64
-    final bytes = await imageFile.readAsBytes();
-    final base64Image = base64Encode(bytes);
-    log("Image converted to Base64, size: ${bytes.length} bytes");
-
-    // 2. เรียก Vision API เพื่อทำ Label Detection
-    final apiKey = "AIzaSyBpz8mdC1PePyf5cb1BP7jS53a2x7jT-e0";
-    final visionUrl =
-        "https://vision.googleapis.com/v1/images:annotate?key=$apiKey";
-    final translateUrl =
-        "https://translation.googleapis.com/language/translate/v2?key=$apiKey";
-
-    final visionBody = jsonEncode({
-      "requests": [
-        {
-          "image": {"content": base64Image},
-          "features": [
-            {"type": "LABEL_DETECTION", "maxResults": 10}
-          ]
-        }
-      ]
-    });
-
-    final visionResponse = await http.post(
-      Uri.parse(visionUrl),
-      headers: {"Content-Type": "application/json"},
-      body: visionBody,
-    );
-
-    if (visionResponse.statusCode != 200) {
-      log("Vision API error: ${visionResponse.statusCode}");
-      log("Response body: ${visionResponse.body}");
-      setState(() => _isSearchingByImage = false);
-      return;
-    }
-
-    final data = jsonDecode(visionResponse.body);
-    final labelAnnotations = data['responses'][0]['labelAnnotations'];
-
-    if (labelAnnotations == null || labelAnnotations.isEmpty) {
-      log("ไม่พบ label ในรูปภาพ");
-      setState(() => _isSearchingByImage = false);
-      return;
-    }
-
-    final descriptionText =
-        labelAnnotations.map((label) => label['description']).join(", ");
-    log("Detected labels in image: $descriptionText");
-
-    // 3. แปลข้อความเป็นไทย
-    final translateBody =
-        jsonEncode({"q": descriptionText, "target": "th", "format": "text"});
-    final translateResponse = await http.post(
-      Uri.parse(translateUrl),
-      headers: {"Content-Type": "application/json"},
-      body: translateBody,
-    );
-
-    String translatedText = descriptionText;
-    if (translateResponse.statusCode == 200) {
-      final translateData = jsonDecode(translateResponse.body);
-      translatedText =
-          translateData['data']['translations'][0]['translatedText'];
-      log("Translated text: $translatedText");
-    } else {
-      log("Translate API error: ${translateResponse.statusCode}");
-    }
-
-    setState(() => _imageSearchLabels = translatedText);
-
-    // 4. ส่ง translatedText ไป backend เพื่อค้นหาโพสต์
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    final futures = await Future.wait([
-      http.get(Uri.parse(
-          "$url/hashtags/search-posts?q=${Uri.encodeQueryComponent(translatedText)}")),
-      http.get(Uri.parse(
-          "$url/hashtags/analysis-posts?q=${Uri.encodeQueryComponent(translatedText)}")),
-    ]);
-
-    final postContentResponse = futures[0];
-    final analysisTextResponse = futures[1];
-
-    List<dynamic> allResults = [];
-
-    if (postContentResponse.statusCode == 200) {
-      final postBody = jsonDecode(postContentResponse.body);
-      allResults.addAll(postBody['posts'] ?? []);
-    }
-
-    if (analysisTextResponse.statusCode == 200) {
-      final analysisBody = jsonDecode(analysisTextResponse.body);
-      final analysisPosts = analysisBody['posts'] ?? [];
-
-      final existingPostIds =
-          allResults.map((post) => post['post_id']).toSet();
-      final uniqueAnalysisPosts = analysisPosts
-          .where((post) => !existingPostIds.contains(post['post_id']))
-          .toList();
-
-      allResults.addAll(uniqueAnalysisPosts);
-    }
-
-    // 5. แยกคำจากข้อความแปล (แยกด้วยคอมมาและ trim)
-    final searchWords =
-        translatedText.split(',').map((s) => s.trim().toLowerCase()).toList();
-
-    // 6. กรองโพสต์
-   final filteredResults = allResults.where((post) {
-  // แยกคำจาก analysis_text ของแต่ละโพสต์
-  final analysisTexts = (post['analysis'] as List<dynamic>? ?? [])
-      .map((item) => item['analysis_text'].toString().toLowerCase())
-      .toList();
-
-  final topicText = (post['post_topic'] ?? '').toString().toLowerCase();
-  final descriptionText =
-      (post['post_description'] ?? '').toString().toLowerCase();
-
-  // เช็คคำว่า match กับคำใน analysis, topic, description
-  return searchWords.any((word) =>
-      analysisTexts.any((text) => text.contains(word)) ||
-      topicText.contains(word) ||
-      descriptionText.contains(word));
-}).toList();
-
-
-    // 7. อัปเดต state
+  Future<void> searchImageByLabel(File imageFile) async {
     setState(() {
-      imageSearchResults = filteredResults;
-      _isSearchingByImage = false;
+      _isSearchingByImage = true;
+      imageSearchResults.clear();
+      _imageSearchLabels = '';
+      contentSearchResults.clear();
+      categorySearchResults.clear();
+      searchedHashtags.clear();
+      _selectedHashtag = null;
+      _selectedHashtagPosts.clear();
+      isSearchingHashtag = false;
+      currentSearchQuery = "";
+      filteredUsers = user;
     });
 
-    log("พบโพสต์ที่เกี่ยวข้อง: ${filteredResults.length} โพสต์");
-  } catch (e, stackTrace) {
-    log("Error analyzing image: $e", stackTrace: stackTrace);
-    setState(() => _isSearchingByImage = false);
-  }
-}
+    try {
+      // 1️⃣ แปลงรูปเป็น Base64
+      final bytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(bytes);
+      log("Image converted to Base64, size: ${bytes.length} bytes");
 
+      // 2️⃣ เรียก Vision API
+      final apiKey = "AIzaSyBpz8mdC1PePyf5cb1BP7jS53a2x7jT-e0";
+      final visionUrl =
+          "https://vision.googleapis.com/v1/images:annotate?key=$apiKey";
+      final translateUrl =
+          "https://translation.googleapis.com/language/translate/v2?key=$apiKey";
+
+      final visionBody = jsonEncode({
+        "requests": [
+          {
+            "image": {"content": base64Image},
+            "features": [
+              {"type": "LABEL_DETECTION", "maxResults": 10}
+            ]
+          }
+        ]
+      });
+
+      final visionResponse = await http.post(
+        Uri.parse(visionUrl),
+        headers: {"Content-Type": "application/json"},
+        body: visionBody,
+      );
+
+      if (visionResponse.statusCode != 200) {
+        log("Vision API error: ${visionResponse.statusCode}");
+        setState(() {
+          _isSearchingByImage = false;
+          _imageSearchLabels = 'เกิดข้อผิดพลาดในการวิเคราะห์รูปภาพ';
+        });
+        return;
+      }
+
+      final data = jsonDecode(visionResponse.body);
+      final labelAnnotations = data['responses'][0]['labelAnnotations'];
+
+      if (labelAnnotations == null || labelAnnotations.isEmpty) {
+        log("ไม่พบ label ในรูปภาพ");
+        setState(() {
+          _isSearchingByImage = false;
+          _imageSearchLabels = 'ไม่สามารถตรวจจับเนื้อหาในรูปภาพได้';
+        });
+        return;
+      }
+
+      // แปลงเป็น List<String
+      final labelsEn = labelAnnotations
+          .map<String>((l) => l['description'].toString())
+          .toList();
+      log("Detected labels (EN): $labelsEn");
+
+      // 3️⃣ แปล labels เป็นไทย
+      final descriptionText = labelsEn.join(", ");
+      final translateBody =
+          jsonEncode({"q": descriptionText, "target": "th", "format": "text"});
+
+      final translateResponse = await http.post(
+        Uri.parse(translateUrl),
+        headers: {"Content-Type": "application/json"},
+        body: translateBody,
+      );
+
+      List<String> labelsTH = labelsEn; // fallback เป็นอังกฤษ
+      String translatedText = descriptionText;
+
+      if (translateResponse.statusCode == 200) {
+        final translateData = jsonDecode(translateResponse.body);
+        translatedText =
+            translateData['data']['translations'][0]['translatedText'];
+        log("Translated text: $translatedText");
+
+        labelsTH = translatedText
+            .split(RegExp(r",\s*"))
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        log("Labels (TH, array): $labelsTH");
+      }
+
+      setState(() {
+        _imageSearchLabels = translatedText;
+      });
+
+      // 4️⃣ ส่ง labelsTH ไป backend
+      final config = await Configuration.getConfig();
+      final url = config['apiEndpoint'];
+
+      log("Sending labels to backend: $labelsTH");
+
+      final response = await http.post(
+        Uri.parse("$url/image_post/searchByImageLabels"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"labels": labelsTH}), // ✅ ส่งเป็น array ของ String
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          imageSearchResults = List<Map<String, dynamic>>.from(data['posts']);
+          _isSearchingByImage = false;
+        });
+        log("Found ${imageSearchResults.length} posts from label search");
+      } else {
+        log("Post search failed: ${response.body}");
+        setState(() {
+          _isSearchingByImage = false;
+          _imageSearchLabels = "ไม่พบโพสต์ที่ตรงกับรูปภาพ";
+        });
+      }
+    } catch (e, stackTrace) {
+      log("Error analyzing image: $e", stackTrace: stackTrace);
+      setState(() {
+        _isSearchingByImage = false;
+        _imageSearchLabels = 'เกิดข้อผิดพลาด: ${e.toString()}';
+      });
+    }
+  }
 
   Widget _buildProgressStep(String label, bool isActive) {
     return Column(
@@ -1267,15 +1711,16 @@ Future<void> searchImageByLabel(File imageFile) async {
     );
   }
 
-  // เพิ่มฟังก์ชันสำหรับสร้าง Widget พิเศษสำหรับผลการค้นหาด้วยรูปภาพ
   Widget _buildImageSearchResult(dynamic post) {
-    final images = post['images'] as List<dynamic>;
-    final hasImages = images.isNotEmpty;
-    final mainImage = hasImages ? images[0] : null;
+    final userName = post['name'] ?? 'Unknown';
+    final userProfile = post['profile_image'];
 
-    // Check if this post has analysis data
-    final analysis = post['analysis'] as List<dynamic>?;
-    final hasAnalysis = analysis?.isNotEmpty == true;
+    // ใช้ image_url จาก backend สำหรับรูปแรก
+    final mainImage = post['image_url'];
+
+    // ดึงข้อมูลวิเคราะห์ AI
+    final analysisText = post['analysis_text'] ?? '';
+    final hasAnalysis = analysisText.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1289,7 +1734,6 @@ Future<void> searchImageByLabel(File imageFile) async {
             offset: const Offset(0, 4),
           ),
         ],
-        // เพิ่มเส้นขอบสีม่วงเพื่อแสดงว่าเป็นผลจากการค้นหาด้วยรูปภาพ
         border: Border.all(
           color: Colors.purple.withOpacity(0.3),
           width: 1.5,
@@ -1306,99 +1750,28 @@ Future<void> searchImageByLabel(File imageFile) async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with user info and image search indicator
+            // Header user info
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.05),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
               child: Row(
                 children: [
-                  // User avatar
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: Colors.grey[300],
                     backgroundImage:
-                        post['user']?['profile_image']?.isNotEmpty == true
-                            ? NetworkImage(post['user']['profile_image'])
+                        userProfile != null && userProfile.isNotEmpty
+                            ? NetworkImage(userProfile)
                             : null,
-                    child: post['user']?['profile_image']?.isEmpty != false
-                        ? Icon(
-                            Icons.person,
-                            size: 18,
-                            color: Colors.grey[600],
-                          )
+                    child: userProfile == null || userProfile.isEmpty
+                        ? Icon(Icons.person, size: 18, color: Colors.grey[600])
                         : null,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          post['user']?['name'] ?? 'Unknown',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        if (post['post_date'] != null)
-                          Text(
-                            _formatDate(post['post_date']),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Image search indicator
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.purple.withOpacity(0.8),
-                          Colors.deepPurple.withOpacity(0.8),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.image_search,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'ค้นหาด้วยรูปภาพ',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      userName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
                     ),
                   ),
                 ],
@@ -1406,329 +1779,331 @@ Future<void> searchImageByLabel(File imageFile) async {
             ),
 
             // Post content
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Post topic
-                  if (post['post_topic']?.isNotEmpty == true) ...[
-                    Text(
-                      post['post_topic'],
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
-                  // Post description
-                  if (post['post_description']?.isNotEmpty == true) ...[
-                    Text(
-                      post['post_description'],
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.grey[700],
-                        height: 1.5,
-                      ),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // AI Analysis section (enhanced for image search)
-                  if (hasAnalysis) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.purple.withOpacity(0.05),
-                            Colors.deepPurple.withOpacity(0.03),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.purple.withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.purple.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  Icons.psychology,
-                                  size: 16,
-                                  color: Colors.purple[700],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'AI Analysis - ตรงกับรูปภาพที่ค้นหา',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.purple[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: analysis!.map((item) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Text(
-                                  item['analysis_text'] ?? '',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey[700],
-                                    fontStyle: FontStyle.italic,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Hashtags (enhanced styling)
-                  if (post['hashtags'] != null &&
-                      (post['hashtags'] as List).isNotEmpty) ...[
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children:
-                          (post['hashtags'] as List).map<Widget>((hashtag) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.blue.withOpacity(0.1),
-                                Colors.cyan.withOpacity(0.1),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.blue.withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            '#${hashtag['tag_name']}',
-                            style: const TextStyle(
-                              color: Colors.blue,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Images section (enhanced for image search results)
-                  if (hasImages) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Stack(
-                        children: [
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.purple.withOpacity(0.3),
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.network(
-                                  mainImage,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder:
-                                      (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      color: Colors.grey[100],
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.purple[400],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'กำลังโหลดรูปภาพ...',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                    color: Colors.grey[100],
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.broken_image_outlined,
-                                          size: 32,
-                                          color: Colors.grey[400],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'ไม่สามารถโหลดรูปภาพได้',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[500],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // Image count indicator (enhanced)
-                          if (images.length > 1)
-                            Positioned(
-                              top: 12,
-                              right: 12,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.black.withOpacity(0.8),
-                                      Colors.black.withOpacity(0.6),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.collections,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${images.length}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                          // Similarity indicator overlay
-                          Positioned(
-                            bottom: 12,
-                            left: 12,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.green.withOpacity(0.9),
-                                    Colors.teal.withOpacity(0.9),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.green.withOpacity(0.3),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle,
-                                    color: Colors.white,
-                                    size: 12,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    'ตรงกัน',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
+            if (post['post_topic']?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  post['post_topic'],
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
+            if (post['post_description']?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(post['post_description']),
+              ),
+               // แสดง AI Analysis
+            if (hasAnalysis)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.purple.withOpacity(0.05),
+                        Colors.deepPurple.withOpacity(0.03),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.purple.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.psychology,
+                                size: 16, color: Colors.purple[700]),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'AI Analysis - ตรงกับรูปภาพที่ค้นหา',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.purple[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        analysisText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[700],
+                          fontStyle: FontStyle.italic,
+                          height: 1.4,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // แสดงรูปแรกจาก image_url
+            if (mainImage != null && mainImage.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    mainImage,
+                    height: 180, // ความสูงเล็ก
+                    fit: BoxFit.cover, // ความกว้างเต็มคอนเทนเนอร์
+                    width: double.infinity, // ทำให้เต็มความกว้าง
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 150,
+                      color: Colors.grey[100],
+                      child: const Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            size: 32, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+           
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildImageSearchSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.image_search,
+                  size: 18, color: Colors.purple),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              "ค้นหาด้วยรูปภาพ",
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple),
+            ),
+            if (_isSearchingByImage) ...[
+              const SizedBox(width: 12),
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.purple),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Labels
+        if (_imageSearchLabels.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.purple.withOpacity(0.1),
+                  Colors.deepPurple.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.purple.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome,
+                        size: 20, color: Colors.purple),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI ตรวจจับเนื้อหาในรูปภาพ',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.purple[700],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.purple.withOpacity(0.2)),
+                  ),
+                  child: Text(
+                    _imageSearchLabels,
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.grey[800], height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Loading state
+        if (_isSearchingByImage) ...[
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 20),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.purple.withOpacity(0.05),
+                  Colors.deepPurple.withOpacity(0.02),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.purple.withOpacity(0.2)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: CircularProgressIndicator(
+                    color: Colors.purple[600],
+                    strokeWidth: 3,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'กำลังค้นหาโพสต์ที่เกี่ยวข้อง',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.purple[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Results
+        if (!_isSearchingByImage && imageSearchResults.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.green.withOpacity(0.1),
+                  Colors.teal.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.check_circle,
+                      size: 20, color: Colors.green),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'พบโพสต์ที่ตรงกัน ${imageSearchResults.length} โพสต์',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                      Text(
+                        'จากการวิเคราะห์เนื้อหาในรูปภาพ',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...imageSearchResults.map((post) => _buildImageSearchResult(post)),
+        ],
+
+        // No results
+        if (!_isSearchingByImage &&
+            _imageSearchLabels.isNotEmpty &&
+            imageSearchResults.isEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                Icon(Icons.image_not_supported,
+                    size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'ไม่พบโพสต์ที่ตรงกับรูปภาพ',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'คำค้นหา: $_imageSearchLabels',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'ลองเลือกรูปภาพอื่นหรือค้นหาด้วยคำอื่น',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1780,112 +2155,116 @@ Future<void> searchImageByLabel(File imageFile) async {
                     children: [
                       Expanded(
                         child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          child: TextField(
-                            controller: searchController,
-                            decoration: InputDecoration(
-                              hintText: 'ค้นหาเพื่อนหรือ #hashtag',
-                              hintStyle: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 16,
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search,
-                                color: Colors.grey[500],
-                                size: 20,
-                              ),
-                              suffixIcon: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (currentSearchQuery.isNotEmpty)
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.clear,
-                                        color: Colors.grey,
-                                        size: 20,
-                                      ),
-                                      onPressed: _clearSearch,
-                                    ),
-                                  // ปุ่มค้นหารูปภาพที่มีการแสดงสถานะ
-                                  Container(
-                                    margin: const EdgeInsets.only(right: 8),
-                                    child: IconButton(
-                                      icon: Stack(
-                                        children: [
-                                          Icon(
-                                            Icons.image,
-                                            color: _isSearchingByImage
-                                                ? Colors.purple
-                                                : Colors.grey,
-                                            size: 22,
-                                          ),
-                                          if (_isSearchingByImage)
-                                            Positioned(
-                                              right: 0,
-                                              top: 0,
-                                              child: Container(
-                                                width: 8,
-                                                height: 8,
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.purple,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      onPressed: _pickImageForSearch,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                                horizontal: 16,
-                              ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(25),
                             ),
-                            onChanged: (query) {
-                              // ป้องกันการเปลี่ยน query เมื่อกำลังค้นหาด้วยรูปภาพ
-                              if (_isSearchingByImage &&
-                                  query != "image_search") {
-                                return;
-                              }
+                            child: TextField(
+                                controller: searchController,
+                                decoration: InputDecoration(
+                                  hintText: 'ค้นหาเพื่อนหรือ #hashtag',
+                                  hintStyle: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 16,
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.search,
+                                    color: Colors.grey[500],
+                                    size: 20,
+                                  ),
+                                  suffixIcon: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (currentSearchQuery.isNotEmpty)
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.clear,
+                                            color: Colors.grey,
+                                            size: 20,
+                                          ),
+                                          onPressed: _clearSearch,
+                                        ),
+                                      // ปุ่มค้นหารูปภาพที่มีการแสดงสถานะ
+                                      Container(
+                                        margin: const EdgeInsets.only(right: 8),
+                                        child: IconButton(
+                                          icon: Stack(
+                                            children: [
+                                              Icon(
+                                                Icons.image,
+                                                color: _isSearchingByImage
+                                                    ? Colors.purple
+                                                    : Colors.grey,
+                                                size: 22,
+                                              ),
+                                              if (_isSearchingByImage)
+                                                Positioned(
+                                                  right: 0,
+                                                  top: 0,
+                                                  child: Container(
+                                                    width: 8,
+                                                    height: 8,
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                      color: Colors.purple,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          onPressed: _pickImageForSearch,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                    horizontal: 16,
+                                  ),
+                                ),
+                                onChanged: (query) {
+                                  // ถ้ากำลังค้นหาด้วยรูปภาพ ไม่ให้ทำอะไร
+                                  if (_isSearchingByImage ||
+                                      imageSearchResults.isNotEmpty) {
+                                    return;
+                                  }
 
-                              setState(() {
-                                currentSearchQuery = query;
-                                isSearchingHashtag = query.startsWith("#");
-                                _selectedHashtag = null;
-                                _selectedHashtagPosts.clear();
-                              });
+                                  setState(() {
+                                    currentSearchQuery = query;
+                                    isSearchingHashtag = query.startsWith("#");
+                                    _selectedHashtag = null;
+                                    _selectedHashtagPosts.clear();
+                                    imageSearchResults
+                                        .clear(); // ล้างผลค้นหารูปภาพ
+                                    _imageSearchLabels = ''; // ล้าง labels
+                                  });
 
-                              if (query.startsWith("#")) {
-                                searchHashtags(query);
-                                setState(() {
-                                  contentSearchResults.clear();
-                                });
-                              } else if (query.isNotEmpty &&
-                                  query != "image_search") {
-                                setState(() {
-                                  filteredUsers = user
-                                      .where((u) => (u.name ?? '')
-                                          .toLowerCase()
-                                          .contains(query.toLowerCase()))
-                                      .toList();
-                                });
-                                searchPostContent(query);
-                              } else if (query != "image_search") {
-                                setState(() {
-                                  filteredUsers = user;
-                                  contentSearchResults.clear();
-                                });
-                              }
-                            },
-                          ),
-                        ),
+                                  if (query.startsWith("#")) {
+                                    searchHashtags(query);
+                                    setState(() {
+                                      contentSearchResults.clear();
+                                      categorySearchResults.clear();
+                                    });
+                                  } else if (query.isNotEmpty) {
+                                    setState(() {
+                                      filteredUsers = user
+                                          .where((u) => (u.name ?? '')
+                                              .toLowerCase()
+                                              .contains(query.toLowerCase()))
+                                          .toList();
+                                    });
+                                    searchPostContent(query);
+                                    searchPostByCategory(query);
+                                  } else {
+                                    setState(() {
+                                      filteredUsers = user;
+                                      contentSearchResults.clear();
+                                      categorySearchResults.clear();
+                                    });
+                                  }
+                                })),
                       ),
                     ],
                   ),
@@ -1899,270 +2278,10 @@ Future<void> searchImageByLabel(File imageFile) async {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // เช็คการแสดงผลการค้นหารูปภาพก่อน
-                        if (currentSearchQuery == "image_search" ||
-                            _isSearchingByImage ||
+                        if (_isSearchingByImage ||
                             imageSearchResults.isNotEmpty ||
                             _imageSearchLabels.isNotEmpty) ...[
-                          // ส่วนแสดงผลการค้นหารูปภาพ
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.purple.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.image_search,
-                                  size: 18,
-                                  color: Colors.purple,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                "ค้นหาด้วยรูปภาพ",
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.purple,
-                                ),
-                              ),
-                              if (_isSearchingByImage) ...[
-                                const SizedBox(width: 12),
-                                const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.purple,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          // แสดง labels ที่ตรวจจับได้
-                          if (_imageSearchLabels.isNotEmpty) ...[
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.purple.withOpacity(0.1),
-                                    Colors.deepPurple.withOpacity(0.05),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.purple.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.auto_awesome,
-                                        size: 20,
-                                        color: Colors.purple,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'AI ตรวจจับเนื้อหาในรูปภาพ',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.purple[700],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: Colors.purple.withOpacity(0.2),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _imageSearchLabels,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey[800],
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-
-                          // Loading state สำหรับการค้นหา
-                          if (_isSearchingByImage) ...[
-                            Container(
-                              margin: const EdgeInsets.symmetric(vertical: 20),
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.purple.withOpacity(0.05),
-                                    Colors.deepPurple.withOpacity(0.02),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.purple.withOpacity(0.2),
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.purple.withOpacity(0.1),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: CircularProgressIndicator(
-                                      color: Colors.purple[600],
-                                      strokeWidth: 3,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Text(
-                                    'กำลังค้นหาโพสต์ที่เกี่ยวข้อง',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.purple[700],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'กำลังใช้ AI วิเคราะห์เนื้อหาและค้นหาโพสต์ที่ตรงกัน',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                      height: 1.4,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-
-                          // แสดงผลลัพธ์
-                          if (!_isSearchingByImage &&
-                              imageSearchResults.isNotEmpty) ...[
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.green.withOpacity(0.1),
-                                    Colors.teal.withOpacity(0.05),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.green.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.check_circle,
-                                      size: 20,
-                                      color: Colors.green,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'พบโพสต์ที่ตรงกัน ${imageSearchResults.length} โพสต์',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.green[700],
-                                          ),
-                                        ),
-                                        Text(
-                                          'จากการวิเคราะห์เนื้อหาในรูปภาพ',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // แสดงโพสต์ที่พบ
-                            ...imageSearchResults
-                                .map((post) => _buildImageSearchResult(post)),
-                          ],
-
-                          // กรณีไม่พบผลลัพธ์
-                          if (!_isSearchingByImage &&
-                              _imageSearchLabels.isNotEmpty &&
-                              imageSearchResults.isEmpty) ...[
-                            Container(
-                              padding: const EdgeInsets.all(32),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,  
-                                children: [
-                                  Column(
-                                    children: [
-                                      Icon(
-                                        Icons.image_not_supported,
-                                        size: 64,
-                                        color: Colors.grey[400],
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'ไม่พบโพสต์ที่ตรงกับรูปภาพ',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'ลองเลือกรูปภาพอื่นหรือค้นหาด้วยคำอื่น',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[500],
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          _buildImageSearchSection(),
                         ]
                         // 1. แสดง Hashtag search ก่อน (ถ้าเป็นการค้นหา hashtag)
                         else if (isSearchingHashtag) ...[
@@ -2360,219 +2479,64 @@ Future<void> searchImageByLabel(File imageFile) async {
                                   (post) => _buildContentSearchResult(post)),
                             const SizedBox(height: 16),
                           ],
-
-                          // 2.3 แสดงผลการค้นหาด้วยรูปภาพ (ถ้ามี)
-                          if (imageSearchResults.isNotEmpty ||
-                              _isSearchingByImage ||
-                              _imageSearchLabels.isNotEmpty) ...[
+                          if (categorySearchResults.isNotEmpty ||
+                              _isSearchingCategory) ...[
                             Row(
                               children: [
-                                const Icon(Icons.image_search,
-                                    size: 20, color: Colors.purple),
+                                const Icon(Icons.category,
+                                    size: 20, color: Colors.orange),
                                 const SizedBox(width: 8),
-                                const Text("ผลการค้นหาด้วยรูปภาพ",
-                                    style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold)),
-                                if (_isSearchingByImage) ...[
+                                const Text(
+                                  "ผลการค้นหาจากหมวดหมู่",
+                                  style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                if (_isSearchingCategory) ...[
                                   const SizedBox(width: 12),
                                   const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.purple)),
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.orange),
+                                  ),
                                 ],
                               ],
                             ),
-                            if (_imageSearchLabels.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.purple.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: Colors.purple.withOpacity(0.3)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.label,
-                                        size: 16, color: Colors.purple),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                          'ตรวจจับได้: $_imageSearchLabels',
-                                          style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.purple,
-                                              fontWeight: FontWeight.w500)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                             const SizedBox(height: 12),
-                            if (_isSearchingByImage)
-                              Container(
-                                margin: const EdgeInsets.all(20),
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.purple.withOpacity(0.05),
-                                      Colors.deepPurple.withOpacity(0.02),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: Colors.purple.withOpacity(0.2),
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    // Animated loading indicator
-                                    Container(
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: Colors.purple.withOpacity(0.1),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: CircularProgressIndicator(
-                                        color: Colors.purple[600],
-                                        strokeWidth: 3,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      'กำลังวิเคราะห์รูปภาพ',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.purple[700],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'กำลังใช้ AI ตรวจสอบเนื้อหาในรูปภาพและค้นหาโพสต์ที่เกี่ยวข้อง',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey[600],
-                                        height: 1.4,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    // Progress steps
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        _buildProgressStep(
-                                            'วิเคราะห์รูปภาพ', true),
-                                        Container(
-                                          width: 20,
-                                          height: 2,
-                                          margin: const EdgeInsets.symmetric(
-                                              horizontal: 8),
-                                          color: Colors.purple.withOpacity(0.3),
-                                        ),
-                                        _buildProgressStep('ค้นหาโพสต์', false),
-                                      ],
-                                    ),
-                                  ],
+                            if (_isSearchingCategory)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: CircularProgressIndicator(
+                                      color: Colors.orange),
                                 ),
                               )
-                            else if (imageSearchResults.isEmpty &&
-                                _imageSearchLabels.isNotEmpty)
+                            else if (categorySearchResults.isEmpty)
                               Container(
                                 padding: const EdgeInsets.all(24),
                                 child: Column(
                                   children: [
-                                    Icon(Icons.image_not_supported,
+                                    Icon(Icons.category_outlined,
                                         size: 48, color: Colors.grey[400]),
                                     const SizedBox(height: 12),
-                                    Text('ไม่พบโพสต์ที่ตรงกับรูปภาพ',
-                                        style: TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500)),
-                                    const SizedBox(height: 4),
-                                    Text('ลองเลือกรูปภาพอื่น',
-                                        style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[500])),
+                                    Text(
+                                      'ไม่พบโพสต์ในหมวดหมู่นี้',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               )
-                            else if (imageSearchResults.isNotEmpty)
-                              Column(
-                                children: [
-                                  // แสดงสถิติผลการค้นหา
-                                  Container(
-                                    margin: const EdgeInsets.only(bottom: 16),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.purple.withOpacity(0.1),
-                                          Colors.deepPurple.withOpacity(0.05),
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Colors.purple.withOpacity(0.2),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color:
-                                                Colors.purple.withOpacity(0.2),
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: Icon(
-                                            Icons.analytics,
-                                            size: 20,
-                                            color: Colors.purple[700],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'พบโพสต์ที่ตรงกัน ${imageSearchResults.length} โพสต์',
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Colors.purple[700],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'จากการวิเคราะห์เนื้อหาในรูปภาพ',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // แสดงโพสต์ด้วยฟังก์ชันพิเศษ
-                                  ...imageSearchResults.map(
-                                      (post) => _buildImageSearchResult(post)),
-                                ],
-                              ),
+                            else ...[
+                              _buildCategorySearchHeader(),
+                              ...categorySearchResults.map(
+                                  (post) => _buildCategorySearchResult(post)),
+                            ],
+                            const SizedBox(height: 16),
                           ],
 
                           // 2.4 แสดงข้อความถ้าไม่พบผลการค้นหาใด ๆ เลย

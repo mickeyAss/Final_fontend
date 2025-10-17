@@ -52,6 +52,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
+      print('Status code: ${response.statusCode}');
+print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

@@ -328,7 +328,7 @@ class _MainpageState extends State<Mainpage>
   void _navigateToNotifications() async {
     _hideOverlay();
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const Notificationspage()),
+      MaterialPageRoute(builder: (_) => const NotificationsPage()),
     );
     _fetchUnreadNotificationCount();
   }

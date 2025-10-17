@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'package:fontend_pro/pages/user_detail_post.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,8 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/models/admin_report.dart';
 import 'package:fontend_pro/pages/admin_profile_user.dart';
+import 'package:fontend_pro/pages/admin_insertcategorys.dart';
+import 'package:fontend_pro/pages/admin_editcategorypage.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -275,6 +278,22 @@ class _AdminPageState extends State<AdminPage>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // ปุ่มเพิ่มหมวดหมู่ใหม่
+          IconButton(
+            icon: const Icon(Icons.add_box),
+            onPressed: () {
+              Get.to(() => const AdminInsertCategory());
+            },
+            tooltip: "เพิ่มหมวดหมู่",
+          ),
+            // ปุ่มแก้ไขหมวดหมู่
+  IconButton(
+    icon: const Icon(Icons.edit),
+    onPressed: () {
+      Get.to(() => const EditCategoryPage()); // สร้างหน้าแก้ไขหมวดหมู่
+    },
+    tooltip: "แก้ไขหมวดหมู่",
+  ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: fetchAllReports,
@@ -1095,276 +1114,218 @@ class _AdminPageState extends State<AdminPage>
           ),
 
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  padding: const EdgeInsets.all(12),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // ✅ คลิกที่ส่วนข้อมูลโพสต์เพื่อไปหน้า UserDetailPostPage
+      GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UserDetailPostPage(
+                postId: reportData.postId,
+              ),
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Post Owner Info
+            Row(
               children: [
-                // Post Owner Info
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundImage: reportData.owner.profileImage.isNotEmpty
-                          ? NetworkImage(reportData.owner.profileImage)
-                          : null,
-                      child: reportData.owner.profileImage.isEmpty
-                          ? const Icon(Icons.person, size: 20)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                CircleAvatar(
+                  radius: 20,
+                  backgroundImage: reportData.owner.profileImage.isNotEmpty
+                      ? NetworkImage(reportData.owner.profileImage)
+                      : null,
+                  child: reportData.owner.profileImage.isEmpty
+                      ? const Icon(Icons.person, size: 20)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        reportData.owner.name,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      Row(
                         children: [
+                          buildStatusChip(reportData.status),
+                          const SizedBox(width: 8),
                           Text(
-                            reportData.owner.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          Row(
-                            children: [
-                              buildStatusChip(reportData.status),
-                              const SizedBox(width: 8),
-                              Text(
-                                "โพสต์เมื่อ: ${formatTime(reportData.date)}",
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey[600]),
-                              ),
-                            ],
+                            "โพสต์เมื่อ: ${formatTime(reportData.date)}",
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[600]),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Post Content
-                if (reportData.topic?.isNotEmpty == true) ...[
-                  Text(
-                    reportData.topic!,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                ],
-
-                if (reportData.description?.isNotEmpty == true) ...[
-                  Text(
-                    reportData.description!,
-                    style: TextStyle(color: Colors.grey[700]),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-
-                // Post Images
-                if (reportData.images.isNotEmpty) ...[
-                  SizedBox(
-                    height: 120,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: reportData.images.length,
-                      itemBuilder: (context, imgIndex) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              reportData.images[imgIndex],
-                              width: 120,
-                              height: 120,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: 120,
-                                  height: 120,
-                                  color: Colors.grey[300],
-                                  child: const Icon(Icons.broken_image),
-                                );
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-
-                // Reports Details
-                if (reportData.reports.isNotEmpty) ...[
-                  const Divider(),
-                  ExpansionTile(
-                    title: Text(
-                      "รายละเอียดรายงาน (${reportData.reports.length} รายการ)",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    children: reportData.reports.map<Widget>((report) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: const Border(
-                            left: BorderSide(color: Colors.red, width: 3),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.report_problem,
-                                    size: 16, color: Colors.red),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    report.reason ?? "ไม่ระบุเหตุผล",
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(Icons.person,
-                                    size: 14, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  "ผู้รายงาน: ",
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                Text(
-                                  report.reporterName ?? "ไม่ระบุ",
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                Text(
-                                  " (ID: ${report.reporterId ?? 'ไม่ระบุ'})",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(Icons.access_time,
-                                    size: 14, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  "เวลา: ${formatTime(report.createdAt)}",
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ] else ...[
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline,
-                            color: Colors.grey[500], size: 16),
-                        const SizedBox(width: 8),
-                        Text(
-                          "ไม่มีรายละเอียดรายงาน",
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 8),
-
-                // Action Buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text("⚠️ ยืนยันลบโพสต์"),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text("คุณต้องการลบโพสต์นี้หรือไม่?"),
-                                const SizedBox(height: 8),
-                                Text(
-                                  "โพสต์: ${reportData.topic ?? 'ไม่มีหัวข้อ'}",
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                Text("เจ้าของ: ${reportData.owner.name}"),
-                                Text(
-                                    "ถูกรายงาน: ${reportData.reportCount} ครั้ง"),
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(ctx).pop(),
-                                child: const Text("ยกเลิก"),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.of(ctx).pop();
-                                  deletePost(reportData.postId);
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text("ลบโพสต์"),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.delete_forever, size: 16),
-                      label: const Text("ลบโพสต์"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[700],
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+
+            // Post Content
+            if (reportData.topic?.isNotEmpty == true) ...[
+              Text(
+                reportData.topic!,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 16),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+            ],
+
+            if (reportData.description?.isNotEmpty == true) ...[
+              Text(
+                reportData.description!,
+                style: TextStyle(color: Colors.grey[700]),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Post Images
+            if (reportData.images.isNotEmpty) ...[
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: reportData.images.length,
+                  itemBuilder: (context, imgIndex) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          reportData.images[imgIndex],
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 120,
+                              height: 120,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.broken_image),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+
+      // ✅ ส่วนรายละเอียดรายงาน (เหมือนเดิม)
+      if (reportData.reports.isNotEmpty) ...[
+        const Divider(),
+        ExpansionTile(
+          title: Text(
+            "รายละเอียดรายงาน (${reportData.reports.length} รายการ)",
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
+          children: reportData.reports.map<Widget>((report) {
+            return Container(
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: const Border(
+                  left: BorderSide(color: Colors.red, width: 3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.report_problem,
+                          size: 16, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          report.reason ?? "ไม่ระบุเหตุผล",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.person,
+                          size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        "ผู้รายงาน: ",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        report.reporterName ?? "ไม่ระบุ",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        " (ID: ${report.reporterId ?? 'ไม่ระบุ'})",
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time,
+                          size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        "เวลา: ${formatTime(report.createdAt)}",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    ],
+  ),
+)
+
         ],
       ),
     );

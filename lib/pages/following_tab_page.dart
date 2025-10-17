@@ -93,6 +93,12 @@ class _FollowingTabState extends State<FollowingTab> {
   bool isInitialLoading = true;
   bool isRefreshing = false;
 
+  
+  Map<int, bool> commentLikedMap = {};
+  Map<int, int> commentLikeCountMap = {};
+  bool isTogglingCommentLike = false;
+
+
   // ลบ Timer ออกเพื่อหยุดการอัพเดทอัตโนมัติ
   // Timer? _timer;
 
@@ -222,6 +228,85 @@ class _FollowingTabState extends State<FollowingTab> {
           isRefreshing = false;
         });
       }
+    }
+  }
+  
+  // เพิ่มฟังก์ชันสำหรับตรวจสอบว่าผู้ใช้ไลค์คอมเมนต์หรือไม่
+  Future<void> checkCommentLikes(List<int> commentIds) async {
+    if (loggedInUid == 0 || commentIds.isEmpty) return;
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      for (var commentId in commentIds) {
+        final uri = Uri.parse(
+            '$url/image_post/is-comment-liked?user_id=$loggedInUid&comment_id=$commentId');
+        final response = await http.get(uri);
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          setState(() {
+            commentLikedMap[commentId] = data['liked'] ?? false;
+          });
+        }
+
+        // ดึงจำนวนไลค์
+        final countUri =
+            Uri.parse('$url/image_post/comment-like-count/$commentId');
+        final countResponse = await http.get(countUri);
+
+        if (countResponse.statusCode == 200) {
+          final countData = json.decode(countResponse.body);
+          setState(() {
+            commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking comment likes: $e');
+    }
+  }
+
+// ฟังก์ชันสำหรับกดไลค์/ยกเลิกไลค์คอมเมนต์
+  Future<void> toggleCommentLike(int commentId) async {
+    if (isTogglingCommentLike || loggedInUid == 0) return;
+
+    setState(() {
+      isTogglingCommentLike = true;
+    });
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final isLiked = commentLikedMap[commentId] ?? false;
+      final endpoint =
+          isLiked ? '/image_post/unlike-comment' : '/image_post/like-comment';
+      final uri = Uri.parse('$url$endpoint');
+
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          "user_id": loggedInUid,
+          "comment_id": commentId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          commentLikedMap[commentId] = data['liked'] ?? false;
+          commentLikeCountMap[commentId] = data['like_count'] ?? 0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error toggling comment like: $e');
+    } finally {
+      setState(() {
+        isTogglingCommentLike = false;
+      });
     }
   }
 
@@ -1679,11 +1764,28 @@ void _showCommentBottomSheet(BuildContext context, int postId) {
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
                           return Container(
-                            color: Colors.white,
-                            child: const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
+                              color: Colors.white,
+                              child: const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Color.fromARGB(255, 0, 0, 0)),
+                                    ),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'กำลังโหลดความคิดเห็น...',
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
                         }
 
                         // เก็บค่าลง local state แค่ครั้งแรก
@@ -1720,6 +1822,10 @@ void _showCommentBottomSheet(BuildContext context, int postId) {
                             final isPostOwner =
                                 currentPost.user.uid == loggedInUid;
                             final canDelete = isMyComment || isPostOwner;
+                            final isLiked =
+                                    commentLikedMap[c.commentId] ?? false;
+                                final likeCount =
+                                    commentLikeCountMap[c.commentId] ?? 0;
 
                             return Container(
                               padding: const EdgeInsets.all(12),
@@ -1818,144 +1924,143 @@ void _showCommentBottomSheet(BuildContext context, int postId) {
                                           ],
                                         ),
                                       ),
-                                      // ปุ่มหัวใจข้างปุ่มจุดสามจุด
+                                       const SizedBox(height: 8),
+                                      // 🎯 เพิ่มส่วน Like Button
                                       Row(
                                         children: [
-                                          // ปุ่มหัวใจ
-                                          InkWell(
+                                          GestureDetector(
                                             onTap: () {
-                                              setModalState(() {
-                                                if (c.isLikedByMe) {
-                                                  c.isLikedByMe = false;
-                                                  c.amountOfLike--;
-                                                } else {
-                                                  c.isLikedByMe = true;
-                                                  c.amountOfLike++;
-                                                }
-                                              });
+                                              toggleCommentLike(c.commentId);
+                                              setModalState(
+                                                  () {}); // รีเฟรช UI ใน modal
                                             },
                                             child: Row(
                                               children: [
                                                 Icon(
-                                                  Icons.favorite,
-                                                  size: 16,
-                                                  color: c.isLikedByMe
+                                                  isLiked
+                                                      ? Icons.favorite
+                                                      : Icons.favorite_border,
+                                                  size: 18,
+                                                  color: isLiked
                                                       ? Colors.red
-                                                      : Colors.grey[500],
+                                                      : Colors.grey[600],
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
-                                                  '${c.amountOfLike}',
+                                                  likeCount > 0
+                                                      ? '$likeCount'
+                                                      : '',
                                                   style: TextStyle(
                                                     fontSize: 12,
-                                                    color: Colors.grey[700],
+                                                    color: Colors.grey[600],
+                                                    fontWeight: FontWeight.w500,
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
-                                          if (canDelete)
-                                            PopupMenuButton<String>(
-                                              icon: Icon(
-                                                Icons.more_vert,
-                                                size: 18,
-                                                color: Colors.grey[600],
-                                              ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              itemBuilder: (context) => [
-                                                if (isMyComment)
-                                                  PopupMenuItem(
-                                                    value: 'edit',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.edit_outlined,
-                                                          color: Colors.blue[700],
-                                                          size: 18,
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Text(
-                                                          'แก้ไขความคิดเห็น',
-                                                          style: TextStyle(
-                                                            color: Colors.blue[700],
-                                                            fontSize: 13,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Row(
-                                                    children: [
-                                                      const Icon(
-                                                        Icons.delete_outline,
-                                                        color: Colors.red,
-                                                        size: 18,
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Text(
-                                                        'ลบความคิดเห็น',
-                                                        style: TextStyle(
-                                                          color: Colors.red[700],
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                              onSelected: (value) async {
-                                                if (value == 'edit') {
-                                                  await _editComment(
-                                                      context,
-                                                      c.commentId,
-                                                      postId,
-                                                      c.commentText);
-                                                  setModalState(() {});
-                                                } else if (value == 'delete') {
-                                                  final confirm =
-                                                      await showDialog<bool>(
-                                                    context: context,
-                                                    builder: (context) =>
-                                                        AlertDialog(
-                                                      title: const Text(
-                                                          'ลบความคิดเห็น'),
-                                                      content: const Text(
-                                                          'คุณต้องการลบความคิดเห็นนี้หรือไม่?'),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                  context,
-                                                                  false),
-                                                          child:
-                                                              const Text('ยกเลิก'),
-                                                        ),
-                                                        ElevatedButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                  context,
-                                                                  true),
-                                                          child: const Text('ลบ'),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                  if (confirm == true) {
-                                                    await _deleteComment(
-                                                        c.commentId, postId);
-                                                    setModalState(() {});
-                                                  }
-                                                }
-                                              },
-                                            ),
                                         ],
                                       ),
+                                      const SizedBox(width: 8),
+                                      if (canDelete)
+                                        PopupMenuButton<String>(
+                                          icon: Icon(
+                                            Icons.more_vert,
+                                            size: 18,
+                                            color: Colors.grey[600],
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          itemBuilder: (context) => [
+                                            if (isMyComment)
+                                              PopupMenuItem(
+                                                value: 'edit',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.edit_outlined,
+                                                      color: Colors.blue[700],
+                                                      size: 18,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      'แก้ไขความคิดเห็น',
+                                                      style: TextStyle(
+                                                        color: Colors.blue[700],
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.delete_outline,
+                                                    color: Colors.red,
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'ลบความคิดเห็น',
+                                                    style: TextStyle(
+                                                      color: Colors.red[700],
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                          onSelected: (value) async {
+                                            if (value == 'edit') {
+                                              await _editComment(
+                                                  context,
+                                                  c.commentId,
+                                                  postId,
+                                                  c.commentText);
+                                              setModalState(() {});
+                                            } else if (value == 'delete') {
+                                              final confirm =
+                                                  await showDialog<bool>(
+                                                context: context,
+                                                builder: (context) =>
+                                                    AlertDialog(
+                                                  title: const Text(
+                                                      'ลบความคิดเห็น'),
+                                                  content: const Text(
+                                                      'คุณต้องการลบความคิดเห็นนี้หรือไม่?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context,
+                                                              false),
+                                                      child:
+                                                          const Text('ยกเลิก'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context,
+                                                              true),
+                                                      child: const Text('ลบ'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (confirm == true) {
+                                                await _deleteComment(
+                                                    c.commentId, postId);
+                                                setModalState(() {});
+                                              }
+                                            }
+                                          },
+                                        ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
@@ -2023,15 +2128,22 @@ void _showCommentBottomSheet(BuildContext context, int postId) {
   );
 }
   Future<GetComment> _fetchComments(int postId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-    final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
-    if (res.statusCode == 200) {
-      return getCommentFromJson(res.body);
-    } else {
-      throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
-    }
+  var config = await Configuration.getConfig();
+  var url = config['apiEndpoint'];
+  final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
+
+  if (res.statusCode == 200) {
+    final commentData = getCommentFromJson(res.body);
+
+    // ✅ ดึง commentId ทั้งหมดแล้วเรียก checkCommentLikes
+    final commentIds = commentData.comments.map((c) => c.commentId).toList();
+    await checkCommentLikes(commentIds);
+
+    return commentData;
+  } else {
+    throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
   }
+}
 
   Future<void> _submitComment(int postId, String commentText) async {
     final gs = GetStorage();

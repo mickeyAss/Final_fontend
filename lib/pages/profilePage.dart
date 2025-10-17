@@ -706,9 +706,7 @@ class _ProfilepageState extends State<Profilepage> {
               ListTile(
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('ลบบัญชี'),
-                onTap: () {
-                  Navigator.pop(context);
-                },
+                onTap: () => deleteAccount(context),
               ),
              
               const Divider(height: 1),
@@ -894,4 +892,60 @@ class _ProfilepageState extends State<Profilepage> {
       });
     }
   }
+  
+
+  // 🔹 ฟังก์ชันลบบัญชี (ใช้ uid จาก GetStorage เหมือนกัน)
+Future<void> deleteAccount(BuildContext context) async {
+  final uid = gs.read('user');
+  if (uid == null) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้')));
+    return;
+  }
+
+ final config = await Configuration.getConfig();
+final apiEndpoint = config['apiEndpoint']; // "https://final-backend-3pa8.onrender.com"
+final url = Uri.parse('$apiEndpoint/user/delete/$uid'); // ✅ URL เต็ม
+
+
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('ยืนยันการลบบัญชี'),
+      content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีนี้?'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ลบ', style: TextStyle(color: Colors.red))),
+      ],
+    ),
+  );
+
+  if (confirm != true) return;
+
+  try {
+    final response = await http.delete(url);
+    if (response.statusCode == 200) {
+      gs.erase();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ลบบัญชีสำเร็จ')),
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/login');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ล้มเหลว: ${response.body}')),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
+    );
+  }
+}
+
 }

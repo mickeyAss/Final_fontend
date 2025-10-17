@@ -459,7 +459,7 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
                               decoration: BoxDecoration(
                                 color: _isFollowing
                                     ? Colors.grey[200]
-                                    : Colors.blue,
+                                    : const Color.fromARGB(255, 0, 0, 0),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Material(

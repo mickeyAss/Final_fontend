@@ -216,27 +216,27 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                   const SizedBox(height: 16),
 
                   // Forgot Password (เหมือนเดิม)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ForgotPasswordPage(),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        "ลืมรหัสผ่าน?",
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 14,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                  ),
+                  // Align(
+                  //   alignment: Alignment.centerRight,
+                  //   child: TextButton(
+                  //     onPressed: () {
+                  //       Navigator.push(
+                  //         context,
+                  //         MaterialPageRoute(
+                  //           builder: (context) => ForgotPasswordPage(),
+                  //         ),
+                  //       );
+                  //     },
+                  //     // child: Text(
+                  //     //   "ลืมรหัสผ่าน?",
+                  //     //   style: TextStyle(
+                  //     //     color: Colors.grey[400],
+                  //     //     fontSize: 14,
+                  //     //     decoration: TextDecoration.underline,
+                  //     //   ),
+                  //     // ),
+                  //   ),
+                  // ),
 
                   const SizedBox(height: 10),
 
