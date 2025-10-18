@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'package:fontend_pro/models/get_all_category.dart';
-import 'package:fontend_pro/models/get_hashtags.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +7,8 @@ import 'package:get/get_core/src/get_main.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/like_post.dart';
 import 'package:fontend_pro/models/get_comment.dart';
+import 'package:fontend_pro/models/get_hashtags.dart';
+import 'package:fontend_pro/models/get_all_category.dart';
 import 'package:fontend_pro/models/post_detail.dart' as model;
 import 'package:get/get_navigation/src/snackbar/snackbar.dart';
 
@@ -695,304 +695,693 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
       return [];
     }
   }
-Future<void> _editPost(BuildContext context) async {
-  if (postDetail == null) return;
 
-  final topicController = TextEditingController(text: postDetail!.post.postTopic);
-  final descController = TextEditingController(text: postDetail!.post.postDescription ?? '');
-  final hashtagController = TextEditingController();
+  Future<void> _addNewHashtag(
+    String hashtagName,
+    TextEditingController hashtagController,
+    StateSetter setModalState,
+    List<GetHashtags> selectedHashtags,
+  ) async {
+    final trimmedName = hashtagName.trim();
 
-  // State ของหมวดหมู่และแฮชแท็ก
-  List<GetAllCategory> selectedCategories = postDetail!.categories.map((cat) => GetAllCategory(
-    cid: cat.cid,
-    cname: cat.cname,
-    cimage: '',
-    ctype: Ctype.F,
-    cdescription: '',
-  )).toList();
+    if (trimmedName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('กรุณาใส่ชื่อแฮชแท็ก'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
 
-  List<GetHashtags> selectedHashtags = postDetail!.hashtags.map((h) => GetHashtags(
-    isNew: false,
-    data: [Datum(tagId: h.tagId, tagName: h.tagName)],
-  )).toList();
+    final hashtagNameWithoutHash = trimmedName.replaceFirst('#', '');
 
-  // Future สำหรับหมวดหมู่
-  Future<List<GetAllCategory>>? _categoriesFuture = fetchAllCategories();
+    // ตรวจสอบว่าเลือกแล้วหรือไม่
+    final alreadySelected = selectedHashtags.expand((gh) => gh.data).any(
+        (tag) =>
+            tag.tagName.toLowerCase() == hashtagNameWithoutHash.toLowerCase());
 
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (BuildContext context, StateSetter setModalState) {
-          void safeSetState(VoidCallback fn) {
-            if (mounted) fn();
+    if (alreadySelected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('แฮชแท็กนี้ถูกเลือกแล้ว'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('กำลังเพิ่มแฮชแท็ก...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+        backgroundColor: Colors.blue,
+      ),
+    );
+
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.post(
+        Uri.parse('$url/hashtags/insert'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'tag_name': hashtagNameWithoutHash}),
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        if (response.statusCode == 200) {
+          final responseData = jsonDecode(response.body);
+          final isNew = responseData['isNew'] ?? false;
+          final data = responseData['data'] ?? [];
+
+          int tagId = 0;
+          if (data.isNotEmpty) {
+            tagId = data[0]['tag_id'] ?? 0;
           }
 
-          return AnimatedPadding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            duration: const Duration(milliseconds: 300),
-            child: Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          if (isNew) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.add_circle, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child:
+                            Text('เพิ่มแฮชแท็กใหม่: #$hashtagNameWithoutHash')),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
               ),
-              child: Column(
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(
+                            'ใช้แฮชแท็กที่มีอยู่: #$hashtagNameWithoutHash')),
+                  ],
+                ),
+                backgroundColor: Colors.blue,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+
+          setModalState(() {
+            if (selectedHashtags.isEmpty) {
+              selectedHashtags.add(
+                GetHashtags(isNew: isNew, data: [
+                  Datum(tagId: tagId, tagName: hashtagNameWithoutHash)
+                ]),
+              );
+            } else {
+              selectedHashtags[0]
+                  .data
+                  .add(Datum(tagId: tagId, tagName: hashtagNameWithoutHash));
+            }
+            hashtagController.clear();
+          });
+        } else {
+          final errorData = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
                 children: [
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                        const Expanded(
-                          child: Text(
-                            'แก้ไขโพสต์',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            final categoryIds = selectedCategories.map((c) => c.cid).toList();
-                            final hashtagIdsOrNames = <Object>[];
-                            for (var gh in selectedHashtags) {
-                              for (var tag in gh.data) {
-                                if (tag.tagId != 0) {
-                                  hashtagIdsOrNames.add(tag.tagId);
-                                } else {
-                                  hashtagIdsOrNames.add(tag.tagName);
-                                }
-                              }
-                            }
-
-                            await _saveEditedPost(
-                              context,
-                              topicController.text,
-                              descController.text,
-                              hashtagIdsOrNames,
-                              categoryIds,
-                            );
-                          },
-                          child: const Text(
-                            'บันทึก',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Body
+                  const Icon(Icons.error, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // รูปภาพ
-                          if (postDetail!.images.isNotEmpty) ...[
-                            const Text('รูปภาพ (ไม่สามารถแก้ไขได้)',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)),
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              height: 100,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: postDetail!.images.length,
-                                itemBuilder: (context, index) {
-                                  return Container(
-                                    margin: const EdgeInsets.only(right: 8),
-                                    width: 100,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.grey[300]!),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(postDetail!.images[index].image, fit: BoxFit.cover),
+                      child:
+                          Text(errorData['error'] ?? 'เพิ่มแฮชแท็กไม่สำเร็จ')),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('เกิดข้อผิดพลาด: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      debugPrint('Error adding hashtag: $e');
+    }
+  }
+
+  Future<void> _loadHashtagsForSelection(
+    TextEditingController hashtagController,
+    StateSetter setModalState,
+    List<GetHashtags> selectedHashtags,
+  ) async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      final response = await http.get(Uri.parse('$url/hashtags/get'));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> allHashtags = jsonDecode(response.body);
+
+        if (context.mounted) {
+          // แสดง Bottom Sheet เพื่อเลือกแฮชแท็ก
+          _showHashtagSelectionSheet(
+            allHashtags,
+            hashtagController,
+            setModalState,
+            selectedHashtags,
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('โหลดแฮชแท็กไม่สำเร็จ'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error loading hashtags: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เกิดข้อผิดพลาด: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showHashtagSelectionSheet(
+    List<dynamic> allHashtags,
+    TextEditingController hashtagController,
+    StateSetter setModalState,
+    List<GetHashtags> selectedHashtags,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'เลือกแฮชแท็ก',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: allHashtags.length,
+                  itemBuilder: (context, index) {
+                    final hashtag = allHashtags[index];
+                    final tagName =
+                        hashtag['tag_name'] ?? hashtag['tagName'] ?? '';
+                    final tagId = hashtag['tag_id'] ?? hashtag['tagId'] ?? 0;
+
+                    // ตรวจสอบว่าเลือกแล้วหรือไม่
+                    final isSelected = selectedHashtags
+                        .expand((gh) => gh.data)
+                        .any((tag) =>
+                            tag.tagName.toLowerCase() == tagName.toLowerCase());
+
+                    return ListTile(
+                      leading: Icon(
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        color: isSelected ? Colors.blue : Colors.grey,
+                      ),
+                      title: Text('#$tagName'),
+                      enabled: !isSelected,
+                      onTap: isSelected
+                          ? null
+                          : () {
+                              // เพิ่มแฮชแท็กที่เลือก
+                              setModalState(() {
+                                if (selectedHashtags.isEmpty) {
+                                  selectedHashtags.add(
+                                    GetHashtags(
+                                      isNew: false,
+                                      data: [
+                                        Datum(tagId: tagId, tagName: tagName)
+                                      ],
                                     ),
                                   );
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
+                                } else {
+                                  selectedHashtags[0].data.add(
+                                        Datum(tagId: tagId, tagName: tagName),
+                                      );
+                                }
+                              });
 
-                          // หัวข้อ
-                          const Text('หัวข้อ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: topicController,
-                            decoration: InputDecoration(
-                              hintText: 'หัวข้อโพสต์',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
+                              Navigator.pop(context);
 
-                          // คำอธิบาย
-                          const Text('คำอธิบาย', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: descController,
-                            maxLines: 4,
-                            decoration: InputDecoration(
-                              hintText: 'เขียนคำอธิบาย...',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // หมวดหมู่
-                          const Text('หมวดหมู่', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            children: selectedCategories.map((cat) {
-                              return Chip(
-                                label: Text(cat.cname),
-                                deleteIcon: const Icon(Icons.close),
-                                onDeleted: () {
-                                  safeSetState(() {
-                                    selectedCategories.remove(cat);
-                                    _categoriesFuture = fetchAllCategories();
-                                  });
-                                },
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 8),
-                          FutureBuilder<List<GetAllCategory>>(
-                            future: _categoriesFuture,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const Center(child: CircularProgressIndicator());
-                              }
-                              if (snapshot.hasError) {
-                                return Text('โหลดหมวดหมู่ไม่สำเร็จ: ${snapshot.error}');
-                              }
-                              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                                return const Text('ไม่มีหมวดหมู่ให้เลือก');
-                              }
-
-                              final allCategories = snapshot.data!;
-                              final remainingCategories = allCategories
-                                  .where((c) => !selectedCategories.any((sc) => sc.cid == c.cid))
-                                  .toList();
-
-                              if (remainingCategories.isEmpty) {
-                                return const Text('เลือกหมวดหมู่ครบแล้ว');
-                              }
-
-                              return DropdownButton<GetAllCategory>(
-                                hint: const Text('เพิ่มหมวดหมู่'),
-                                value: null,
-                                items: remainingCategories
-                                    .map((cat) => DropdownMenuItem(value: cat, child: Text(cat.cname)))
-                                    .toList(),
-                                onChanged: (cat) {
-                                  if (cat != null) safeSetState(() {
-                                    selectedCategories.add(cat);
-                                    _categoriesFuture = fetchAllCategories();
-                                  });
-                                },
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.check_circle,
+                                          color: Colors.white, size: 16),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child:
+                                            Text('เพิ่ม #$tagName เรียบร้อย'),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 2),
+                                ),
                               );
                             },
-                          ),
-                          const SizedBox(height: 16),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-                          // แฮชแท็ก
-                          const Text('แฮชแท็ก', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            children: selectedHashtags
-                                .expand((gh) => gh.data)
-                                .map((tag) {
-                              return Chip(
-                                label: Text('#${tag.tagName}'),
-                                deleteIcon: const Icon(Icons.close),
-                                onDeleted: () {
-                                  safeSetState(() {
-                                    final parent = selectedHashtags.firstWhere(
-                                      (gh) => gh.data.contains(tag),
-                                      orElse: () => GetHashtags(isNew: true, data: []),
-                                    );
-                                    parent.data.remove(tag);
-                                    if (parent.data.isEmpty) selectedHashtags.remove(parent);
-                                  });
-                                },
+  Future<void> _editPost(BuildContext context) async {
+    if (postDetail == null) return;
+
+    final topicController =
+        TextEditingController(text: postDetail!.post.postTopic);
+    final descController =
+        TextEditingController(text: postDetail!.post.postDescription ?? '');
+    final hashtagController = TextEditingController();
+
+    // State ของหมวดหมู่และแฮชแท็ก
+    List<GetAllCategory> selectedCategories = postDetail!.categories
+        .map((cat) => GetAllCategory(
+              cid: cat.cid,
+              cname: cat.cname,
+              cimage: '',
+              ctype: Ctype.F,
+              cdescription: '',
+            ))
+        .toList();
+
+    List<GetHashtags> selectedHashtags = postDetail!.hashtags
+        .map((h) => GetHashtags(
+              isNew: false,
+              data: [Datum(tagId: h.tagId, tagName: h.tagName)],
+            ))
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext modalContext, StateSetter setModalState) {
+            return AnimatedPadding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom),
+              duration: const Duration(milliseconds: 300),
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.85,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border(
+                            bottom: BorderSide(color: Colors.grey[200]!)),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(modalContext),
+                          ),
+                          const Expanded(
+                            child: Text(
+                              'แก้ไขโพสต์',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final categoryIds =
+                                  selectedCategories.map((c) => c.cid).toList();
+                              final hashtagIdsOrNames = <Object>[];
+                              for (var gh in selectedHashtags) {
+                                for (var tag in gh.data) {
+                                  if (tag.tagId != 0) {
+                                    hashtagIdsOrNames.add(tag.tagId);
+                                  } else {
+                                    hashtagIdsOrNames.add(tag.tagName);
+                                  }
+                                }
+                              }
+
+                              await _saveEditedPost(
+                                context,
+                                topicController.text,
+                                descController.text,
+                                hashtagIdsOrNames,
+                                categoryIds,
                               );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 8),
-
-                          // เพิ่มแฮชแท็กใหม่
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: hashtagController,
-                                  decoration: InputDecoration(
-                                    hintText: 'เพิ่มแฮชแท็กใหม่',
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  ),
-                                  onSubmitted: (value) {
-                                    if (value.trim().isEmpty) return;
-                                    safeSetState(() {
-                                      if (selectedHashtags.isEmpty) {
-                                        selectedHashtags.add(GetHashtags(
-                                            isNew: true, data: [Datum(tagId: 0, tagName: value.trim())]));
-                                      } else {
-                                        selectedHashtags[0].data.add(Datum(tagId: 0, tagName: value.trim()));
-                                      }
-                                      hashtagController.clear();
-                                    });
-                                  },
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add, color: Colors.blue),
-                                onPressed: () {
-                                  final value = hashtagController.text.trim();
-                                  if (value.isEmpty) return;
-                                  safeSetState(() {
-                                    if (selectedHashtags.isEmpty) {
-                                      selectedHashtags.add(GetHashtags(
-                                          isNew: true, data: [Datum(tagId: 0, tagName: value)]));
-                                    } else {
-                                      selectedHashtags[0].data.add(Datum(tagId: 0, tagName: value));
-                                    }
-                                    hashtagController.clear();
-                                  });
-                                },
-                              )
-                            ],
+                            },
+                            child: const Text(
+                              'บันทึก',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
+
+                    // Body
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // รูปภาพ
+                            if (postDetail!.images.isNotEmpty) ...[
+                              const Text('รูปภาพ (ไม่สามารถแก้ไขได้)',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey)),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 100,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: postDetail!.images.length,
+                                  itemBuilder: (context, index) {
+                                    return Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      width: 100,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: Colors.grey[300]!),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                            postDetail!.images[index].image,
+                                            fit: BoxFit.cover),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // หัวข้อ
+                            const Text('หัวข้อ',
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: topicController,
+                              decoration: InputDecoration(
+                                hintText: 'หัวข้อโพสต์',
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // คำอธิบาย
+                            const Text('คำอธิบาย',
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: descController,
+                              maxLines: 4,
+                              decoration: InputDecoration(
+                                hintText: 'เขียนคำอธิบาย...',
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // หมวดหมู่
+                            const Text('หมวดหมู่',
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+
+                            // ✅ แสดง Selected Categories พร้อม Chip
+                            Wrap(
+                              spacing: 8,
+                              children: selectedCategories.map((cat) {
+                                return Chip(
+                                  label: Text(cat.cname),
+                                  deleteIcon: const Icon(Icons.close),
+                                  onDeleted: () {
+                                    // ✅ ใช้ setModalState เพื่ออัปเดต UI ทันที
+                                    setModalState(() {
+                                      selectedCategories
+                                          .removeWhere((c) => c.cid == cat.cid);
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // ✅ Dropdown เพื่อเลือกหมวดหมู่ใหม่
+                            FutureBuilder<List<GetAllCategory>>(
+                              future: fetchAllCategories(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                      child: CircularProgressIndicator());
+                                }
+                                if (snapshot.hasError) {
+                                  return Text(
+                                      'โหลดหมวดหมู่ไม่สำเร็จ: ${snapshot.error}');
+                                }
+                                if (!snapshot.hasData ||
+                                    snapshot.data!.isEmpty) {
+                                  return const Text('ไม่มีหมวดหมู่ให้เลือก');
+                                }
+
+                                final allCategories = snapshot.data!;
+                                final remainingCategories = allCategories
+                                    .where((c) => !selectedCategories
+                                        .any((sc) => sc.cid == c.cid))
+                                    .toList();
+
+                                if (remainingCategories.isEmpty) {
+                                  return const Text('เลือกหมวดหมู่ครบแล้ว');
+                                }
+
+                                return DropdownButton<GetAllCategory>(
+                                  hint: const Text('เพิ่มหมวดหมู่'),
+                                  value: null,
+                                  items: remainingCategories
+                                      .map((cat) => DropdownMenuItem(
+                                          value: cat, child: Text(cat.cname)))
+                                      .toList(),
+                                  onChanged: (cat) {
+                                    if (cat != null) {
+                                      // ✅ ใช้ setModalState เพื่ออัปเดต UI ทันที
+                                      setModalState(() {
+                                        selectedCategories.add(cat);
+                                      });
+                                    }
+                                  },
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // แฮชแท็ก
+                            const Text('แฮชแท็ก',
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+
+                            // ✅ แสดง Selected Hashtags พร้อม Chip
+                            Wrap(
+                              spacing: 8,
+                              children: selectedHashtags
+                                  .expand((gh) => gh.data)
+                                  .map((tag) {
+                                return Chip(
+                                  label: Text('#${tag.tagName}'),
+                                  deleteIcon: const Icon(Icons.close),
+                                  onDeleted: () {
+                                    // ✅ ใช้ setModalState เพื่ออัปเดต UI ทันที
+                                    setModalState(() {
+                                      final parent =
+                                          selectedHashtags.firstWhere(
+                                        (gh) => gh.data.contains(tag),
+                                        orElse: () =>
+                                            GetHashtags(isNew: true, data: []),
+                                      );
+                                      parent.data.remove(tag);
+                                      if (parent.data.isEmpty) {
+                                        selectedHashtags.remove(parent);
+                                      }
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // ✅ เพิ่มแฮชแท็กใหม่
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: hashtagController,
+                                          decoration: InputDecoration(
+                                            hintText:
+                                                'พิมพ์ # เพื่อเลือก หรือพิมพ์ชื่อแฮชแท็กใหม่',
+                                            border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12)),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12),
+                                          ),
+                                          onChanged: (value) {
+                                            // ถ้าพิมพ์ # ให้เรียก GET
+                                            if (value == '#') {
+                                              _loadHashtagsForSelection(
+                                                  hashtagController,
+                                                  setModalState,
+                                                  selectedHashtags);
+                                              hashtagController.clear();
+                                            }
+                                          },
+                                          onSubmitted: (value) {
+                                            if (value.trim().isNotEmpty &&
+                                                value != '#') {
+                                              _addNewHashtag(
+                                                  value,
+                                                  hashtagController,
+                                                  setModalState,
+                                                  selectedHashtags);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      // ✅ แก้ไขปุ่มบวก - ลบ IconButton ที่ซ้อนกัน
+                                      IconButton(
+                                        icon: const Icon(Icons.add,
+                                            color: Colors.blue),
+                                        onPressed: () {
+                                          final value =
+                                              hashtagController.text.trim();
+                                          if (value.isNotEmpty &&
+                                              value != '#') {
+                                            _addNewHashtag(
+                                                value,
+                                                hashtagController,
+                                                setModalState,
+                                                selectedHashtags);
+                                          }
+                                        },
+                                      )
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
-
+            );
+          },
+        );
+      },
+    );
+  }
 
 // ฟังก์ชันโหลดหมวดหมู่
   Future<List<GetAllCategory>> _loadAllCategories() async {
@@ -1006,73 +1395,69 @@ Future<void> _editPost(BuildContext context) async {
     }
   }
 
-
-
-
 // ฟังก์ชันบันทึกโพสต์
-Future<void> _saveEditedPost(
-  BuildContext context,
-  String topic,
-  String description,
-  List<Object> hashtags,
-  List<int> categoryIds,
-) async {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Row(
-        children: [
-          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
-          SizedBox(width: 12),
-          Text('กำลังบันทึก...'),
-        ],
-      ),
-      duration: Duration(seconds: 30),
-      backgroundColor: Colors.orange,
-    ),
-  );
+  Future<void> _saveEditedPost(
+    BuildContext context,
+    String topic,
+    String description,
+    List<Object> hashtags,
+    List<int> categoryIds,
+  ) async {
+    // ✅ ลบ SnackBar ที่แสดง "กำลังบันทึก..."
 
-  try {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
 
-    final response = await http.put(
-      Uri.parse('$url/image_post/post/edit/${widget.postId}'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'user_id': loggedInUserId,
-        'post_topic': topic,
-        'post_description': description,
-        'hashtags': hashtags,
-        'categories': categoryIds,
-      }),
-    );
+      final response = await http.put(
+        Uri.parse('$url/image_post/post/edit/${widget.postId}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': loggedInUserId,
+          'post_topic': topic,
+          'post_description': description,
+          'hashtags': hashtags,
+          'categories': categoryIds,
+        }),
+      );
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      if (response.statusCode == 200) {
+      if (context.mounted) {
+        // ✅ ไม่มี hideCurrentSnackBar() เพราะไม่มี loading snackbar
+        if (response.statusCode == 200) {
+          // ✅ แสดง Success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('แก้ไขโพสต์สำเร็จ'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          Navigator.pop(context);
+          await fetchPostDetail();
+        } else {
+          final errorData = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorData['error'] ?? 'แก้ไขโพสต์ไม่สำเร็จ'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('แก้ไขโพสต์สำเร็จ'), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
-        );
-        Navigator.pop(context);
-        await fetchPostDetail();
-      } else {
-        final errorData = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorData['error'] ?? 'แก้ไขโพสต์ไม่สำเร็จ'), backgroundColor: Colors.red, duration: const Duration(seconds: 3)),
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาด: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
+      debugPrint('Error editing post: $e');
     }
-  } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 3)),
-      );
-    }
-    debugPrint('Error editing post: $e');
   }
-}
-
 
   void _showCommentBottomSheet(BuildContext context, int postId) {
     TextEditingController commentController = TextEditingController();

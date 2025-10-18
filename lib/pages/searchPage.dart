@@ -667,6 +667,15 @@ class _SearchpageState extends State<Searchpage> {
     }
   }
 
+  // ✅ เพิ่มเมธอด Helper เพื่อเคลียร์ผลค้นหารูปภาพ
+  void _clearImageSearchResults() {
+    setState(() {
+      imageSearchResults.clear();
+      _imageSearchLabels = '';
+      _isSearchingByImage = false;
+    });
+  }
+
   void _clearSearch() {
     searchController.clear();
     setState(() {
@@ -1793,7 +1802,7 @@ class _SearchpageState extends State<Searchpage> {
                 padding: const EdgeInsets.all(16),
                 child: Text(post['post_description']),
               ),
-               // แสดง AI Analysis
+            // แสดง AI Analysis
             if (hasAnalysis)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1876,8 +1885,6 @@ class _SearchpageState extends State<Searchpage> {
                   ),
                 ),
               ),
-
-           
           ],
         ),
       ),
@@ -2160,111 +2167,118 @@ class _SearchpageState extends State<Searchpage> {
                               borderRadius: BorderRadius.circular(25),
                             ),
                             child: TextField(
-                                controller: searchController,
-                                decoration: InputDecoration(
-                                  hintText: 'ค้นหาเพื่อนหรือ #hashtag',
-                                  hintStyle: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 16,
-                                  ),
-                                  prefixIcon: Icon(
-                                    Icons.search,
-                                    color: Colors.grey[500],
-                                    size: 20,
-                                  ),
-                                  suffixIcon: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (currentSearchQuery.isNotEmpty)
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.clear,
-                                            color: Colors.grey,
-                                            size: 20,
-                                          ),
-                                          onPressed: _clearSearch,
+                              controller: searchController,
+                              decoration: InputDecoration(
+                                hintText: 'ค้นหาเพื่อนหรือ #hashtag',
+                                hintStyle: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 16,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.search,
+                                  color: Colors.grey[500],
+                                  size: 20,
+                                ),
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (currentSearchQuery.isNotEmpty)
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.clear,
+                                          color: Colors.grey,
+                                          size: 20,
                                         ),
-                                      // ปุ่มค้นหารูปภาพที่มีการแสดงสถานะ
-                                      Container(
-                                        margin: const EdgeInsets.only(right: 8),
-                                        child: IconButton(
-                                          icon: Stack(
-                                            children: [
-                                              Icon(
-                                                Icons.image,
-                                                color: _isSearchingByImage
-                                                    ? Colors.purple
-                                                    : Colors.grey,
-                                                size: 22,
-                                              ),
-                                              if (_isSearchingByImage)
-                                                Positioned(
-                                                  right: 0,
-                                                  top: 0,
-                                                  child: Container(
-                                                    width: 8,
-                                                    height: 8,
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                      color: Colors.purple,
-                                                      shape: BoxShape.circle,
-                                                    ),
+                                        onPressed: _clearSearch,
+                                      ),
+                                    // ปุ่มค้นหารูปภาพที่มีการแสดงสถานะ
+                                    Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      child: IconButton(
+                                        icon: Stack(
+                                          children: [
+                                            Icon(
+                                              Icons.image,
+                                              color: _isSearchingByImage
+                                                  ? Colors.purple
+                                                  : Colors.grey,
+                                              size: 22,
+                                            ),
+                                            if (_isSearchingByImage)
+                                              Positioned(
+                                                right: 0,
+                                                top: 0,
+                                                child: Container(
+                                                  width: 8,
+                                                  height: 8,
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                    color: Colors.purple,
+                                                    shape: BoxShape.circle,
                                                   ),
                                                 ),
-                                            ],
-                                          ),
-                                          onPressed: _pickImageForSearch,
+                                              ),
+                                          ],
                                         ),
+                                        onPressed: _pickImageForSearch,
                                       ),
-                                    ],
-                                  ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                    horizontal: 16,
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                                onChanged: (query) {
-                                  // ถ้ากำลังค้นหาด้วยรูปภาพ ไม่ให้ทำอะไร
-                                  if (_isSearchingByImage ||
-                                      imageSearchResults.isNotEmpty) {
-                                    return;
-                                  }
-
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 16,
+                                ),
+                              ),
+                              onChanged: (query) {
+                                // ถ้ากำลังค้นหาด้วยรูปภาพ ไม่ให้ทำอะไร
+                                if (query.isNotEmpty &&
+                                    imageSearchResults.isNotEmpty) {
                                   setState(() {
-                                    currentSearchQuery = query;
-                                    isSearchingHashtag = query.startsWith("#");
-                                    _selectedHashtag = null;
-                                    _selectedHashtagPosts.clear();
-                                    imageSearchResults
-                                        .clear(); // ล้างผลค้นหารูปภาพ
-                                    _imageSearchLabels = ''; // ล้าง labels
+                                    imageSearchResults.clear();
+                                    _imageSearchLabels = '';
+                                    _isSearchingByImage = false;
                                   });
+                                }
 
-                                  if (query.startsWith("#")) {
-                                    searchHashtags(query);
-                                    setState(() {
-                                      contentSearchResults.clear();
-                                      categorySearchResults.clear();
-                                    });
-                                  } else if (query.isNotEmpty) {
-                                    setState(() {
-                                      filteredUsers = user
-                                          .where((u) => (u.name ?? '')
-                                              .toLowerCase()
-                                              .contains(query.toLowerCase()))
-                                          .toList();
-                                    });
-                                    searchPostContent(query);
-                                    searchPostByCategory(query);
-                                  } else {
-                                    setState(() {
-                                      filteredUsers = user;
-                                      contentSearchResults.clear();
-                                      categorySearchResults.clear();
-                                    });
-                                  }
-                                })),
+                                // ถ้าผู้ใช้ล้างข้อความค้นหา ให้รีเซ็ตทั้งหมด
+                                if (query.isEmpty) {
+                                  _clearSearch();
+                                  return;
+                                }
+
+                                setState(() {
+                                  currentSearchQuery = query;
+                                  isSearchingHashtag = query.startsWith("#");
+                                  _selectedHashtag = null;
+                                  _selectedHashtagPosts.clear();
+                                });
+
+                                // ถ้าเป็นการค้นหา hashtag
+                                if (query.startsWith("#")) {
+                                  searchHashtags(query);
+                                  setState(() {
+                                    contentSearchResults.clear();
+                                    categorySearchResults.clear();
+                                    matchedCategories.clear();
+                                    filteredUsers = user;
+                                  });
+                                }
+                                // ถ้าเป็นการค้นหาทั่วไป
+                                else {
+                                  setState(() {
+                                    filteredUsers = user
+                                        .where((u) => (u.name ?? '')
+                                            .toLowerCase()
+                                            .contains(query.toLowerCase()))
+                                        .toList();
+                                  });
+                                  searchPostContent(query);
+                                  searchPostByCategory(query);
+                                }
+                              },
+                            )),
                       ),
                     ],
                   ),

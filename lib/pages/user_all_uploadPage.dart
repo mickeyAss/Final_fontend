@@ -1412,20 +1412,23 @@ class _UserAllUploadPageState extends State<UserAllUploadPage> {
       final userId = int.tryParse(userString.toString()) ?? 0;
 
       // Upload + Vision
-      List<String> imageUrls = [];
+       List<String> imageUrls = [];
       List<Map<String, String>> imageAnalysis = [];
 
-      for (final asset in selectedAssets) {
+      for (int i = 0; i < selectedAssets.length; i++) {
+        final asset = selectedAssets[i];
         final imageUrl = await uploadToFirebase(asset);
         if (imageUrl != null) {
           imageUrls.add(imageUrl);
 
-          // 🔍 วิเคราะห์รูปด้วย Vision API
-          final visionText = await analyzeAndTranslateImage(imageUrl);
-          imageAnalysis.add({
-            "image_url": imageUrl,
-            "analysis_text": visionText ?? "",
-          });
+          // 🔍 วิเคราะห์เฉพาะรูปแรก
+          if (i == 0) {
+            final visionText = await analyzeAndTranslateImage(imageUrl);
+            imageAnalysis.add({
+              "image_url": imageUrl,
+              "analysis_text": visionText ?? "",
+            });
+          }
         }
       }
 
