@@ -1,8 +1,8 @@
+import 'dart:convert';
 // To parse this JSON data, do
 //
 //     final getPostLike = getPostLikeFromJson(jsonString);
 
-import 'dart:convert';
 
 List<GetPostLike> getPostLikeFromJson(String str) => List<GetPostLike>.from(json.decode(str).map((x) => GetPostLike.fromJson(x)));
 
@@ -26,9 +26,9 @@ class GetPostLike {
     factory GetPostLike.fromJson(Map<String, dynamic> json) => GetPostLike(
         post: Post.fromJson(json["post"]),
         user: User.fromJson(json["user"]),
-        images: List<Image>.from(json["images"].map((x) => Image.fromJson(x))),
-        categories: List<Category>.from(json["categories"].map((x) => Category.fromJson(x))),
-        hashtags: List<Hashtag>.from(json["hashtags"].map((x) => Hashtag.fromJson(x))),
+        images: List<Image>.from((json["images"] ?? []).map((x) => Image.fromJson(x))),  // ✅ รองรับ null
+        categories: List<Category>.from((json["categories"] ?? []).map((x) => Category.fromJson(x))),  // ✅ รองรับ null
+        hashtags: List<Hashtag>.from((json["hashtags"] ?? []).map((x) => Hashtag.fromJson(x))),  // ✅ รองรับ null
     );
 
     Map<String, dynamic> toJson() => {
@@ -43,21 +43,21 @@ class GetPostLike {
 class Category {
     int cid;
     String cname;
-    String cimage;
+    String? cimage;  // ✅ เปลี่ยนเป็น nullable
     Ctype ctype;
 
     Category({
         required this.cid,
         required this.cname,
-        required this.cimage,
+        this.cimage,  // ✅ ไม่บังคับ
         required this.ctype,
     });
 
     factory Category.fromJson(Map<String, dynamic> json) => Category(
         cid: json["cid"],
         cname: json["cname"],
-        cimage: json["cimage"],
-        ctype: ctypeValues.map[json["ctype"]]!,
+        cimage: json["cimage"],  // ✅ อาจเป็น null
+        ctype: ctypeValues.map[json["ctype"]] ?? Ctype.F,  // ✅ มี default value
     );
 
     Map<String, dynamic> toJson() => {
@@ -124,7 +124,7 @@ class Image {
 
 class Post {
     int postId;
-    String? postTopic;
+    String? postTopic;  // ✅ เป็น nullable อยู่แล้ว
     String postDescription;
     DateTime postDate;
     int postFkUid;
@@ -132,7 +132,7 @@ class Post {
 
     Post({
         required this.postId,
-        required this.postTopic,
+        this.postTopic,  // ✅ ไม่บังคับ
         required this.postDescription,
         required this.postDate,
         required this.postFkUid,
@@ -141,11 +141,11 @@ class Post {
 
     factory Post.fromJson(Map<String, dynamic> json) => Post(
         postId: json["post_id"],
-        postTopic: json["post_topic"],
-        postDescription: json["post_description"],
+        postTopic: json["post_topic"],  // ✅ อาจเป็น null
+        postDescription: json["post_description"] ?? "",  // ✅ ป้องกัน null
         postDate: DateTime.parse(json["post_date"]),
         postFkUid: json["post_fk_uid"],
-        amountOfLike: json["amount_of_like"],
+        amountOfLike: json["amount_of_like"] ?? 0,  // ✅ ป้องกัน null
     );
 
     Map<String, dynamic> toJson() => {
@@ -162,15 +162,15 @@ class User {
     int uid;
     String name;
     String email;
-    String? personalDescription;
-    String profileImage;
+    String? personalDescription;  // ✅ เป็น nullable อยู่แล้ว
+    String? profileImage;  // ✅ เปลี่ยนเป็น nullable
 
     User({
         required this.uid,
         required this.name,
         required this.email,
-        required this.personalDescription,
-        required this.profileImage,
+        this.personalDescription,  // ✅ ไม่บังคับ
+        this.profileImage,  // ✅ ไม่บังคับ
     });
 
     factory User.fromJson(Map<String, dynamic> json) => User(
@@ -178,7 +178,7 @@ class User {
         name: json["name"],
         email: json["email"],
         personalDescription: json["personal_description"],
-        profileImage: json["profile_image"],
+        profileImage: json["profile_image"],  // ✅ อาจเป็น null
     );
 
     Map<String, dynamic> toJson() => {
@@ -197,7 +197,7 @@ class EnumValues<T> {
     EnumValues(this.map);
 
     Map<T, String> get reverse {
-            reverseMap = map.map((k, v) => MapEntry(v, k));
-            return reverseMap;
+        reverseMap = map.map((k, v) => MapEntry(v, k));
+        return reverseMap;
     }
 }

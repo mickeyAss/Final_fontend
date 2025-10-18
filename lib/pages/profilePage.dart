@@ -149,33 +149,43 @@ class _ProfilepageState extends State<Profilepage> {
     }
   }
 
-  Future<void> _loadLikedPosts() async {
-    try {
-      final userId = gs.read('user');
-      if (userId == null) return;
+ Future<void> _loadLikedPosts() async {
+  try {
+    final userId = gs.read('user');
+    if (userId == null) return;
 
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-      final uri = Uri.parse('$url/image_post/liked-posts/full/$userId');
-      final response = await http.get(uri);
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final uri = Uri.parse('$url/image_post/liked-posts/full/$userId');
+    
+    log('🔍 กำลังเรียก API: $uri'); // ตรวจสอบ URL
+    
+    final response = await http.get(uri);
+    
+    log('📊 Status Code: ${response.statusCode}'); // ตรวจสอบ status
+    log('📦 Response Body: ${response.body}'); // ดูข้อมูลที่ได้
 
-      if (response.statusCode == 200) {
-        setState(() {
-          likedPosts = modelp.getPostLikeFromJson(response.body);
-        });
-      } else {
-        setState(() {
-          likedPosts = [];
-        });
-        throw Exception('Failed to load liked posts');
-      }
-    } catch (e) {
-      log('Error loading liked posts: $e');
+    if (response.statusCode == 200) {
+      final parsedData = modelp.getPostLikeFromJson(response.body);
+      log('✅ จำนวนโพสต์ที่ถูกใจ: ${parsedData.length}'); // ตรวจสอบจำนวน
+      
+      setState(() {
+        likedPosts = parsedData;
+      });
+    } else {
+      log('❌ API Error: ${response.statusCode}');
       setState(() {
         likedPosts = [];
       });
+      throw Exception('Failed to load liked posts');
     }
+  } catch (e) {
+    log('💥 Error loading liked posts: $e');
+    setState(() {
+      likedPosts = [];
+    });
   }
+}
 
   Future<void> _loadSavedPosts() async {
     try {
