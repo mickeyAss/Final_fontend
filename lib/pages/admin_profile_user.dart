@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/models/get_user_uid.dart';
+import 'package:fontend_pro/pages/admin_detailpost.dart';
 import 'package:fontend_pro/pages/user_detail_post.dart';
 import 'package:fontend_pro/models/get_post_user.dart' as model;
 
@@ -22,43 +23,27 @@ class AdminprofileUserPage extends StatefulWidget {
 }
 
 class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
-  int selectedIndex = 0; // เฉพาะ tab posts เท่านั้น
   GetUserUid? user;
   final GetStorage gs = GetStorage();
 
   List<model.GetPostUser>? userPosts;
   bool _isInitialLoading = true;
   bool _isRefreshing = false;
-  bool _isFollowing = false;
-  bool _isFollowLoading = false;
 
   int followersCount = 0;
   int followingCount = 0;
   int postsCount = 0;
 
-  // ตัวแปรสำหรับเก็บ userId ของผู้ใช้ปัจจุบัน
-  int? currentUserId;
-  Set<int> followingUserIds = <int>{}; // เพิ่มตัวแปรนี้
-
   @override
   void initState() {
     super.initState();
-    _getCurrentUserId();
     _initializeData();
-  }
-
-  void _getCurrentUserId() {
-    final uid = gs.read('user');
-    if (uid != null) {
-      currentUserId = uid is int ? uid : int.tryParse(uid.toString());
-    }
   }
 
   Future<void> _initializeData() async {
     await Future.wait([
       loadDataUser(),
       loadUserPosts(),
-      _checkFollowStatus(),
     ]);
 
     setState(() {
@@ -101,7 +86,6 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
       await Future.wait([
         loadDataUser(),
         loadUserPosts(),
-        _checkFollowStatus(),
       ]);
     } catch (e) {
       log('Error refreshing data: $e');
@@ -148,154 +132,6 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
     }
   }
 
-  // ฟังก์ชันสำหรับเช็คสถานะการติดตาม
-  Future<void> _checkFollowStatus() async {
-    if (currentUserId == null) return;
-
-    try {
-      final config = await Configuration.getConfig();
-      final url = config['apiEndpoint'];
-      final uri = Uri.parse('$url/user/is-following').replace(queryParameters: {
-        'follower_id': currentUserId.toString(),
-        'following_id': widget.userId.toString(),
-      });
-
-      log('เรียก API is-following: $uri');
-      final response = await http.get(uri);
-      log('Response Status (is-following): ${response.statusCode}');
-      log('Response Body (is-following): ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final isFollowing = data['isFollowing'] ?? false;
-        setState(() {
-          _isFollowing = isFollowing;
-          if (isFollowing) {
-            followingUserIds.add(widget.userId);
-          } else {
-            followingUserIds.remove(widget.userId);
-          }
-        });
-        log('Follow status: $_isFollowing');
-      } else {
-        log('Failed to check follow status: ${response.statusCode}');
-        setState(() {
-          _isFollowing = false;
-        });
-      }
-    } catch (e) {
-      log('Error checking follow status: $e');
-      setState(() {
-        _isFollowing = false;
-      });
-    }
-  }
-
-  // ฟังก์ชันสำหรับติดตามผู้ใช้
-  Future<void> followUser(int targetUserId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    try {
-      final response = await http.post(
-        Uri.parse('$url/user/follow'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "follower_id": currentUserId,
-          "following_id": targetUserId,
-        }),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        log('ติดตามผู้ใช้ $targetUserId สำเร็จ');
-        setState(() {
-          followingUserIds.add(targetUserId);
-          _isFollowing = true;
-          followersCount++;
-        });
-      } else {
-        log('เกิดข้อผิดพลาดในการติดตาม: ${response.body}');
-        _showErrorSnackBar('ไม่สามารถติดตามได้ในขณะนี้');
-      }
-    } catch (e) {
-      log('Error following user: $e');
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการติดตาม');
-    }
-  }
-
-  // ฟังก์ชันสำหรับเลิกติดตามผู้ใช้
-  Future<void> unfollowUser(int targetUserId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    try {
-      final uri = Uri.parse('$url/user/unfollow');
-      final request = http.Request('DELETE', uri);
-      request.headers['Content-Type'] = 'application/json';
-      request.body = jsonEncode({
-        'follower_id': currentUserId,
-        'following_id': targetUserId,
-      });
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        log('เลิกติดตามผู้ใช้ $targetUserId สำเร็จ');
-        setState(() {
-          followingUserIds.remove(targetUserId);
-          _isFollowing = false;
-          followersCount = followersCount > 0 ? followersCount - 1 : 0;
-        });
-      } else {
-        log('เกิดข้อผิดพลาดในการเลิกติดตาม: ${response.body}');
-        _showErrorSnackBar('ไม่สามารถเลิกติดตามได้ในขณะนี้');
-      }
-    } catch (e) {
-      log('Error unfollowing user: $e');
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการเลิกติดตาม');
-    }
-  }
-
-  // ฟังก์ชันสำหรับแสดงข้อความแจ้งเตือนเมื่อเกิดข้อผิดพลาด
-  void _showErrorSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // ฟังก์ชันสำหรับติดตาม/เลิกติดตาม (ปรับปรุงแล้ว)
-  Future<void> _toggleFollow() async {
-    if (currentUserId == null || _isFollowLoading) return;
-
-    setState(() {
-      _isFollowLoading = true;
-    });
-
-    try {
-      if (_isFollowing) {
-        await unfollowUser(widget.userId);
-      } else {
-        await followUser(widget.userId);
-      }
-    } catch (e) {
-      log('Error toggling follow: $e');
-      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isFollowLoading = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -320,16 +156,6 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
           ),
         ),
         centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.more_vert,
-              color: Colors.black,
-              size: 24,
-            ),
-            onPressed: _showMoreOptionsBottomSheet,
-          ),
-        ],
       ),
       body: _isInitialLoading
           ? const Center(
@@ -446,59 +272,6 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
                       ),
                     ),
                   ),
-                  // ปุ่มสำหรับติดตาม/เลิกติดตาม
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Container(
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: _isFollowing
-                                    ? Colors.grey[200]
-                                    : const Color.fromARGB(255, 0, 0, 0),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(6),
-                                  onTap:
-                                      _isFollowLoading ? null : _toggleFollow,
-                                  child: Center(
-                                    child: _isFollowLoading
-                                        ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : Text(
-                                            _isFollowing
-                                                ? "กำลังติดตาม"
-                                                : "ติดตาม",
-                                            style: TextStyle(
-                                              color: _isFollowing
-                                                  ? Colors.black
-                                                  : Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                   SliverToBoxAdapter(
                     child: Column(
                       children: [
@@ -609,7 +382,7 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
           onTap: () {
             if (postId != null) {
               log('Navigating to post detail with ID: $postId');
-              Get.to(() => UserDetailPostPage(postId: postId));
+              Get.to(() => AdminDetailPost(postId: postId));
             }
           },
           child: Container(
@@ -643,212 +416,6 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
                     size: 40,
                   ),
           ),
-        );
-      },
-    );
-  }
-
-  void _showMoreOptionsBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(0)),
-      ),
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 36,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.report_outlined),
-                title: const Text('รายงาน'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showReportDialog();
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // แก้ไขฟังก์ชัน _showReportDialog
-  void _showReportDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return ReportUserDialog(
-          onReport: (reason) async {
-            await _reportUser(reason);
-          },
-        );
-      },
-    );
-  }
-
-  // ฟังก์ชันเรียก API report-user (ปรับปรุงแล้ว)
-  Future<void> _reportUser(String reason) async {
-    if (currentUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ไม่สามารถรายงานได้ กรุณาเข้าสู่ระบบใหม่'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // แสดง loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const AlertDialog(
-          content: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text('กำลังรายงาน...'),
-            ],
-          ),
-        );
-      },
-    );
-
-    try {
-      final config = await Configuration.getConfig();
-      final url = config['apiEndpoint'];
-      final uri = Uri.parse('$url/image_post/report-user');
-
-      log('Sending report request: reporter_id=$currentUserId, reported_id=${widget.userId}, reason=$reason');
-
-      final response = await http.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          "reporter_id": currentUserId,
-          "reported_id": widget.userId,
-          "reason": reason,
-        }),
-      );
-
-      // ปิด loading dialog
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-
-      log('Report response: ${response.statusCode} - ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('รายงานผู้ใช้สำเร็จ ขอบคุณสำหรับการแจ้ง'),
-              duration: Duration(seconds: 3),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        String errorMessage = 'เกิดข้อผิดพลาด';
-        try {
-          final data = jsonDecode(response.body);
-          errorMessage = data['message'] ?? errorMessage;
-        } catch (e) {
-          log('Error parsing error response: $e');
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              duration: const Duration(seconds: 3),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      // ปิด loading dialog ถ้ายังเปิดอยู่
-      if (Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-
-      log('Error reporting user: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('เกิดข้อผิดพลาดในการรายงาน กรุณาลองใหม่อีกครั้ง'),
-            duration: Duration(seconds: 3),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showBlockDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'บล็อกผู้ใช้',
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: const Text(
-            'คุณต้องการบล็อกผู้ใช้นี้หรือไม่?',
-            style: TextStyle(
-              color: Colors.black87,
-              fontSize: 15,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(foregroundColor: Colors.black),
-              child: const Text('ยกเลิก'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('ฟีเจอร์บล็อกยังไม่พร้อมใช้งาน'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('บล็อก'),
-            ),
-          ],
         );
       },
     );
@@ -950,119 +517,5 @@ class _AdminprofileUserPageState extends State<AdminprofileUserPage> {
         followingCount = 0;
       });
     }
-  }
-}
-
-// สร้าง ReportUserDialog เป็น StatefulWidget แยก
-class ReportUserDialog extends StatefulWidget {
-  final Function(String) onReport;
-
-  const ReportUserDialog({
-    Key? key,
-    required this.onReport,
-  }) : super(key: key);
-
-  @override
-  State<ReportUserDialog> createState() => _ReportUserDialogState();
-}
-
-class _ReportUserDialogState extends State<ReportUserDialog> {
-  String? selectedReason;
-
-  final List<String> reportReasons = [
-    "สแปม / โฆษณา",
-    "พฤติกรรมไม่เหมาะสม",
-    "ปลอมตัว / ขโมยข้อมูล",
-    "อื่นๆ",
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      title: const Text(
-        'รายงานผู้ใช้',
-        style: TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: reportReasons.map((reason) {
-            return InkWell(
-              onTap: () {
-                setState(() {
-                  selectedReason = reason;
-                });
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  children: [
-                    Radio<String>(
-                      value: reason,
-                      groupValue: selectedReason,
-                      activeColor: Colors.blue,
-                      onChanged: (value) {
-                        setState(() {
-                          selectedReason = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        reason,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          ),
-          child: const Text('ยกเลิก'),
-        ),
-        ElevatedButton(
-          onPressed: selectedReason == null
-              ? null
-              : () {
-                  Navigator.of(context).pop();
-                  widget.onReport(selectedReason!);
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor:
-                selectedReason == null ? Colors.grey[300] : Colors.red,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: Text(
-            'รายงาน',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: selectedReason == null ? Colors.grey[600] : Colors.white,
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
