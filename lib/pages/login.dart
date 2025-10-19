@@ -670,126 +670,119 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _loginWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-    });
+Future<void> _loginWithGoogle() async {
+  setState(() {
+    _isLoading = true;
+  });
 
-    try {
-      // 1️⃣ ล็อกอิน Google
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        log('User canceled Google Sign-In');
+  try {
+    // 1️⃣ ล็อกอินด้วย Google
+    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) {
+      setState(() => _isLoading = false);
+      log('User canceled Google Sign-In');
+      return;
+    }
+
+    // 2️⃣ เก็บข้อมูลเบื้องต้นจาก Google
+    await gs.write('google_email', googleUser.email);
+    await gs.write('google_name', googleUser.displayName ?? '');
+    log('Saved Google data - Email: ${googleUser.email}, Name: ${googleUser.displayName}');
+
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+    // 3️⃣ สร้าง credential สำหรับ Firebase
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    // 4️⃣ ล็อกอินกับ Firebase
+    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+    // 5️⃣ ดึง Firebase ID Token
+    final firebaseIdToken = await userCredential.user?.getIdToken();
+    if (firebaseIdToken == null) {
+      throw Exception("Missing Firebase ID Token");
+    }
+
+    log('Firebase ID Token: $firebaseIdToken', name: 'LoginGoogle');
+
+    // 6️⃣ ส่ง Token ไปยัง API /user/login-google
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    final response = await http.post(
+      Uri.parse('$url/user/login-google'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'idToken': firebaseIdToken}),
+    );
+
+    if (response.statusCode == 200) {
+      final responseData = jsonDecode(response.body);
+      final user = responseData['user'];
+
+      if (user == null || user['uid'] == null) {
+        throw Exception('User data missing from API');
+      }
+
+      final mySqlUid = user['uid'];
+
+      // ✅ เก็บข้อมูลใน GetStorage
+      await gs.write('user', mySqlUid);
+      await gs.write('user_data', user);
+      await gs.write('login_type', 'google');
+
+      log('Current user uid from MySQL: $mySqlUid');
+
+      // ✅ ถ้าเป็นผู้ใช้ใหม่ → ไปหน้า RegisterPage
+      if (user['is_new_user'] == true) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => RegisterPage()),
+          );
+        }
         return;
       }
 
-      // 🆕 เก็บข้อมูล Google ลง GetStorage
-      await gs.write('google_email', googleUser.email);
-      await gs.write('google_name', googleUser.displayName ?? '');
-      log('Saved Google data - Email: ${googleUser.email}, Name: ${googleUser.displayName}');
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      // 2️⃣ สร้าง credential สำหรับ Firebase
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // 3️⃣ ล็อกอินกับ Firebase
-      final userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      // 4️⃣ ดึง Firebase ID Token
-      final firebaseIdToken = await userCredential.user?.getIdToken();
-      if (firebaseIdToken == null) {
-        log('Error: firebaseIdToken is null', name: 'LoginGoogle');
-        throw Exception("Missing Firebase ID Token");
+      // ✅ ถ้าถูกแบน
+      if (user['is_banned'] == 1) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const BanUserPage()),
+          );
+        }
+        return;
       }
 
-      log('Firebase ID Token: $firebaseIdToken', name: 'LoginGoogle');
-
-      // 5️⃣ ส่ง Firebase ID Token ไป API ของเรา (/login-google)
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-
-      final response = await http.post(
-        Uri.parse('$url/user/login-google'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'idToken': firebaseIdToken}),
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        final user = responseData['user'];
-
-        if (user == null || user['uid'] == null) {
-          throw Exception('User data missing from API');
-        }
-
-        final mySqlUid = user['uid'];
-
-        // บันทึกลง GetStorage
-        await gs.write('user', mySqlUid);
-        await gs.write('user_data', user);
-        await gs.write('login_type', 'google');
-
-        log('Current user uid from MySQL: $mySqlUid');
-
-        // ตรวจสอบว่าผู้ใช้ถูกแบนหรือไม่
-        if (user['is_banned'] == 1) {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const BanUserPage()),
-            );
-          }
-          return;
-        }
-
-        // เช็ค type ของผู้ใช้
-        if (user['type'] == 'admin') {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => AdminPage()),
-            );
-          }
-        } else {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => Mainpage()),
-            );
-          }
+      // ✅ ตรวจสอบประเภทผู้ใช้
+      if (user['type'] == 'admin') {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => AdminPage()),
+          );
         }
       } else {
-        log('API login-google error: ${response.body}');
-        
-        // 🆕 หากไม่มี user ในระบบ (404) ให้ไปหน้า Register
-        if (response.statusCode == 404) {
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => RegisterPage()),
-            );
-          }
-        } else {
-          showModernDialog(
-            context: context,
-            icon: Icons.error_outline,
-            iconColor: Colors.red,
-            title: 'เกิดข้อผิดพลาด',
-            message: 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่',
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => Mainpage()),
           );
         }
       }
-    } catch (e, stack) {
-      log('Google login error',
-          name: 'LoginGoogle', error: e.toString(), stackTrace: stack);
-
+    } else if (response.statusCode == 404) {
+      // 🆕 ผู้ใช้ไม่พบในระบบ → ไปหน้า Register
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => RegisterPage()),
+        );
+      }
+    } else {
+      log('API login-google error: ${response.body}');
       showModernDialog(
         context: context,
         icon: Icons.error_outline,
@@ -797,14 +790,25 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
         title: 'เกิดข้อผิดพลาด',
         message: 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่',
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    }
+  } catch (e, stack) {
+    log('Google login error', name: 'LoginGoogle', error: e.toString(), stackTrace: stack);
+    showModernDialog(
+      context: context,
+      icon: Icons.error_outline,
+      iconColor: Colors.red,
+      title: 'เกิดข้อผิดพลาด',
+      message: 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่',
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
+
 
   // Modern Dialog Method
   void showModernDialog({
