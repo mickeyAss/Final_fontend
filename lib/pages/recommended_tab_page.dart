@@ -2719,7 +2719,7 @@ class RecommendedTabState extends State<RecommendedTab>
               Navigator.pop(context, true);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: const Color.fromARGB(255, 0, 0, 0),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),

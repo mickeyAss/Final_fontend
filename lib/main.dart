@@ -18,7 +18,6 @@ Future<void> main() async {
   var user = gs.read('user');
   print('user ---> $user');
 
-// ถ้า user ยังไม่มี -> ไปหน้า login, ถ้ามีแล้ว -> ไปหน้า mainPage
   String firstPage = (user == null) ? '/login' : '/mainPage';
 
   runApp(MyApp(initialRoute: firstPage));
@@ -32,23 +31,75 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
       initialRoute: initialRoute,
       getPages: [
         GetPage(name: '/login', page: () => const Loginpage()),
         GetPage(name: '/mainPage', page: () => const Mainpage()),
       ],
-      theme: ThemeData(
-        textTheme: GoogleFonts.k2dTextTheme(Theme.of(context).textTheme),
-        scaffoldBackgroundColor: Colors.white,
+      theme: ThemeData.light().copyWith(
+        textTheme: GoogleFonts.k2dTextTheme(ThemeData.light().textTheme),
+        scaffoldBackgroundColor: Colors.white, // 🔹 พื้นหลังขาว
+        primaryColor: Colors.black, // 🔹 สีหลักของระบบเป็นดำ
         useMaterial3: true,
-        primaryColor: Colors.black,
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+
+        // 🔹 AppBar สีขาว ตัวอักษรดำ
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
-          elevation: 8,
+          foregroundColor: Colors.black,
+          elevation: 0,
         ),
-        textSelectionTheme: TextSelectionThemeData(
+
+        // 🔹 แถบล่างสีขาว ตัวอักษรดำ
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.grey,
+        ),
+
+        // 🔹 เคอร์เซอร์และ Selection ให้เป็นสีดำ
+        textSelectionTheme: const TextSelectionThemeData(
           cursorColor: Colors.black,
+          selectionColor: Colors.black12,
+          selectionHandleColor: Colors.black,
         ),
+
+        // 🔹 ช่องข้อความ (TextField) กรอบดำ พื้นหลังขาว
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white, // พื้นในช่องเป็นขาว
+          hintStyle: TextStyle(color: Colors.grey),
+          labelStyle: TextStyle(color: Colors.black),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: Colors.black, width: 1.5),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: Colors.black54, width: 1.0),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+        ),
+
+        // 🔹 ปุ่มกดเป็นสีดำ ตัวอักษรขาว
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            textStyle: const TextStyle(fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+
+        // 🔹 TextButton และ IconButton ก็ใช้สีดำ
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: Colors.black),
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
     );
   }

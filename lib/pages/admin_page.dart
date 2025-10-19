@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'package:fontend_pro/pages/admin_detailpost.dart';
 import 'package:fontend_pro/pages/user_detail_post.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
@@ -1124,7 +1125,7 @@ class _AdminPageState extends State<AdminPage>
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => UserDetailPostPage(
+              builder: (context) => AdminDetailPost(
                 postId: reportData.postId,
               ),
             ),
