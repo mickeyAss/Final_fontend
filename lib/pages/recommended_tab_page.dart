@@ -134,8 +134,9 @@ class RecommendedTabState extends State<RecommendedTab>
   void resetToNormalFeed() {
     if (_isFirstLoadAfterPost) {
       _isFirstLoadAfterPost = false;
-      // รีโหลดเป็น normal feed
-      loadAllPosts(firstLoad: false);
+      // รีโหลดเป็น normal feed แบบ random
+      loadAllPosts(
+          firstLoad: false, randomize: false); //
     }
   }
 
@@ -173,7 +174,7 @@ class RecommendedTabState extends State<RecommendedTab>
     });
 
     await loadCategories();
-    await loadAllPosts(firstLoad: false); // เริ่มต้นด้วย normal feed
+    await loadAllPosts(firstLoad: false, randomize: false); // เริ่มต้นด้วย normal feed
 
     setState(() {
       isInitialLoading = false;
@@ -208,7 +209,8 @@ class RecommendedTabState extends State<RecommendedTab>
 
     try {
       await loadCategories();
-      await loadAllPosts(firstLoad: false); // รีเฟรชเป็น normal feed
+      await loadAllPosts(
+          firstLoad: false, randomize: true); // ✅ เพิ่ม randomize: true
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -360,8 +362,9 @@ class RecommendedTabState extends State<RecommendedTab>
     }
   }
 
-  // ปรับปรุง loadAllPosts ให้รองรับการตรวจสอบ _isFirstLoadAfterPost
-  Future<void> loadAllPosts({bool firstLoad = false}) async {
+  // ปรับปรุง loadAllPosts ให้รองรับการตรวจสอบ _isFirstLoadAfterPost และ randomize
+  Future<void> loadAllPosts(
+      {bool firstLoad = false, bool randomize = false}) async {
     try {
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
@@ -370,8 +373,10 @@ class RecommendedTabState extends State<RecommendedTab>
       // ใช้ _isFirstLoadAfterPost แทน firstLoad parameter
       final shouldShowOwnPosts = firstLoad || _isFirstLoadAfterPost;
 
+      // ✅ เพิ่ม &randomize=$randomize ในนี้
       final postResponse = await http.get(
-        Uri.parse("$url/image_post/get?uid=$uid&firstLoad=$shouldShowOwnPosts"),
+        Uri.parse(
+            "$url/image_post/get?uid=$uid&firstLoad=$shouldShowOwnPosts&randomize=$randomize"),
       );
 
       final likedResponse = await http.get(
@@ -2153,43 +2158,46 @@ class RecommendedTabState extends State<RecommendedTab>
                                               ],
                                             ),
                                           ),
-                                            const SizedBox(height: 8),
-                                      // 🎯 เพิ่มส่วน Like Button
-                                      Row(
-                                        children: [
-                                          GestureDetector(
-                                            onTap: () {
-                                              toggleCommentLike(c.commentId);
-                                              setModalState(
-                                                  () {}); // รีเฟรช UI ใน modal
-                                            },
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  isLiked
-                                                      ? Icons.favorite
-                                                      : Icons.favorite_border,
-                                                  size: 18,
-                                                  color: isLiked
-                                                      ? Colors.red
-                                                      : Colors.grey[600],
+                                          const SizedBox(height: 8),
+                                          // 🎯 เพิ่มส่วน Like Button
+                                          Row(
+                                            children: [
+                                              GestureDetector(
+                                                onTap: () {
+                                                  toggleCommentLike(
+                                                      c.commentId);
+                                                  setModalState(
+                                                      () {}); // รีเฟรช UI ใน modal
+                                                },
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      isLiked
+                                                          ? Icons.favorite
+                                                          : Icons
+                                                              .favorite_border,
+                                                      size: 18,
+                                                      color: isLiked
+                                                          ? Colors.red
+                                                          : Colors.grey[600],
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      likeCount > 0
+                                                          ? '$likeCount'
+                                                          : '',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[600],
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  likeCount > 0
-                                                      ? '$likeCount'
-                                                      : '',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600],
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
                                           if (canDelete)
                                             PopupMenuButton<String>(
                                               icon: Icon(
@@ -2400,8 +2408,6 @@ class RecommendedTabState extends State<RecommendedTab>
                                           height: 1.4,
                                         ),
                                       ),
-
-                                    
                                     ],
                                   ),
                                 );
@@ -2577,24 +2583,23 @@ class RecommendedTabState extends State<RecommendedTab>
     );
   }
 
- Future<GetComment> _fetchComments(int postId) async {
-  var config = await Configuration.getConfig();
-  var url = config['apiEndpoint'];
-  final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
+  Future<GetComment> _fetchComments(int postId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
 
-  if (res.statusCode == 200) {
-    final commentData = getCommentFromJson(res.body);
+    if (res.statusCode == 200) {
+      final commentData = getCommentFromJson(res.body);
 
-    // ✅ ดึง commentId ทั้งหมดแล้วเรียก checkCommentLikes
-    final commentIds = commentData.comments.map((c) => c.commentId).toList();
-    await checkCommentLikes(commentIds);
+      // ✅ ดึง commentId ทั้งหมดแล้วเรียก checkCommentLikes
+      final commentIds = commentData.comments.map((c) => c.commentId).toList();
+      await checkCommentLikes(commentIds);
 
-    return commentData;
-  } else {
-    throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
+      return commentData;
+    } else {
+      throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
+    }
   }
-}
-
 
   Future<void> _submitComment(int postId, String commentText) async {
     final gs = GetStorage();
@@ -2719,7 +2724,7 @@ class RecommendedTabState extends State<RecommendedTab>
               Navigator.pop(context, true);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+              backgroundColor: Colors.blue,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
