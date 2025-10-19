@@ -37,10 +37,15 @@ class _RegisterPageState extends State<RegisterPage>
   String _selectedShirtSize = '';
 
   final List<String> shirtSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  final box = GetStorage(); // 🆕 GetStorage instance
 
   @override
   void initState() {
     super.initState();
+    
+    // 🆕 โหลดข้อมูลจาก Google Sign-In (ถ้ามี)
+    _loadGoogleData();
+    
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -68,6 +73,22 @@ class _RegisterPageState extends State<RegisterPage>
 
     _slideController.forward();
     _fadeController.forward();
+  }
+
+  // 🆕 ฟังก์ชันโหลดข้อมูลจาก Google
+  void _loadGoogleData() {
+    final googleEmail = box.read('google_email');
+    final googleName = box.read('google_name');
+
+    if (googleEmail != null && googleEmail.toString().isNotEmpty) {
+      emailNoCt1.text = googleEmail;
+      log('Loaded Google Email: $googleEmail');
+    }
+
+    if (googleName != null && googleName.toString().isNotEmpty) {
+      nameNoCt1.text = googleName;
+      log('Loaded Google Name: $googleName');
+    }
   }
 
   @override
@@ -388,12 +409,12 @@ class _RegisterPageState extends State<RegisterPage>
               color: Colors.grey.shade600,
             ),
           ),
-           const SizedBox(height: 8),
-           Text(
+          const SizedBox(height: 8),
+          const Text(
             '*ไม่จำเป็นต้องกรอก',
             style: TextStyle(
               fontSize: 14,
-              color: const Color.fromARGB(255, 255, 0, 0),
+              color: Color.fromARGB(255, 255, 0, 0),
             ),
           ),
           const SizedBox(height: 24),
@@ -431,11 +452,11 @@ class _RegisterPageState extends State<RegisterPage>
                 ),
               ),
               const SizedBox(width: 8),
-               Text(
+              const Text(
                 '*ไม่จำเป็นต้องกรอก',
                 style: TextStyle(
                   fontSize: 14,
-                  color: const Color.fromARGB(255, 255, 0, 0),
+                  color: Color.fromARGB(255, 255, 0, 0),
                 ),
               ),
             ],
@@ -586,18 +607,60 @@ class _RegisterPageState extends State<RegisterPage>
     bool obscure = false,
     VoidCallback? onToggleVisibility,
   }) {
+    // 🆕 ตรวจสอบว่าเป็นช่อง Email และมาจาก Google หรือไม่
+    final isEmailField = label == 'อีเมล';
+    final isNameField = label == 'ชื่อผู้ใช้';
+    final googleEmail = box.read('google_email');
+    final googleName = box.read('google_name');
+    
+    final isFromGoogle = isEmailField && 
+                         googleEmail != null && 
+                         googleEmail.toString().isNotEmpty;
+    
+    final isNameFromGoogle = isNameField && 
+                             googleName != null && 
+                             googleName.toString().isNotEmpty;
+    
+    final isReadOnly = isFromGoogle || isNameFromGoogle;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       child: TextField(
         controller: controller,
         obscureText: obscure,
+        readOnly: isReadOnly, // 🆕 Lock field ถ้ามาจาก Google
         cursorColor: Colors.black,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
-          color: Colors.black87,
+          color: isReadOnly ? Colors.grey.shade600 : Colors.black87,
         ),
         decoration: InputDecoration(
           labelText: label,
+          // 🆕 แสดง suffix badge "จาก Google"
+          suffix: isReadOnly
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle, size: 12, color: Colors.blue.shade700),
+                      const SizedBox(width: 4),
+                      Text(
+                        'จาก Google',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : null,
           prefixIcon: Container(
             margin: const EdgeInsets.all(8),
             padding: const EdgeInsets.all(8),
@@ -617,7 +680,7 @@ class _RegisterPageState extends State<RegisterPage>
                 )
               : null,
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: isReadOnly ? Colors.grey.shade100 : Colors.grey.shade50,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
@@ -792,7 +855,7 @@ class _RegisterPageState extends State<RegisterPage>
         context: context,
         icon: Icons.lock_outline,
         iconColor: Colors.orange,
-        title: 'รหัsผ่านไม่ปลอดภัย',
+        title: 'รหัสผ่านไม่ปลอดภัย',
         message:
             'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
       );
@@ -813,7 +876,6 @@ class _RegisterPageState extends State<RegisterPage>
 
     await Future.delayed(const Duration(milliseconds: 500));
 
-    final box = GetStorage();
     await box.write('register_name', nameNoCt1.text.trim());
     await box.write('register_email', emailNoCt1.text.trim());
     await box.write('register_password', passwordNoCt1.text.trim());

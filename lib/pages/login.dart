@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:developer'; // อย่าลืม import
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
 import 'package:fontend_pro/pages/ban_user.dart';
@@ -109,7 +108,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                 children: [
                   const SizedBox(height: 60),
 
-                  // Logo (เหมือนเดิม)
+                  // Logo
                   AnimatedBuilder(
                     animation: _logoAnimation,
                     builder: (context, child) {
@@ -143,7 +142,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 40),
 
-                  // Welcome text (เหมือนเดิม)
+                  // Welcome text
                   SlideTransition(
                     position: _slideAnimation,
                     child: FadeTransition(
@@ -183,7 +182,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 50),
 
-                  // Text Fields (เหมือนเดิม)
+                  // Text Fields
                   _buildModernTextField(
                     label: "อีเมล",
                     controller: emailNoCt1,
@@ -215,32 +214,9 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 16),
 
-                  // Forgot Password (เหมือนเดิม)
-                  // Align(
-                  //   alignment: Alignment.centerRight,
-                  //   child: TextButton(
-                  //     onPressed: () {
-                  //       Navigator.push(
-                  //         context,
-                  //         MaterialPageRoute(
-                  //           builder: (context) => ForgotPasswordPage(),
-                  //         ),
-                  //       );
-                  //     },
-                  //     // child: Text(
-                  //     //   "ลืมรหัสผ่าน?",
-                  //     //   style: TextStyle(
-                  //     //     color: Colors.grey[400],
-                  //     //     fontSize: 14,
-                  //     //     decoration: TextDecoration.underline,
-                  //     //   ),
-                  //     // ),
-                  //   ),
-                  // ),
-
                   const SizedBox(height: 10),
 
-                  // ปรับปรุงปุ่ม Login ให้ Loading แบบเรียบง่าย
+                  // Login Button
                   Container(
                     width: double.infinity,
                     height: 56,
@@ -313,7 +289,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 30),
 
-                  // Divider (เหมือนเดิม)
+                  // Divider
                   Row(
                     children: [
                       Expanded(
@@ -359,7 +335,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 30),
 
-                  // ปรับปรุงปุ่ม Google ให้ Loading แบบเรียบง่าย
+                  // Google Button
                   Container(
                     width: double.infinity,
                     height: 56,
@@ -439,7 +415,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 40),
 
-                  // Register Link (เหมือนเดิม)
+                  // Register Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -620,7 +596,7 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
                 MaterialPageRoute(builder: (context) => const BanUserPage()),
               );
             }
-            return; // หยุดการนำทางต่อ
+            return;
           }
 
           // เช็ค type ของผู้ใช้
@@ -708,6 +684,11 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
         return;
       }
 
+      // 🆕 เก็บข้อมูล Google ลง GetStorage
+      await gs.write('google_email', googleUser.email);
+      await gs.write('google_name', googleUser.displayName ?? '');
+      log('Saved Google data - Email: ${googleUser.email}, Name: ${googleUser.displayName}');
+
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
@@ -757,22 +738,53 @@ class _LoginpageState extends State<Loginpage> with TickerProviderStateMixin {
 
         log('Current user uid from MySQL: $mySqlUid');
 
-        // นำทางไปหน้า Mainpage
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => Mainpage()),
-          );
+        // ตรวจสอบว่าผู้ใช้ถูกแบนหรือไม่
+        if (user['is_banned'] == 1) {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const BanUserPage()),
+            );
+          }
+          return;
+        }
+
+        // เช็ค type ของผู้ใช้
+        if (user['type'] == 'admin') {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => AdminPage()),
+            );
+          }
+        } else {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => Mainpage()),
+            );
+          }
         }
       } else {
         log('API login-google error: ${response.body}');
-        showModernDialog(
-          context: context,
-          icon: Icons.error_outline,
-          iconColor: Colors.red,
-          title: 'เกิดข้อผิดพลาด',
-          message: 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่',
-        );
+        
+        // 🆕 หากไม่มี user ในระบบ (404) ให้ไปหน้า Register
+        if (response.statusCode == 404) {
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => RegisterPage()),
+            );
+          }
+        } else {
+          showModernDialog(
+            context: context,
+            icon: Icons.error_outline,
+            iconColor: Colors.red,
+            title: 'เกิดข้อผิดพลาด',
+            message: 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่',
+          );
+        }
       }
     } catch (e, stack) {
       log('Google login error',
