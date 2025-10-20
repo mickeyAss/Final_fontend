@@ -42,10 +42,10 @@ class _RegisterPageState extends State<RegisterPage>
   @override
   void initState() {
     super.initState();
-    
+
     // 🆕 โหลดข้อมูลจาก Google Sign-In (ถ้ามี)
     _loadGoogleData();
-    
+
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -314,6 +314,7 @@ class _RegisterPageState extends State<RegisterPage>
   }
 
   Widget _buildBasicInfoSection() {
+    final loginType = box.read('login_type'); // อ่านประเภทการเข้าสู่ระบบ
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -339,6 +340,7 @@ class _RegisterPageState extends State<RegisterPage>
             ),
           ),
           const SizedBox(height: 24),
+
           _buildTextField(
             'ชื่อผู้ใช้',
             nameNoCt1,
@@ -349,28 +351,32 @@ class _RegisterPageState extends State<RegisterPage>
             emailNoCt1,
             Icons.email_outlined,
           ),
-          _buildTextField(
-            'รหัสผ่าน',
-            passwordNoCt1,
-            Icons.lock_outline,
-            obscure: _obscurePassword,
-            onToggleVisibility: () {
-              setState(() {
-                _obscurePassword = !_obscurePassword;
-              });
-            },
-          ),
-          _buildTextField(
-            'ยืนยันรหัสผ่าน',
-            conpasswordNoCt1,
-            Icons.lock_outline,
-            obscure: _obscureConfirmPassword,
-            onToggleVisibility: () {
-              setState(() {
-                _obscureConfirmPassword = !_obscureConfirmPassword;
-              });
-            },
-          ),
+
+          // 🧩 แสดงเฉพาะถ้าไม่ใช่ Google Login
+          if (loginType != 'google') ...[
+            _buildTextField(
+              'รหัสผ่าน',
+              passwordNoCt1,
+              Icons.lock_outline,
+              obscure: _obscurePassword,
+              onToggleVisibility: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+            ),
+            _buildTextField(
+              'ยืนยันรหัสผ่าน',
+              conpasswordNoCt1,
+              Icons.lock_outline,
+              obscure: _obscureConfirmPassword,
+              onToggleVisibility: () {
+                setState(() {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                });
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -612,15 +618,14 @@ class _RegisterPageState extends State<RegisterPage>
     final isNameField = label == 'ชื่อผู้ใช้';
     final googleEmail = box.read('google_email');
     final googleName = box.read('google_name');
-    
-    final isFromGoogle = isEmailField && 
-                         googleEmail != null && 
-                         googleEmail.toString().isNotEmpty;
-    
-    final isNameFromGoogle = isNameField && 
-                             googleName != null && 
-                             googleName.toString().isNotEmpty;
-    
+
+    final isFromGoogle = isEmailField &&
+        googleEmail != null &&
+        googleEmail.toString().isNotEmpty;
+
+    final isNameFromGoogle =
+        isNameField && googleName != null && googleName.toString().isNotEmpty;
+
     final isReadOnly = isFromGoogle || isNameFromGoogle;
 
     return Container(
@@ -639,7 +644,8 @@ class _RegisterPageState extends State<RegisterPage>
           // 🆕 แสดง suffix badge "จาก Google"
           suffix: isReadOnly
               ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade100,
                     borderRadius: BorderRadius.circular(12),
@@ -647,7 +653,8 @@ class _RegisterPageState extends State<RegisterPage>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_circle, size: 12, color: Colors.blue.shade700),
+                      Icon(Icons.check_circle,
+                          size: 12, color: Colors.blue.shade700),
                       const SizedBox(width: 4),
                       Text(
                         'จาก Google',
@@ -821,51 +828,77 @@ class _RegisterPageState extends State<RegisterPage>
   }
 
   void _validateAndProceedToNext() {
-    if (nameNoCt1.text.trim().isEmpty ||
-        emailNoCt1.text.trim().isEmpty ||
-        passwordNoCt1.text.trim().isEmpty ||
-        conpasswordNoCt1.text.trim().isEmpty) {
+  final loginType = box.read('login_type'); // อ่านประเภทการเข้าสู่ระบบ
+
+  // 🧩 กรณีล็อกอินด้วย Google → ตรวจเฉพาะชื่อและอีเมล
+  if (loginType == 'google') {
+    if (nameNoCt1.text.trim().isEmpty || emailNoCt1.text.trim().isEmpty) {
       showModernDialog(
         context: context,
         icon: Icons.warning_amber_rounded,
         iconColor: Colors.orange,
         title: 'กรุณากรอกข้อมูลให้ครบ',
-        message: 'ทุกช่องต้องไม่มีช่องว่าง',
+        message: 'กรุณากรอกชื่อและอีเมลให้ครบ',
       );
       return;
     }
 
-    if (passwordNoCt1.text != conpasswordNoCt1.text) {
-      showModernDialog(
-        context: context,
-        icon: Icons.error_outline,
-        iconColor: Colors.red,
-        title: 'รหัสผ่านไม่ตรงกัน',
-        message: 'โปรดตรวจสอบรหัสผ่านและลองใหม่อีกครั้ง',
-      );
-      return;
-    }
-
-    final password = passwordNoCt1.text.trim();
-    final passwordRegex =
-        RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
-
-    if (!passwordRegex.hasMatch(password)) {
-      showModernDialog(
-        context: context,
-        icon: Icons.lock_outline,
-        iconColor: Colors.orange,
-        title: 'รหัสผ่านไม่ปลอดภัย',
-        message:
-            'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
-      );
-      return;
-    }
-
+    // ✅ ผ่าน → ไปหน้าถัดไปได้เลย
     setState(() {
       _currentStep = 1;
     });
+    return;
   }
+
+  // 🧩 กรณีผู้ใช้ทั่วไป → ตรวจครบทุกช่อง
+  if (nameNoCt1.text.trim().isEmpty ||
+      emailNoCt1.text.trim().isEmpty ||
+      passwordNoCt1.text.trim().isEmpty ||
+      conpasswordNoCt1.text.trim().isEmpty) {
+    showModernDialog(
+      context: context,
+      icon: Icons.warning_amber_rounded,
+      iconColor: Colors.orange,
+      title: 'กรุณากรอกข้อมูลให้ครบ',
+      message: 'ทุกช่องต้องไม่มีช่องว่าง',
+    );
+    return;
+  }
+
+  // ตรวจว่ารหัสผ่านตรงกัน
+  if (passwordNoCt1.text != conpasswordNoCt1.text) {
+    showModernDialog(
+      context: context,
+      icon: Icons.error_outline,
+      iconColor: Colors.red,
+      title: 'รหัสผ่านไม่ตรงกัน',
+      message: 'โปรดตรวจสอบรหัสผ่านและลองใหม่อีกครั้ง',
+    );
+    return;
+  }
+
+  // ตรวจความแข็งแรงของรหัสผ่าน
+  final password = passwordNoCt1.text.trim();
+  final passwordRegex =
+      RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
+
+  if (!passwordRegex.hasMatch(password)) {
+    showModernDialog(
+      context: context,
+      icon: Icons.lock_outline,
+      iconColor: Colors.orange,
+      title: 'รหัสผ่านไม่ปลอดภัย',
+      message:
+          'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และประกอบด้วย:\n• ตัวพิมพ์ใหญ่\n• ตัวพิมพ์เล็ก\n• ตัวเลข',
+    );
+    return;
+  }
+
+  // ✅ ผ่าน → ไปหน้าถัดไป
+  setState(() {
+    _currentStep = 1;
+  });
+}
 
   void register() async {
     if (_isLoading) return;

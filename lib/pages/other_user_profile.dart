@@ -57,13 +57,9 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   Future<void> _initializeData() async {
     await Future.wait([
       loadDataUser(),
+      loadUserPosts(),
       _checkFollowStatus(),
     ]);
-
-    // โหลดโพสต์เฉพาะเมื่อกำลังติดตาม
-    if (_isFollowing) {
-      await loadUserPosts();
-    }
 
     setState(() {
       _isInitialLoading = false;
@@ -217,9 +213,6 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           _isFollowing = true;
           followersCount++;
         });
-
-        // ✅ โหลดโพสต์ของผู้ใช้ทันทีหลังติดตาม
-        await loadUserPosts();
       } else {
         log('เกิดข้อผิดพลาดในการติดตาม: ${response.body}');
         _showErrorSnackBar('ไม่สามารถติดตามได้ในขณะนี้');
@@ -546,16 +539,32 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   }
 
   Widget _buildPostsGrid() {
-    // ❗ ถ้ายังไม่ได้ติดตาม ให้แสดงหน้าปุ่มติดตามแทนโพสต์
-    if (!_isFollowing) {
+    // ตรวจสอบ userPosts ว่างหรือ loading
+    if (userPosts == null && _isRefreshing) {
+      return Container(
+        height: 200,
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
+        ),
+      );
+    }
+
+    // กรองโพสต์ตามสถานะและการติดตาม
+    final List<model.GetPostUser> visiblePosts = _isFollowing
+        ? userPosts! // ติดตามแล้ว → เห็นทุกโพสต์
+        : userPosts!
+            .where((postUser) => postUser.post.postStatus == 'public')
+            .toList(); // ยังไม่ติดตาม → เห็นเฉพาะ public
+
+    // ถ้าไม่มีโพสต์ให้แสดง
+    if (visiblePosts.isEmpty) {
       return Container(
         height: 300,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.lock_outline, size: 60, color: Colors.black54),
+            if (!_isFollowing)
+              const Icon(Icons.lock_outline, size: 60, color: Colors.black54),
             const SizedBox(height: 16),
             const Text(
               'บัญชีนี้เป็นส่วนตัว',
@@ -567,7 +576,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'ติดตามเพื่อดูโพสต์และรูปภาพของผู้ใช้นี้',
+              'ติดตามเพื่อดูโพสต์และรูปภาพทั้งหมดของผู้ใช้นี้',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black54),
             ),
@@ -576,52 +585,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       );
     }
 
-    // ✅ ถ้าติดตามแล้วค่อยแสดงโพสต์
-    if (userPosts == null && _isRefreshing) {
-      return Container(
-        height: 200,
-        child: const Center(
-          child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
-        ),
-      );
-    }
-
-    if (userPosts == null || userPosts!.isEmpty) {
-      return Container(
-        height: 300,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black, width: 2),
-              ),
-              child: const Icon(Icons.camera_alt_outlined,
-                  size: 24, color: Colors.black),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'ยังไม่มีโพสต์',
-              style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w300,
-                  color: Colors.black),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'เมื่อผู้ใช้แชร์ภาพถ่ายและวิดีโอ\nภาพเหล่านั้นจะปรากฏที่นี่',
-              style: TextStyle(fontSize: 14, color: Colors.black54),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ✅ แสดง GridView ปกติ
+    // แสดง GridView
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -632,46 +596,43 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         mainAxisSpacing: 2,
         childAspectRatio: 1,
       ),
-      itemCount: userPosts!.length,
+      itemCount: visiblePosts.length,
       itemBuilder: (context, index) {
-        final post = userPosts![index];
+        final postUser = visiblePosts[index];
         String? imageUrl =
-            post.images.isNotEmpty ? post.images.first.image : null;
-        int? postId = post.post.postId;
+            postUser.images.isNotEmpty ? postUser.images.first.image : null;
 
         return GestureDetector(
           onTap: () {
-            if (postId != null) {
-              log('Navigating to post detail with ID: $postId');
-              Get.to(() => UserDetailPostPage(postId: postId));
-            }
+            Get.to(() => UserDetailPostPage(postId: postUser.post.postId));
           },
-          child: Container(
-            color: Colors.grey[100],
-            child: imageUrl != null
-                ? Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.broken_image,
-                        color: Colors.grey[400],
-                        size: 40),
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                          strokeWidth: 2,
-                          color: Colors.grey,
-                        ),
-                      );
-                    },
-                  )
-                : Icon(Icons.image_outlined, color: Colors.grey[400], size: 40),
-          ),
+          child: imageUrl != null
+              ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                      Icons.broken_image,
+                      color: Colors.grey[400],
+                      size: 40),
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                        color: Colors.grey,
+                      ),
+                    );
+                  },
+                )
+              : Container(
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.image_outlined,
+                      color: Colors.grey, size: 40),
+                ),
         );
       },
     );

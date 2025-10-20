@@ -89,7 +89,6 @@ class Image {
         "image_fk_postid": imageFkPostid,
       };
 }
-
 class Post {
   int postId;
   String postTopic;
@@ -99,6 +98,7 @@ class Post {
   int amountOfComment;
   DateTime postDate;
   int postFkUid;
+  String postStatus; // ✅ เพิ่มฟิลด์นี้
 
   Post({
     required this.postId,
@@ -109,6 +109,7 @@ class Post {
     required this.amountOfComment,
     required this.postDate,
     required this.postFkUid,
+    required this.postStatus, // ✅ ต้องใส่ constructor
   });
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
@@ -122,6 +123,7 @@ class Post {
             ? DateTime.parse(json["post_date"])
             : DateTime.now(),
         postFkUid: json["post_fk_uid"] ?? 0,
+        postStatus: json["post_status"] ?? 'public', // ✅ อ่านจาก JSON
       );
 
   Map<String, dynamic> toJson() => {
@@ -133,5 +135,7 @@ class Post {
         "amount_of_comment": amountOfComment,
         "post_date": postDate.toIso8601String(),
         "post_fk_uid": postFkUid,
+        "post_status": postStatus, // ✅ ส่งกลับ JSON
       };
 }
+

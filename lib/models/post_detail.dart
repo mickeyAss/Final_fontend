@@ -111,7 +111,6 @@ class Image {
         "image_fk_postid": imageFkPostid,
     };
 }
-
 class Post {
     int postId;
     String postTopic;
@@ -121,6 +120,7 @@ class Post {
     int amountOfLike;
     int amountOfSave;
     int amountOfComment;
+    String postStatus; // ✅ เพิ่มฟิลด์ status
 
     Post({
         required this.postId,
@@ -131,6 +131,7 @@ class Post {
         required this.amountOfLike,
         required this.amountOfSave,
         required this.amountOfComment,
+        required this.postStatus, // ✅ เพิ่ม constructor
     });
 
     factory Post.fromJson(Map<String, dynamic> json) => Post(
@@ -144,6 +145,7 @@ class Post {
         amountOfLike: json["amount_of_like"] ?? 0,
         amountOfSave: json["amount_of_save"] ?? 0,
         amountOfComment: json["amount_of_comment"] ?? 0,
+        postStatus: json["post_status"] ?? 'public', // ✅ อ่านจาก JSON
     );
 
     Map<String, dynamic> toJson() => {
@@ -155,8 +157,10 @@ class Post {
         "amount_of_like": amountOfLike,
         "amount_of_save": amountOfSave,
         "amount_of_comment": amountOfComment,
+        "post_status": postStatus, // ✅ ส่งกลับ JSON
     };
 }
+
 
 class User {
     int uid;

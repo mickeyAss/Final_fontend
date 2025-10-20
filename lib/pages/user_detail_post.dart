@@ -11,6 +11,55 @@ import 'package:fontend_pro/models/get_hashtags.dart';
 import 'package:fontend_pro/models/get_all_category.dart';
 import 'package:fontend_pro/models/post_detail.dart' as model;
 import 'package:get/get_navigation/src/snackbar/snackbar.dart';
+import 'dart:developer';
+
+String getStatusText(String status) {
+  final s = status.trim().toLowerCase();
+  switch (s) {
+    case 'public':
+      return 'สาธารณะ';
+    case 'friends':
+      return 'เฉพาะเพื่อน';
+    default:
+      return 'สาธารณะ';
+  }
+}
+
+IconData getStatusIcon(String status) {
+  final s = status.trim().toLowerCase();
+  switch (s) {
+    case 'public':
+      return Icons.public;
+    case 'friends':
+      return Icons.people;
+    default:
+      return Icons.public;
+  }
+}
+
+Color getStatusColor(String status) {
+  final s = status.trim().toLowerCase();
+  switch (s) {
+    case 'public':
+      return Colors.green;
+    case 'friends':
+      return Colors.blue;
+    default:
+      return Colors.green;
+  }
+}
+
+Color getStatusDarkColor(String status) {
+  final s = status.trim().toLowerCase();
+  switch (s) {
+    case 'public':
+      return Colors.green.shade700;
+    case 'friends':
+      return Colors.blue.shade700;
+    default:
+      return Colors.green.shade700;
+  }
+}
 
 class UserDetailPostPage extends StatefulWidget {
   final int postId;
@@ -119,6 +168,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
       final uri = '$url/image_post/by-post/${widget.postId}';
 
       final response = await http.get(Uri.parse(uri));
+      log('Raw JSON: ${response.body}');
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
@@ -2251,6 +2301,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
 
     final post = postDetail!.post;
     final user = postDetail!.user;
+    log('postStatus: ${post.postStatus}');
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -2287,26 +2338,62 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
+                      child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
-                        Text(
-                          _timeAgo(post.postDate),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                      ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: getStatusColor(post.postStatus)
+                                  .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: getStatusColor(post.postStatus),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  getStatusIcon(post.postStatus),
+                                  size: 8,
+                                  color: getStatusDarkColor(post.postStatus),
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  getStatusText(post.postStatus),
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w500,
+                                    color: getStatusDarkColor(post.postStatus),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _timeAgo(post.postDate),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )),
                   IconButton(
                     icon: const Icon(Icons.more_horiz),
                     onPressed: () {
@@ -2395,6 +2482,8 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                 child: PageView.builder(
                   itemCount: postDetail!.images.length,
                   itemBuilder: (context, index) {
+                    final imageUrl = postDetail!.images[index].image;
+
                     return GestureDetector(
                       onDoubleTap: () {
                         setState(() {
@@ -2415,7 +2504,7 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                         alignment: Alignment.center,
                         children: [
                           Image.network(
-                            postDetail!.images[index].image,
+                            imageUrl,
                             fit: BoxFit.cover,
                             width: double.infinity,
                             errorBuilder: (context, error, stackTrace) {
@@ -2424,6 +2513,20 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
                                 child: const Icon(
                                   Icons.broken_image,
                                   size: 50,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes !=
+                                          null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  strokeWidth: 2,
                                   color: Colors.grey,
                                 ),
                               );

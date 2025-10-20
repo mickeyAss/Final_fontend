@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:fontend_pro/models/%E0%B8%B5update_gg_request.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:fontend_pro/config/config.dart';
@@ -21,6 +22,8 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
   late Future<List<GetAllCategory>> futureCategories;
   List<bool> selected = [];
 
+  List<int> selectedCategoryIds = [];
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +34,9 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
 
   @override
   Widget build(BuildContext context) {
+    final gs = GetStorage();
+    final isGoogleLogin = gs.read('login_type') == 'google';
+
     return Column(
       children: [
         Expanded(
@@ -53,7 +59,8 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
 
               final snapshotCategories = snapshot.data!;
               if (selected.length != snapshotCategories.length) {
-                selected = List.generate(snapshotCategories.length, (_) => false);
+                selected =
+                    List.generate(snapshotCategories.length, (_) => false);
               }
               categories = snapshotCategories;
 
@@ -299,6 +306,7 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Row(
             children: [
+              // ปุ่มข้าม
               Expanded(
                 child: FilledButton(
                   style: FilledButton.styleFrom(
@@ -306,13 +314,25 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: () {
-                    submitRegister(skipCategory: true);
+                  onPressed: () async {
+                    final gs = GetStorage();
+                    final isGoogleLogin = gs.read('login_type') == 'google';
+
+                    if (isGoogleLogin) {
+                      // ผู้ใช้ Google → อัปเดตข้อมูลโดยไม่ต้องกรอกรหัส
+                      await _updateGoogleUser(categoryIds: []);
+                    } else {
+                      // ผู้ใช้ปกติ → ข้ามหมวดหมู่
+                      submitRegister(skipCategory: true);
+                    }
                   },
                   child: const Text('ข้าม'),
                 ),
               ),
+
               const SizedBox(width: 10),
+
+              // ปุ่มยืนยัน
               Expanded(
                 child: FilledButton(
                   style: FilledButton.styleFrom(
@@ -321,13 +341,28 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
                     side: const BorderSide(color: Colors.black),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: selectedCount > 0 ? () => submitRegister() : null,
+                  onPressed: selectedCount > 0
+                      ? () async {
+                          final gs = GetStorage();
+                          final isGoogleLogin =
+                              gs.read('login_type') == 'google';
+
+                          if (isGoogleLogin) {
+                            // ผู้ใช้ Google → อัปเดตข้อมูลพร้อมหมวดหมู่ที่เลือก
+                            await _updateGoogleUser(
+                                categoryIds: selectedCategoryIds ?? []);
+                          } else {
+                            // ผู้ใช้ปกติ → สมัครสมาชิกใหม่
+                            await _registerUser(selectedCategoryIds ?? []);
+                          }
+                        }
+                      : null,
                   child: Text('ยืนยัน ($selectedCount)'),
                 ),
               ),
             ],
           ),
-        ),
+        )
       ],
     );
   }
@@ -354,33 +389,57 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
   void submitRegister({bool skipCategory = false}) async {
     log("submitRegister เรียกแล้ว, skipCategory = $skipCategory");
 
-    if (!skipCategory) {
-      if (categories.isEmpty || selected.length != categories.length) {
-        log("⚠️ categories หรือ selected ไม่ตรงกัน");
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("ข้อมูลหมวดหมู่ยังไม่สมบูรณ์")),
-        );
-        return;
-      }
+    final gs = GetStorage();
+    final isGoogleLogin = gs.read('is_google_login') ?? false;
 
-      final selectedCategoryIds = <int>[];
-      for (int i = 0; i < selected.length; i++) {
-        if (selected[i]) selectedCategoryIds.add(categories[i].cid);
-      }
-
-      log("🎯 หมวดหมู่ที่เลือก: $selectedCategoryIds");
-
-      if (selectedCategoryIds.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("กรุณาเลือกอย่างน้อย 1 หมวดหมู่")),
-        );
-        return;
-      }
-
-      await _registerUser(selectedCategoryIds);
+    if (isGoogleLogin) {
+      log("🟢 ผู้ใช้ล็อกอินด้วย Google → เรียกอัปเดตโปรไฟล์");
+      await _updateGoogleUser();
     } else {
-      log("🟡 ข้ามการเลือก Category, ส่งค่าว่าง []");
+      log("🔵 สมัครสมาชิกใหม่ → เรียกสมัครปกติ");
       await _registerUser([]);
+    }
+  }
+
+  Future<void> _updateGoogleUser({List<int> categoryIds = const []}) async {
+    final gs = GetStorage();
+    final uid = gs.read('user');
+    if (uid == null) return;
+
+    final model = UpdateGoogleUserRequest(
+      uid: uid, // เพิ่ม field uid สำหรับอัปเดต
+
+      height: parseDouble(gs.read('register_height')), // ถ้าไม่กรอก → null
+      weight: parseDouble(gs.read('register_weight')),
+      shirtSize: gs.read('register_shirt_size'),
+      chest: parseDouble(gs.read('register_chest')),
+      waistCircumference: parseDouble(gs.read('register_waist_circumference')),
+      hip: parseDouble(gs.read('register_hip')),
+      categoryIds:
+          categoryIds.isNotEmpty ? categoryIds : null, // ถ้าไม่เลือก → null
+    );
+
+    final config = await Configuration.getConfig();
+    final url = "${config['apiEndpoint']}/user/update-google-user";
+
+    try {
+      final response = await http.put(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(model.toJson()),
+      );
+
+      if (response.statusCode == 200) {
+        log("✅ Google user updated successfully");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const Mainpage()),
+        );
+      } else {
+        log("❌ Failed to update Google user: ${response.body}");
+      }
+    } catch (e, st) {
+      log("❗ Exception update Google user: $e\n$st");
     }
   }
 
@@ -445,7 +504,8 @@ class _CategoryWomanTabState extends State<CategoryWomanTab> {
           context: context,
           builder: (_) => AlertDialog(
             title: const Text("สมัครไม่สำเร็จ"),
-            content: Text("รหัสสถานะ: ${response.statusCode}\n${response.body}"),
+            content:
+                Text("รหัสสถานะ: ${response.statusCode}\n${response.body}"),
             actions: [
               TextButton(
                 child: const Text("ตกลง"),

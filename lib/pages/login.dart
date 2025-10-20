@@ -737,6 +737,7 @@ Future<void> _loginWithGoogle() async {
 
       // ✅ ถ้าเป็นผู้ใช้ใหม่ → ไปหน้า RegisterPage
       if (user['is_new_user'] == true) {
+        
         if (mounted) {
           Navigator.pushReplacement(
             context,
