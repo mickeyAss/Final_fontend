@@ -111,50 +111,58 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
 
   /// ================== API Search Users ==================
   Future<void> searchUsers(String query) async {
-    if (query.isEmpty) {
+  if (query.isEmpty) {
+    // ถ้าไม่พิมพ์ search ให้ใช้ user ทั้งหมด แต่กรองคนที่ติดตามแล้ว
+    setState(() {
+      filteredUsers = user.where((u) => !followingUserIds.contains(u.uid)).toList();
+    });
+    return;
+  }
+
+  try {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    final loggedInUid = gs.read("user");
+    if (loggedInUid == null) {
+      log("❌ ไม่พบ uid ใน storage");
       setState(() {
-        filteredUsers = user; // 👈 ถ้าไม่พิมพ์ search ให้ใช้ user ทั้งหมด
+        filteredUsers = [];
       });
       return;
     }
 
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
+    final response = await http.get(
+      Uri.parse("$url/user/search-user?name=$query&uid=$loggedInUid"),
+    );
 
-      // ดึง uid ของคนที่ login จาก GetStorage (เป็น uid ตรง ๆ)
-      final loggedInUid = gs.read("user");
-      if (loggedInUid == null) {
-        log("❌ ไม่พบ uid ใน storage");
-        setState(() {
-          filteredUsers = [];
-        });
-        return;
-      }
+    if (response.statusCode == 200) {
+      final searchResults = getAllUserFromJson(response.body);
 
-      final response = await http.get(
-        Uri.parse("$url/user/search-user?name=$query&uid=$loggedInUid"),
-      );
+      // ✅ กรองคนที่ติดตามแล้ว
+      final filteredResults = searchResults
+          .where((u) => !followingUserIds.contains(u.uid))
+          .toList();
 
-      if (response.statusCode == 200) {
-        final searchResults = getAllUserFromJson(response.body);
-        setState(() {
-          filteredUsers = searchResults;
-        });
-        log('Search results: ${searchResults.length} users');
-      } else {
-        log('Search failed: ${response.body}');
-        setState(() {
-          filteredUsers = [];
-        });
-      }
-    } catch (e) {
-      log('Error searching users: $e');
+      setState(() {
+        filteredUsers = filteredResults;
+      });
+
+      log('Search results (filtered): ${filteredResults.length} users');
+    } else {
+      log('Search failed: ${response.body}');
       setState(() {
         filteredUsers = [];
       });
     }
+  } catch (e) {
+    log('Error searching users: $e');
+    setState(() {
+      filteredUsers = [];
+    });
   }
+}
+
 
   /// ================== API Follow / Unfollow ==================
   Future<void> followUser(int targetUserId) async {

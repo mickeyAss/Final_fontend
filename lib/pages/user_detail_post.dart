@@ -93,33 +93,55 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
   Map<int, int> commentLikeCountMap = {};
   bool isTogglingCommentLike = false;
 
+  List<Comment> comments = [];
+
   @override
-  void initState() {
-    super.initState();
-    fetchPostDetail();
-    getLoggedInUserId();
-    loadSavedPosts();
+void initState() {
+  super.initState();
 
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
+  fetchPostDetail(); // โหลด post ก่อน
+  getLoggedInUserId();
+  loadSavedPosts();
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.4).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
+  fetchCommentsLater(); // โหลด comment แยกทีหลัง
 
-    _animationController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          setState(() {
-            showHeart = false;
-          });
-          _animationController.reset();
+  _animationController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 500),
+  );
+
+  _scaleAnimation = Tween<double>(begin: 0.8, end: 1.4).animate(
+    CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+  );
+
+  _animationController.addStatusListener((status) {
+    if (status == AnimationStatus.completed) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        setState(() {
+          showHeart = false;
         });
-      }
-    });
+        _animationController.reset();
+      });
+    }
+  });
+}
+
+// โหลด comment แยกทีหลัง
+Future<void> fetchCommentsLater() async {
+  if (widget.postId == null) return;
+
+  try {
+    final commentData = await _fetchComments(widget.postId);
+    if (mounted) {
+      setState(() {
+        comments = commentData.comments;
+      });
+    }
+  } catch (e) {
+    debugPrint('Error loading comments: $e');
   }
+}
+
 
   @override
   void dispose() {
@@ -470,40 +492,44 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
 
   // เพิ่มฟังก์ชันสำหรับตรวจสอบว่าผู้ใช้ไลค์คอมเมนต์หรือไม่
   Future<void> checkCommentLikes(List<int> commentIds) async {
-    if (loggedInUserId == 0 || commentIds.isEmpty) return;
+  if (loggedInUserId == 0 || commentIds.isEmpty) return;
 
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
+  try {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
 
-      for (var commentId in commentIds) {
-        final uri = Uri.parse(
-            '$url/image_post/is-comment-liked?user_id=$loggedInUserId&comment_id=$commentId');
-        final response = await http.get(uri);
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          setState(() {
-            commentLikedMap[commentId] = data['liked'] ?? false;
-          });
-        }
-
-        // ดึงจำนวนไลค์
-        final countUri =
-            Uri.parse('$url/image_post/comment-like-count/$commentId');
-        final countResponse = await http.get(countUri);
-
-        if (countResponse.statusCode == 200) {
-          final countData = json.decode(countResponse.body);
-          setState(() {
-            commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
-          });
-        }
+    // สร้าง list ของ Future สำหรับแต่ละ comment
+    List<Future> futures = commentIds.map((commentId) async {
+      // ตรวจสอบว่าไลค์หรือไม่
+      final likeUri = Uri.parse(
+          '$url/image_post/is-comment-liked?user_id=$loggedInUserId&comment_id=$commentId');
+      final likeRes = await http.get(likeUri);
+      if (likeRes.statusCode == 200) {
+        final data = json.decode(likeRes.body);
+        setState(() {
+          commentLikedMap[commentId] = data['liked'] ?? false;
+        });
       }
-    } catch (e) {
-      debugPrint('Error checking comment likes: $e');
-    }
+
+      // ดึงจำนวนไลค์
+      final countUri =
+          Uri.parse('$url/image_post/comment-like-count/$commentId');
+      final countRes = await http.get(countUri);
+      if (countRes.statusCode == 200) {
+        final countData = json.decode(countRes.body);
+        setState(() {
+          commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
+        });
+      }
+    }).toList();
+
+    // รันทุก request พร้อมกัน
+    await Future.wait(futures);
+
+  } catch (e) {
+    debugPrint('Error checking comment likes: $e');
   }
+}
 
 // ฟังก์ชันสำหรับกดไลค์/ยกเลิกไลค์คอมเมนต์
   Future<void> toggleCommentLike(int commentId) async {
@@ -2081,23 +2107,24 @@ class _UserDetailPostPageState extends State<UserDetailPostPage>
     );
   }
 
-  Future<GetComment> _fetchComments(int postId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-    final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
+ Future<GetComment> _fetchComments(int postId) async {
+  var config = await Configuration.getConfig();
+  var url = config['apiEndpoint'];
+  final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
 
-    if (res.statusCode == 200) {
-      final commentData = getCommentFromJson(res.body);
+  if (res.statusCode == 200) {
+    final commentData = getCommentFromJson(res.body);
 
-      // ✅ ดึง commentId ทั้งหมดแล้วเรียก checkCommentLikes
-      final commentIds = commentData.comments.map((c) => c.commentId).toList();
-      await checkCommentLikes(commentIds);
+    // ดึง commentId แล้วเรียก checkCommentLikes แต่ไม่ต้อง await
+    final commentIds = commentData.comments.map((c) => c.commentId).toList();
+    checkCommentLikes(commentIds); // 🔥 เรียก background
 
-      return commentData;
-    } else {
-      throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
-    }
+    return commentData; // คืนค่าคอมเมนต์ทันที
+  } else {
+    throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
   }
+}
+
 
   Future<void> _submitComment(int postId, String commentText) async {
     final gs = GetStorage();

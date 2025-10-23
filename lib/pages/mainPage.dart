@@ -47,8 +47,13 @@ class _MainpageState extends State<Mainpage>
   // GlobalKey สำหรับ RecommendedTab
   final GlobalKey<RecommendedTabState> _recommendedTabKey = GlobalKey();
 
-  // เพิ่มตัวแปรสำหรับติดตามการเปลี่ยนหน้า
+  // ติดตามแท็บก่อนหน้า
   int _lastTabIndex = 0;
+
+  // ✅ เพิ่มตัวแปรควบคุมแท็บ
+  late PageController _pageController;
+  late RecommendedTab _recommendedTab;
+  late FollowingTab _followingTab;
 
   @override
   void initState() {
@@ -59,6 +64,14 @@ class _MainpageState extends State<Mainpage>
     _initializeUser();
     _initFirebase();
     _initAnimations();
+
+    // ✅ สร้างแท็บและ controller ครั้งเดียว
+    _pageController = PageController();
+    _recommendedTab = RecommendedTab(
+      key: _recommendedTabKey,
+      pageController: _pageController,
+    );
+    _followingTab = FollowingTab(pageController: _pageController);
   }
 
   void _initAnimations() {
@@ -85,7 +98,6 @@ class _MainpageState extends State<Mainpage>
     }
   }
 
-  // เพิ่ม method สำหรับรีเซ็ต RecommendedTab
   void _resetRecommendedTabIfNeeded() {
     if (_currentIndex == 0) {
       _recommendedTabKey.currentState?.resetToNormalFeed();
@@ -333,10 +345,8 @@ class _MainpageState extends State<Mainpage>
     _fetchUnreadNotificationCount();
   }
 
-  // ปรับปรุง _onTabTapped
   void _onTabTapped(int index) {
     if (index == 2) {
-      // เปิดหน้าโพสต์และรอ result
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -349,34 +359,17 @@ class _MainpageState extends State<Mainpage>
           child: const UserUploadPhotopage(),
         ),
       ).then((result) {
-        // ถ้าโพสต์สำเร็จ
         if (result == 'post_created') {
-          // ย้ายไป tab "สำหรับคุณ" (RecommendedTab)
           setState(() {
             _currentIndex = 0;
           });
-
-          // รอให้ widget build เสร็จก่อนเรียก refreshAfterPosting
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _recommendedTabKey.currentState?.refreshAfterPosting();
           });
         }
       });
     } else {
-      // ตรวจสอบการเปลี่ยนหน้า
-      if (_lastTabIndex == 0 && index != 0) {
-        // ออกจากหน้า RecommendedTab ไปหน้าอื่น
-        _recommendedTabKey.currentState?.resetToNormalFeed();
-      } else if (_lastTabIndex != 0 && index == 0) {
-        // กลับมาหน้า RecommendedTab จากหน้าอื่น
-        Future.delayed(const Duration(milliseconds: 200), () {
-          _recommendedTabKey.currentState?.resetToNormalFeed();
-        });
-      }
-
-      // Haptic feedback
       HapticFeedback.lightImpact();
-
       setState(() {
         _lastTabIndex = _currentIndex;
         _currentIndex = index;
@@ -403,40 +396,32 @@ class _MainpageState extends State<Mainpage>
 
   Widget _buildEnhancedBottomNavigationBar() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
-          top: BorderSide(
-            color: Colors.grey.shade200,
-            width: 0.5,
-          ),
+          top: BorderSide(color: Colors.grey.shade200, width: 0.5),
         ),
       ),
       child: SafeArea(
-        child: Container(
-          height: 60,
-          child: Row(
-            children: [
-              _buildNavItem(0, Icons.home_rounded, 'หน้าหลัก'),
-              _buildNavItem(1, Icons.search_rounded, 'ค้นหา'),
-              _buildFABNavItem(),
-              _buildNavItem(3, Icons.group_rounded, 'เพื่อน'),
-              _buildNavItem(4, Icons.person_rounded, 'โปรไฟล์'),
-            ],
-          ),
+        child: Row(
+          children: [
+            _buildNavItem(0, Icons.home_rounded),
+            _buildNavItem(1, Icons.search_rounded),
+            _buildFABNavItem(),
+            _buildNavItem(3, Icons.group_rounded),
+            _buildNavItem(4, Icons.person_rounded),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData icon) {
     final isSelected = _currentIndex == index;
-
     return Expanded(
       child: GestureDetector(
         onTap: () => _onTabTapped(index),
-        child: Container(
+        child: SizedBox(
           height: 60,
           child: Center(
             child: Icon(
@@ -454,14 +439,10 @@ class _MainpageState extends State<Mainpage>
     return Expanded(
       child: GestureDetector(
         onTap: () => _onTabTapped(2),
-        child: Container(
+        child: const SizedBox(
           height: 60,
           child: Center(
-            child: Icon(
-              Icons.add_box_outlined,
-              color: Colors.black,
-              size: 26,
-            ),
+            child: Icon(Icons.add_box_outlined, color: Colors.black, size: 26),
           ),
         ),
       ),
@@ -471,7 +452,7 @@ class _MainpageState extends State<Mainpage>
   Widget _buildHomeWithTabs() {
     return DefaultTabController(
       length: 2,
-      initialIndex: 1, // เปิดหน้า "สำหรับคุณ" เป็นหน้าแรก
+      initialIndex: 1,
       child: Column(
         children: [
           Container(
@@ -506,16 +487,6 @@ class _MainpageState extends State<Mainpage>
                         fontWeight: FontWeight.w500,
                         fontSize: 16,
                       ),
-                      onTap: (tabIndex) {
-                        // เมื่อเปลี่ยน tab ใน TabBar
-                        if (tabIndex == 1) {
-                          // กลับมา RecommendedTab - รีเซ็ตเป็น normal feed
-                          Future.delayed(const Duration(milliseconds: 100), () {
-                            _recommendedTabKey.currentState
-                                ?.resetToNormalFeed();
-                          });
-                        }
-                      },
                       tabs: const [
                         Tab(text: 'กำลังติดตาม'),
                         Tab(text: 'สำหรับคุณ'),
@@ -550,9 +521,7 @@ class _MainpageState extends State<Mainpage>
                             top: 8,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.black,
                                 borderRadius: BorderRadius.circular(12),
@@ -591,12 +560,8 @@ class _MainpageState extends State<Mainpage>
           Expanded(
             child: TabBarView(
               children: [
-                FollowingTab(pageController: PageController()),
-                // เพิ่ม key ให้ RecommendedTab
-                RecommendedTab(
-                  key: _recommendedTabKey,
-                  pageController: PageController(),
-                ),
+                _followingTab,
+                _recommendedTab,
               ],
             ),
           ),
