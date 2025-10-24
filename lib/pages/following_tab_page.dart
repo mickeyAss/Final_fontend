@@ -233,40 +233,44 @@ class _FollowingTabState extends State<FollowingTab> {
   
   // เพิ่มฟังก์ชันสำหรับตรวจสอบว่าผู้ใช้ไลค์คอมเมนต์หรือไม่
   Future<void> checkCommentLikes(List<int> commentIds) async {
-    if (loggedInUid == 0 || commentIds.isEmpty) return;
+  if (loggedInUid == 0 || commentIds.isEmpty) return;
 
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
+  try {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
 
-      for (var commentId in commentIds) {
-        final uri = Uri.parse(
-            '$url/image_post/is-comment-liked?user_id=$loggedInUid&comment_id=$commentId');
-        final response = await http.get(uri);
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          setState(() {
-            commentLikedMap[commentId] = data['liked'] ?? false;
-          });
-        }
-
-        // ดึงจำนวนไลค์
-        final countUri =
-            Uri.parse('$url/image_post/comment-like-count/$commentId');
-        final countResponse = await http.get(countUri);
-
-        if (countResponse.statusCode == 200) {
-          final countData = json.decode(countResponse.body);
-          setState(() {
-            commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
-          });
-        }
+    // สร้าง list ของ Future สำหรับแต่ละ comment
+    List<Future> futures = commentIds.map((commentId) async {
+      // ตรวจสอบว่าไลค์หรือไม่
+      final likeUri = Uri.parse(
+          '$url/image_post/is-comment-liked?user_id=$loggedInUid&comment_id=$commentId');
+      final likeRes = await http.get(likeUri);
+      if (likeRes.statusCode == 200) {
+        final data = json.decode(likeRes.body);
+        setState(() {
+          commentLikedMap[commentId] = data['liked'] ?? false;
+        });
       }
-    } catch (e) {
-      debugPrint('Error checking comment likes: $e');
-    }
+
+      // ดึงจำนวนไลค์
+      final countUri =
+          Uri.parse('$url/image_post/comment-like-count/$commentId');
+      final countRes = await http.get(countUri);
+      if (countRes.statusCode == 200) {
+        final countData = json.decode(countRes.body);
+        setState(() {
+          commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
+        });
+      }
+    }).toList();
+
+    // รันทุก request พร้อมกัน
+    await Future.wait(futures);
+
+  } catch (e) {
+    debugPrint('Error checking comment likes: $e');
   }
+}
 
 // ฟังก์ชันสำหรับกดไลค์/ยกเลิกไลค์คอมเมนต์
   Future<void> toggleCommentLike(int commentId) async {
@@ -364,67 +368,84 @@ class _FollowingTabState extends State<FollowingTab> {
   }
 
 // แก้ไขฟังก์ชัน loadAllPosts เพื่อโหลดเฉพาะโพสต์ของคนที่ติดตาม
-  Future<void> loadAllPosts() async {
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-      final uid = gs.read('user');
+ Future<void> loadAllPosts() async {
+  try {
+    final config = await Configuration.getConfig();
+    final url = config['apiEndpoint'];
+    final uid = gs.read('user');
 
-      // เปลี่ยนจาก /get เป็น /following-posts/:user_id
-      final postResponse =
-          await http.get(Uri.parse("$url/image_post/following-posts/$uid"));
-      final likedResponse =
-          await http.get(Uri.parse("$url/image_post/liked-posts/$uid"));
+    // เรียก 2 API พร้อมกัน
+    final responses = await Future.wait([
+      http.get(Uri.parse("$url/image_post/following-posts/$uid")),
+      http.get(Uri.parse("$url/image_post/liked-posts/$uid")),
+    ]);
 
-      if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
-        final List<dynamic> jsonData = jsonDecode(postResponse.body);
-        allPosts =
-            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
-        filteredPosts = allPosts;
+    final postResponse = responses[0];
+    final likedResponse = responses[1];
 
-        // 1. เก็บโพสต์ที่ผู้ใช้เคยกดไลก์
-        final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
-        final likedSet = Set<int>.from(likedIds);
+    if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
+      final List<dynamic> jsonData = jsonDecode(postResponse.body);
+      final tempAllPosts =
+          jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
 
-        // 2. เคลียร์ข้อมูลก่อน
-        showHeartMap.clear();
-        likeCountMap.clear();
-        likedMap.clear();
+      // Set liked set
+      final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
+      final likedSet = Set<int>.from(likedIds);
 
-        // 3. กำหนดค่า likedMap และ likeCountMap ตามโพสต์ที่โหลดมา
-        for (var postItem in allPosts) {
-          final postId = postItem.post.postId;
-          likeCountMap[postId] = postItem.post.amountOfLike;
-          likedMap[postId] = likedSet.contains(postId);
-        }
+      // Map สำหรับ like count, liked, showHeart
+      final tempLikeCountMap = <int, int>{};
+      final tempLikedMap = <int, bool>{};
+      final tempShowHeartMap = <int, bool>{};
 
-        // 4. สร้าง map สำหรับแสดงหัวใจ
-        for (int i = 0; i < filteredPosts.length; i++) {
-          showHeartMap[i] = false;
-        }
+      for (int i = 0; i < tempAllPosts.length; i++) {
+        final postId = tempAllPosts[i].post.postId;
+        tempLikeCountMap[postId] = tempAllPosts[i].post.amountOfLike;
+        tempLikedMap[postId] = likedSet.contains(postId);
+        tempShowHeartMap[i] = false;
+      }
 
-        await loadFollowingStatus();
-      } else if (postResponse.statusCode == 404) {
-        // กรณีไม่มีโพสต์จากคนที่ติดตาม
-        dev.log('ไม่พบโพสต์จากคนที่คุณติดตาม');
+      // ถ้า widget ยัง mounted ให้ setState ครั้งเดียว
+      if (mounted) {
+        setState(() {
+          allPosts = tempAllPosts;
+          filteredPosts = tempAllPosts;
+          likeCountMap = tempLikeCountMap;
+          likedMap = tempLikedMap;
+          showHeartMap = tempShowHeartMap;
+        });
+      }
+
+      await loadFollowingStatus();
+    } else if (postResponse.statusCode == 404) {
+      // ไม่มีโพสต์
+      if (mounted) {
+        setState(() {
+          allPosts = [];
+          filteredPosts = [];
+          likedMap.clear();
+          likeCountMap.clear();
+          showHeartMap.clear();
+        });
+      }
+      dev.log('ไม่พบโพสต์จากคนที่คุณติดตาม');
+    } else {
+      throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
+    }
+  } catch (e) {
+    dev.log('Error loading following posts: $e');
+    if (mounted) {
+      setState(() {
         allPosts = [];
         filteredPosts = [];
         likedMap.clear();
         likeCountMap.clear();
         showHeartMap.clear();
-      } else {
-        throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
-      }
-    } catch (e) {
-      dev.log('Error loading following posts: $e');
-      allPosts = [];
-      filteredPosts = [];
-      likedMap.clear();
-      likeCountMap.clear();
-      showHeartMap.clear();
-      followingUserIds.clear();
+        followingUserIds.clear();
+      });
     }
   }
+}
+
 
   void filterPostsByCategory(int? cid) {
     setState(() {
@@ -2135,15 +2156,16 @@ void _showCommentBottomSheet(BuildContext context, int postId) {
   if (res.statusCode == 200) {
     final commentData = getCommentFromJson(res.body);
 
-    // ✅ ดึง commentId ทั้งหมดแล้วเรียก checkCommentLikes
+    // ดึง commentId แล้วเรียก checkCommentLikes แต่ไม่ต้อง await
     final commentIds = commentData.comments.map((c) => c.commentId).toList();
-    await checkCommentLikes(commentIds);
+    checkCommentLikes(commentIds); // 🔥 เรียก background
 
-    return commentData;
+    return commentData; // คืนค่าคอมเมนต์ทันที
   } else {
     throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
   }
 }
+
 
   Future<void> _submitComment(int postId, String commentText) async {
     final gs = GetStorage();

@@ -383,19 +383,63 @@ class _EditCategoryPageState extends State<EditCategoryPage> {
                         style: TextStyle(fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 16),
 
-                    // ฟิลด์แก้ไข
-                    ...fieldControllers.entries.map((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: TextField(
-                          controller: entry.value,
-                          decoration: InputDecoration(
-                            labelText: fieldLabels[entry.key] ?? entry.key,
-                            border: const OutlineInputBorder(),
+// ฟิลด์แก้ไข
+                    Column(
+                      children: [
+                        // cname
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: TextField(
+                            controller: fieldControllers['cname'],
+                            decoration: InputDecoration(
+                              labelText: fieldLabels['cname'],
+                              border: const OutlineInputBorder(),
+                            ),
                           ),
                         ),
-                      );
-                    }).toList(),
+
+                        // ctype - เปลี่ยนเป็น Dropdown
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: DropdownButtonFormField<String>(
+                            value: fieldControllers['ctype']!.text.isNotEmpty
+                                ? fieldControllers['ctype']!.text
+                                : null,
+                            decoration: const InputDecoration(
+                              labelText: 'ประเภทหมวดหมู่',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: "F",
+                                child: Text("F"),
+                              ),
+                              DropdownMenuItem(
+                                value: "M",
+                                child: Text("M"),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                fieldControllers['ctype']!.text = value ?? "";
+                              });
+                            },
+                          ),
+                        ),
+
+                        // cdescription
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: TextField(
+                            controller: fieldControllers['cdescription'],
+                            decoration: InputDecoration(
+                              labelText: fieldLabels['cdescription'],
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
 
                     const SizedBox(height: 12),
                     ElevatedButton(

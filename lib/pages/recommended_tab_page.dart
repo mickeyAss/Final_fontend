@@ -261,41 +261,47 @@ class RecommendedTabState extends State<RecommendedTab>
   }
 
   // เพิ่มฟังก์ชันสำหรับตรวจสอบว่าผู้ใช้ไลค์คอมเมนต์หรือไม่
-  Future<void> checkCommentLikes(List<int> commentIds) async {
-    if (loggedInUid == 0 || commentIds.isEmpty) return;
+Future<void> checkCommentLikes(List<int> commentIds) async {
+  if (loggedInUid == 0 || commentIds.isEmpty) return;
 
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
+  try {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
 
-      for (var commentId in commentIds) {
-        final uri = Uri.parse(
-            '$url/image_post/is-comment-liked?user_id=$loggedInUid&comment_id=$commentId');
-        final response = await http.get(uri);
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          setState(() {
-            commentLikedMap[commentId] = data['liked'] ?? false;
-          });
-        }
-
-        // ดึงจำนวนไลค์
-        final countUri =
-            Uri.parse('$url/image_post/comment-like-count/$commentId');
-        final countResponse = await http.get(countUri);
-
-        if (countResponse.statusCode == 200) {
-          final countData = json.decode(countResponse.body);
-          setState(() {
-            commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
-          });
-        }
+    // สร้าง list ของ Future สำหรับแต่ละ comment
+    List<Future> futures = commentIds.map((commentId) async {
+      // ตรวจสอบว่าไลค์หรือไม่
+      final likeUri = Uri.parse(
+          '$url/image_post/is-comment-liked?user_id=$loggedInUid&comment_id=$commentId');
+      final likeRes = await http.get(likeUri);
+      if (likeRes.statusCode == 200) {
+        final data = json.decode(likeRes.body);
+        setState(() {
+          commentLikedMap[commentId] = data['liked'] ?? false;
+        });
       }
-    } catch (e) {
-      debugPrint('Error checking comment likes: $e');
-    }
+
+      // ดึงจำนวนไลค์
+      final countUri =
+          Uri.parse('$url/image_post/comment-like-count/$commentId');
+      final countRes = await http.get(countUri);
+      if (countRes.statusCode == 200) {
+        final countData = json.decode(countRes.body);
+        setState(() {
+          commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
+        });
+      }
+    }).toList();
+
+    // รันทุก request พร้อมกัน
+    await Future.wait(futures);
+
+  } catch (e) {
+    debugPrint('Error checking comment likes: $e');
   }
+}
+
+
 
 // ฟังก์ชันสำหรับกดไลค์/ยกเลิกไลค์คอมเมนต์
   Future<void> toggleCommentLike(int commentId) async {
@@ -361,71 +367,66 @@ class RecommendedTabState extends State<RecommendedTab>
       setState(() {});
     }
   }
+Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) async {
+  try {
+    final config = await Configuration.getConfig();
+    final url = config['apiEndpoint'];
+    final uid = gs.read('user');
 
-  // ปรับปรุง loadAllPosts ให้รองรับการตรวจสอบ _isFirstLoadAfterPost และ randomize
-  Future<void> loadAllPosts(
-      {bool firstLoad = false, bool randomize = false}) async {
-    try {
-      var config = await Configuration.getConfig();
-      var url = config['apiEndpoint'];
-      final uid = gs.read('user');
+    final shouldShowOwnPosts = firstLoad || _isFirstLoadAfterPost;
 
-      // ใช้ _isFirstLoadAfterPost แทน firstLoad parameter
-      final shouldShowOwnPosts = firstLoad || _isFirstLoadAfterPost;
+    // ✅ โหลด API พร้อมกัน
+    final responses = await Future.wait([
+      http.get(Uri.parse("$url/image_post/get?uid=$uid&firstLoad=$shouldShowOwnPosts&randomize=$randomize")),
+      http.get(Uri.parse("$url/image_post/liked-posts/$uid")),
+    ]);
 
-      // ✅ เพิ่ม &randomize=$randomize ในนี้
-      final postResponse = await http.get(
-        Uri.parse(
-            "$url/image_post/get?uid=$uid&firstLoad=$shouldShowOwnPosts&randomize=$randomize"),
-      );
+    final postResponse = responses[0];
+    final likedResponse = responses[1];
 
-      final likedResponse = await http.get(
-        Uri.parse("$url/image_post/liked-posts/$uid"),
-      );
+    if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
+      final List<dynamic> jsonData = jsonDecode(postResponse.body);
+      final allPostsFromApi = jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
 
-      if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
-        final List<dynamic> jsonData = jsonDecode(postResponse.body);
-        final List<model.GetAllPost> allPostsFromApi =
-            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
+      final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
+      final likedSet = Set<int>.from(likedIds);
 
-        final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
-        final likedSet = Set<int>.from(likedIds);
+      // ✅ โหลดสถานะ follow พร้อมกัน (หรือปรับให้ backend รวมข้อมูลมา)
+      await _loadFollowingStatusForPosts(allPostsFromApi);
 
-        await _loadFollowingStatusForPosts(allPostsFromApi);
+      allPosts = allPostsFromApi;
+      filteredPosts = _filterPostsByPrivacy(allPosts);
 
-        // Backend จะจัดการการกรองโพสต์ตัวเองแล้ว
-        allPosts = allPostsFromApi;
-        filteredPosts = _filterPostsByPrivacy(allPosts);
-
-        showHeartMap.clear();
-        likeCountMap.clear();
-        likedMap.clear();
-
-        for (var postItem in allPosts) {
-          final postId = postItem.post.postId;
-          likeCountMap[postId] = postItem.post.amountOfLike;
-          likedMap[postId] = likedSet.contains(postId);
-        }
-
-        for (int i = 0; i < filteredPosts.length; i++) {
-          showHeartMap[i] = false;
-        }
-
-        if (mounted) setState(() {});
-      } else {
-        throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
-      }
-    } catch (e) {
-      dev.log('Error loading posts: $e');
-      allPosts = [];
-      filteredPosts = [];
-      likedMap.clear();
-      likeCountMap.clear();
       showHeartMap.clear();
-      followingUserIds.clear();
+      likeCountMap.clear();
+      likedMap.clear();
+
+      allPosts.forEach((postItem) {
+        final postId = postItem.post.postId;
+        likeCountMap[postId] = postItem.post.amountOfLike;
+        likedMap[postId] = likedSet.contains(postId);
+      });
+
+      for (int i = 0; i < filteredPosts.length; i++) {
+        showHeartMap[i] = false;
+      }
+
       if (mounted) setState(() {});
+    } else {
+      throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
     }
+  } catch (e) {
+    dev.log('Error loading posts: $e');
+    allPosts = [];
+    filteredPosts = [];
+    likedMap.clear();
+    likeCountMap.clear();
+    showHeartMap.clear();
+    followingUserIds.clear();
+    if (mounted) setState(() {});
   }
+}
+
 
 // ฟังก์ชันใหม่สำหรับโหลดสถานะการติดตามเฉพาะโพสต์ที่ได้รับมา
   Future<void> _loadFollowingStatusForPosts(
@@ -2582,24 +2583,24 @@ class RecommendedTabState extends State<RecommendedTab>
       },
     );
   }
+Future<GetComment> _fetchComments(int postId) async {
+  var config = await Configuration.getConfig();
+  var url = config['apiEndpoint'];
+  final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
 
-  Future<GetComment> _fetchComments(int postId) async {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-    final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
+  if (res.statusCode == 200) {
+    final commentData = getCommentFromJson(res.body);
 
-    if (res.statusCode == 200) {
-      final commentData = getCommentFromJson(res.body);
+    // ดึง commentId แล้วเรียก checkCommentLikes แต่ไม่ต้อง await
+    final commentIds = commentData.comments.map((c) => c.commentId).toList();
+    checkCommentLikes(commentIds); // 🔥 เรียก background
 
-      // ✅ ดึง commentId ทั้งหมดแล้วเรียก checkCommentLikes
-      final commentIds = commentData.comments.map((c) => c.commentId).toList();
-      await checkCommentLikes(commentIds);
-
-      return commentData;
-    } else {
-      throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
-    }
+    return commentData; // คืนค่าคอมเมนต์ทันที
+  } else {
+    throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
   }
+}
+
 
   Future<void> _submitComment(int postId, String commentText) async {
     final gs = GetStorage();

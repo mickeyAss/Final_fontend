@@ -287,14 +287,14 @@ class _AdminPageState extends State<AdminPage>
             },
             tooltip: "เพิ่มหมวดหมู่",
           ),
-            // ปุ่มแก้ไขหมวดหมู่
-  IconButton(
-    icon: const Icon(Icons.edit),
-    onPressed: () {
-      Get.to(() => const EditCategoryPage()); // สร้างหน้าแก้ไขหมวดหมู่
-    },
-    tooltip: "แก้ไขหมวดหมู่",
-  ),
+          // ปุ่มแก้ไขหมวดหมู่
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Get.to(() => const EditCategoryPage()); // สร้างหน้าแก้ไขหมวดหมู่
+            },
+            tooltip: "แก้ไขหมวดหมู่",
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: fetchAllReports,
@@ -683,21 +683,14 @@ class _AdminPageState extends State<AdminPage>
             const SizedBox(height: 16),
 
             // Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            // ในส่วน Action Buttons
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
-                    // ScaffoldMessenger.of(context).showSnackBar(
-                    //   const SnackBar(
-                    //     content: Text("ฟีเจอร์ดูโปรไฟล์ผู้ใช้กำลังพัฒนา"),
-                    //     backgroundColor: Colors.blue,
-                    //   ),
-                    // );
-
-                    Get.to(
-                      () => AdminprofileUserPage(userId: userReport.reportedId),
-                    );
+                    Get.to(() =>
+                        AdminprofileUserPage(userId: userReport.reportedId));
                   },
                   icon: const Icon(Icons.visibility, size: 16),
                   label: const Text("ดูโปรไฟล์"),
@@ -705,37 +698,115 @@ class _AdminPageState extends State<AdminPage>
                     foregroundColor: Colors.blue,
                   ),
                 ),
-                const SizedBox(width: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const SizedBox(width: 8),
 
-                // 👇 แสดงปุ่มตามสถานะการแบน
-                if (userReport.isBanned)
-                  // ถ้าถูกแบนอยู่ แสดงปุ่มปลดแบน
-                  ElevatedButton.icon(
-                    onPressed: () => _showUnbanUserDialog(userReport),
-                    icon: const Icon(Icons.check_circle, size: 16),
-                    label: const Text("ปลดแบน"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
-                    ),
-                  )
-                else
-                  // ถ้ายังไม่ถูกแบน แสดงปุ่มแบน
-                  ElevatedButton.icon(
-                    onPressed: () => _showBanUserDialog(userReport),
-                    icon: const Icon(Icons.block, size: 16),
-                    label: const Text("แบนผู้ใช้"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red[700],
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
+                    // 👇 ปุ่มแจ้งเตือนก่อนแบน
+                    if (!userReport.isBanned)
+                      ElevatedButton.icon(
+                        onPressed: () => _showWarnUserDialog(userReport),
+                        icon:
+                            const Icon(Icons.notification_important, size: 16),
+                        label: const Text("แจ้งเตือนผู้ใช้"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange[700],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+
+                    const SizedBox(width: 8),
+
+                    // ปุ่มแบน / ปลดแบน
+                    if (userReport.isBanned)
+                      ElevatedButton.icon(
+                        onPressed: () => _showUnbanUserDialog(userReport),
+                        icon: const Icon(Icons.check_circle, size: 16),
+                        label: const Text("ปลดแบน"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
+                          foregroundColor: Colors.white,
+                        ),
+                      )
+                    else
+                      ElevatedButton.icon(
+                        onPressed: () => _showBanUserDialog(userReport),
+                        icon: const Icon(Icons.block, size: 16),
+                        label: const Text("แบนผู้ใช้"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[700],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _showWarnUserDialog(UserReport userReport) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("แจ้งเตือนผู้ใช้"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("คุณต้องการส่งข้อความแจ้งเตือนผู้ใช้ก่อนแบนบัญชีหรือไม่?"),
+            const SizedBox(height: 12),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("ยกเลิก"),
+          ),
+          TextButton(
+            onPressed: () async {
+             
+              Navigator.pop(context);
+
+              // 🔹 เรียก API หรือฟังก์ชันแจ้งเตือนผู้ใช้
+              await _sendWarningToUser(userReport.reportedId);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text("ส่งแจ้งเตือนผู้ใช้เรียบร้อยแล้ว")),
+              );
+            },
+            child: const Text("ส่งแจ้งเตือน"),
+          ),
+        ],
+      ),
+    );
+  }
+
+// ตัวอย่างฟังก์ชันส่งแจ้งเตือน (ปรับตาม API ของคุณ)
+  Future<void> _sendWarningToUser(int userId) async {
+    try {
+      final config = await Configuration.getConfig();
+      final apiEndpoint = config['apiEndpoint'];
+      final url = Uri.parse("$apiEndpoint/user/warn/$userId");
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+     
+      );
+
+      if (response.statusCode == 200) {
+        log("ส่งแจ้งเตือนผู้ใช้สำเร็จ: $response");
+      } else {
+        log("ส่งแจ้งเตือนผู้ใช้ล้มเหลว: ${response.body}");
+      }
+    } catch (e) {
+      log("Error ส่งแจ้งเตือนผู้ใช้: $e");
+    }
   }
 
   void _showBanUserDialog(UserReport userReport) {
@@ -1212,13 +1283,24 @@ void _showDeletePostDialog(PostReport reportData) {
   }
 
   Widget _buildPostReportCard(PostReport reportData) {
+    // ✅ ตัดรูปซ้ำก่อนแสดง
+    final uniqueImages = reportData.images.toSet().toList();
+// ✅ กรองรายงานไม่ซ้ำก่อนแสดง (ใช้ Report)
+    final uniqueReports = <Report>[];
+    for (var report in reportData.reports) {
+      if (!uniqueReports.any((r) => r.reportId == report.reportId)) {
+        uniqueReports.add(report);
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with Priority
+          // ✅ ส่วนหัวแสดงระดับความสำคัญ
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1252,7 +1334,7 @@ void _showDeletePostDialog(PostReport reportData) {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    "${reportData.reportCount} รายงาน",
+                    "${reportData.reports.length} รายงาน", // <-- แก้จาก reportCount เป็น reports.length
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -1263,7 +1345,9 @@ void _showDeletePostDialog(PostReport reportData) {
             ),
           ),
 
+          // ✅ เนื้อหาหลักของโพสต์
           Padding(
+<<<<<<< HEAD
   padding: const EdgeInsets.all(12),
   child: Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1286,197 +1370,259 @@ void _showDeletePostDialog(PostReport reportData) {
           children: [
             // Post Owner Info
             Row(
+=======
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+>>>>>>> d22f018fc3381591012ef535b9d02fbe7b60217d
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundImage: reportData.owner.profileImage.isNotEmpty
-                      ? NetworkImage(reportData.owner.profileImage)
-                      : null,
-                  child: reportData.owner.profileImage.isEmpty
-                      ? const Icon(Icons.person, size: 20)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        reportData.owner.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      Row(
+                // Owner info + status
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundImage: reportData.owner.profileImage.isNotEmpty
+                          ? NetworkImage(reportData.owner.profileImage)
+                          : null,
+                      child: reportData.owner.profileImage.isEmpty
+                          ? const Icon(Icons.person, size: 20)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          buildStatusChip(reportData.status),
-                          const SizedBox(width: 8),
                           Text(
-                            "โพสต์เมื่อ: ${formatTime(reportData.date)}",
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey[600]),
+                            reportData.owner.name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          Row(
+                            children: [
+                              buildStatusChip(reportData.status),
+                              const SizedBox(width: 8),
+                              Text(
+                                "โพสต์เมื่อ: ${formatTime(reportData.date)}",
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey[600]),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // ✅ หัวข้อโพสต์
+                if (reportData.topic?.isNotEmpty == true)
+                  Text(
+                    reportData.topic!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: 6),
+
+                // ✅ รายละเอียดโพสต์
+                if (reportData.description?.isNotEmpty == true)
+                  Text(
+                    reportData.description!,
+                    style: TextStyle(color: Colors.grey[700]),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: 8),
+
+                // ✅ รูปภาพ (ไม่ซ้ำ)
+                // ส่วนรูปภาพของโพสต์ (แสดงครั้งเดียว)
+
+                if (uniqueImages.isNotEmpty)
+                  SizedBox(
+                    height: 120,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: uniqueImages.length, // ใช้ uniqueImages
+                      itemBuilder: (context, imgIndex) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              uniqueImages[imgIndex], // ใช้ uniqueImages
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 120,
+                                  height: 120,
+                                  color: Colors.grey[300],
+                                  child: const Icon(Icons.broken_image),
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+
+                // ✅ ปุ่มดูรายละเอียดเพิ่มเติม (ไปหน้า AdminDetailPost)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              AdminDetailPost(postId: reportData.postId),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text("ดูโพสต์เต็ม"),
+                  ),
+                ),
+
+                const Divider(),
+
+                // ✅ รายละเอียดรายงาน (ไม่มีซ้ำ)
+                // รายละเอียดรายงาน (ไม่เกี่ยวกับรูปภาพ)
+                if (reportData.reports.isNotEmpty)
+                  ExpansionTile(
+                    title: Text(
+                      "รายละเอียดรายงาน (${uniqueReports.length} รายงาน)", // <-- ใช้ reports.length
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    children: uniqueReports.map((report) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: const Border(
+                            left: BorderSide(color: Colors.red, width: 3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.report_problem,
+                                    size: 16, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    report.reason ?? "ไม่ระบุเหตุผล",
+                                    style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "ผู้รายงาน: ${report.reporterName ?? 'ไม่ระบุ'} (ID: ${report.reporterId ?? 'ไม่ระบุ'})",
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              "เวลา: ${formatTime(report.createdAt)}",
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            color: Colors.grey[500], size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          "ไม่มีรายละเอียดรายงาน",
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const Divider(),
+
+                // ✅ ปุ่มลบโพสต์
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text("⚠️ ยืนยันลบโพสต์"),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("คุณต้องการลบโพสต์นี้หรือไม่?"),
+                              const SizedBox(height: 8),
+                              Text(
+                                "โพสต์: ${reportData.topic ?? 'ไม่มีหัวข้อ'}",
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              Text("เจ้าของ: ${reportData.owner.name}"),
+                              Text(
+                                  "ถูกรายงาน: ${reportData.reportCount} ครั้ง"),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text("ยกเลิก"),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(ctx).pop();
+                                deletePost(reportData.postId);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text("ลบโพสต์"),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.delete_forever, size: 16),
+                    label: const Text("ลบโพสต์"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red[700],
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Post Content
-            if (reportData.topic?.isNotEmpty == true) ...[
-              Text(
-                reportData.topic!,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 16),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-            ],
-
-            if (reportData.description?.isNotEmpty == true) ...[
-              Text(
-                reportData.description!,
-                style: TextStyle(color: Colors.grey[700]),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-            ],
-
-            // Post Images
-            if (reportData.images.isNotEmpty) ...[
-              SizedBox(
-                height: 120,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: reportData.images.length,
-                  itemBuilder: (context, imgIndex) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          reportData.images[imgIndex],
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 120,
-                              height: 120,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.broken_image),
-                            );
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ],
-        ),
-      ),
-
-      // ✅ ส่วนรายละเอียดรายงาน (เหมือนเดิม)
-      if (reportData.reports.isNotEmpty) ...[
-        const Divider(),
-        ExpansionTile(
-          title: Text(
-            "รายละเอียดรายงาน (${reportData.reports.length} รายการ)",
-            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          children: reportData.reports.map<Widget>((report) {
-            return Container(
-              margin:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
-                border: const Border(
-                  left: BorderSide(color: Colors.red, width: 3),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.report_problem,
-                          size: 16, color: Colors.red),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          report.reason ?? "ไม่ระบุเหตุผล",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.person,
-                          size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        "ผู้รายงาน: ",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        report.reporterName ?? "ไม่ระบุ",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      Text(
-                        " (ID: ${report.reporterId ?? 'ไม่ระบุ'})",
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.access_time,
-                          size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        "เวลา: ${formatTime(report.createdAt)}",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    ],
-  ),
-)
-
         ],
       ),
     );

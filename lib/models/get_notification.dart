@@ -37,6 +37,10 @@ class NotificationItem {
   Sender sender;
   Post? post;
 
+  // เพิ่มสถานะติดตาม
+  bool isFollowing;
+  String? status; // null / pending / accepted
+
   NotificationItem({
     required this.notificationId,
     required this.senderUid,
@@ -48,6 +52,8 @@ class NotificationItem {
     required this.createdAt,
     required this.sender,
     this.post,
+    this.isFollowing = false,
+    this.status,
   });
 
   factory NotificationItem.fromJson(Map<String, dynamic> json) =>
@@ -62,6 +68,8 @@ class NotificationItem {
         createdAt: DateTime.parse(json["created_at"]),
         sender: Sender.fromJson(json["sender"]),
         post: json["post"] == null ? null : Post.fromJson(json["post"]),
+        isFollowing: json["isFollowing"] ?? false,
+        status: json["status"],
       );
 
   Map<String, dynamic> toJson() => {
@@ -75,6 +83,8 @@ class NotificationItem {
         "created_at": createdAt.toIso8601String(),
         "sender": sender.toJson(),
         "post": post?.toJson(),
+        "isFollowing": isFollowing,
+        "status": status,
       };
 }
 

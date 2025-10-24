@@ -19,9 +19,11 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
   final _cnameController = TextEditingController();
   final _ctypeController = TextEditingController();
   final _cdescriptionController = TextEditingController();
-  
+
   File? _imageFile;
   bool _isLoading = false;
+
+  String? selectedType;
 
   @override
   void dispose() {
@@ -47,7 +49,8 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
         });
       }
     } catch (e) {
-      _showSnackBar('เกิดข้อผิดพลาดในการเลือกรูปภาพ: ${e.toString()}', isError: true);
+      _showSnackBar('เกิดข้อผิดพลาดในการเลือกรูปภาพ: ${e.toString()}',
+          isError: true);
     }
   }
 
@@ -177,14 +180,13 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isDestructive
-                    ? Colors.red.shade50
-                    : Colors.blue.shade50,
+                color: isDestructive ? Colors.red.shade50 : Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 icon,
-                color: isDestructive ? Colors.red.shade600 : Colors.blue.shade600,
+                color:
+                    isDestructive ? Colors.red.shade600 : Colors.blue.shade600,
                 size: 20,
               ),
             ),
@@ -220,7 +222,7 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
     try {
       // อัปโหลดรูปภาพไป Firebase Storage
       final imageUrl = await uploadFileToFirebase(_imageFile!);
-      
+
       if (imageUrl == null) {
         throw Exception('ไม่สามารถอัปโหลดรูปภาพได้');
       }
@@ -241,10 +243,11 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        
+
         if (mounted) {
-          _showSnackBar(data['message'] ?? 'เพิ่มหมวดหมู่สำเร็จ', isError: false);
-          
+          _showSnackBar(data['message'] ?? 'เพิ่มหมวดหมู่สำเร็จ',
+              isError: false);
+
           // ล้างฟอร์ม
           _formKey.currentState!.reset();
           _cnameController.clear();
@@ -425,7 +428,9 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
                   GestureDetector(
                     onTap: _changeImage,
                     child: Text(
-                      _imageFile != null ? 'เปลี่ยนรูปภาพ' : 'เลือกรูปภาพหมวดหมู่',
+                      _imageFile != null
+                          ? 'เปลี่ยนรูปภาพ'
+                          : 'เลือกรูปภาพหมวดหมู่',
                       style: TextStyle(
                         color: const Color.fromARGB(255, 0, 0, 0),
                         fontSize: 16,
@@ -465,11 +470,35 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
                       icon: Icons.category_outlined,
                     ),
                     const SizedBox(height: 24),
-                    _buildModernTextField(
-                      label: "ประเภทหมวดหมู่",
-                      controller: _ctypeController,
-                      hint: "กรอกประเภทหมวดหมู่",
-                      icon: Icons.type_specimen_outlined,
+                    DropdownButtonFormField<String>(
+                      value: selectedType,
+                      decoration: InputDecoration(
+                        labelText: "ประเภทหมวดหมู่",
+                        hintText: "เลือกประเภทหมวดหมู่",
+                        prefixIcon: const Icon(Icons.type_specimen_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: "F",
+                          child: Text("F"),
+                        ),
+                        DropdownMenuItem(
+                          value: "M",
+                          child: Text("M"),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedType = value;
+                          _ctypeController.text =
+                              value ?? ""; // 👈 เก็บลงใน controller ด้วย
+                        });
+                      },
                     ),
                     const SizedBox(height: 24),
                     _buildModernTextField(
@@ -508,7 +537,8 @@ class _AdminInsertCategoryState extends State<AdminInsertCategory> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Text(
