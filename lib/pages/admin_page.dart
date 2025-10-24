@@ -1,7 +1,5 @@
 import 'dart:convert';
 import 'dart:developer';
-import 'package:fontend_pro/pages/admin_detailpost.dart';
-import 'package:fontend_pro/pages/user_detail_post.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +9,8 @@ import 'package:fontend_pro/config/config.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/models/admin_report.dart';
+import 'package:fontend_pro/pages/admin_detailpost.dart';
+import 'package:fontend_pro/pages/user_detail_post.dart';
 import 'package:fontend_pro/pages/admin_profile_user.dart';
 import 'package:fontend_pro/pages/admin_insertcategorys.dart';
 import 'package:fontend_pro/pages/admin_editcategorypage.dart';
@@ -1042,6 +1042,155 @@ class _AdminPageState extends State<AdminPage>
     );
   }
 
+  // Add this method to show delete confirmation dialog
+void _showDeletePostDialog(PostReport reportData) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: Row(
+        children: [
+          const Icon(Icons.delete_forever, color: Colors.red, size: 28),
+          const SizedBox(width: 8),
+          const Text(
+            "⚠️ ยืนยันลบโพสต์",
+            style: TextStyle(fontSize: 18),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "คุณต้องการลบโพสต์นี้หรือไม่?",
+            style: TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.person, size: 16, color: Colors.red),
+                    const SizedBox(width: 4),
+                    const Text(
+                      "เจ้าของโพสต์: ",
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  reportData.owner.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "หัวข้อ: ",
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  reportData.topic ?? "ไม่ระบุ",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "ID โพสต์: ${reportData.postId}",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber,
+                    color: Colors.orange[700], size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "การลบโพสต์จะไม่สามารถกู้คืนได้",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange[900],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text(
+            "ยกเลิก",
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: () async {
+            Navigator.of(ctx).pop();
+
+            // แสดง loading
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(
+                child: CircularProgressIndicator(color: Colors.red),
+              ),
+            );
+
+            // เรียกใช้ฟังก์ชันลบโพสต์
+            await deletePost(reportData.postId);
+
+            // ปิด loading dialog
+            if (mounted) Navigator.of(context).pop();
+          },
+          icon: const Icon(Icons.delete_forever, size: 18),
+          label: const Text(
+            "ลบโพสต์",
+            style: TextStyle(fontSize: 16),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
   Widget _buildFilterChip(String label, String value) {
     final isSelected = selectedFilter == value;
     return FilterChip(
@@ -1131,6 +1280,7 @@ class _AdminPageState extends State<AdminPage>
             ),
           );
         },
+        
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
