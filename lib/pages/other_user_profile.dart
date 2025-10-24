@@ -31,6 +31,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   bool _isRefreshing = false;
   bool _isFollowing = false;
   bool _isFollowLoading = false;
+  String?
+      _followStatus; // เพิ่มตัวแปรเก็บสถานะ 'pending', 'accepted', 'rejected'
 
   int followersCount = 0;
   int followingCount = 0;
@@ -38,7 +40,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
 
   // ตัวแปรสำหรับเก็บ userId ของผู้ใช้ปัจจุบัน
   int? currentUserId;
-  Set<int> followingUserIds = <int>{}; // เพิ่มตัวแปรนี้
+  Set<int> followingUserIds = <int>{};
 
   @override
   void initState() {
@@ -148,7 +150,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
     }
   }
 
-  // ฟังก์ชันสำหรับเช็คสถานะการติดตาม
+  // ฟังก์ชันสำหรับเช็คสถานะการติดตาม (แก้ไขแล้ว)
   Future<void> _checkFollowStatus() async {
     if (currentUserId == null) return;
 
@@ -168,30 +170,36 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final isFollowing = data['isFollowing'] ?? false;
+        final status = data['status']; // เก็บ status จาก API
+
         setState(() {
           _isFollowing = isFollowing;
+          _followStatus = status; // เก็บสถานะ 'pending', 'accepted', หรือ null
+
           if (isFollowing) {
             followingUserIds.add(widget.userId);
           } else {
             followingUserIds.remove(widget.userId);
           }
         });
-        log('Follow status: $_isFollowing');
+        log('Follow status: $_isFollowing, Status: $_followStatus');
       } else {
         log('Failed to check follow status: ${response.statusCode}');
         setState(() {
           _isFollowing = false;
+          _followStatus = null;
         });
       }
     } catch (e) {
       log('Error checking follow status: $e');
       setState(() {
         _isFollowing = false;
+        _followStatus = null;
       });
     }
   }
 
-  // ฟังก์ชันสำหรับติดตามผู้ใช้
+  // ฟังก์ชันสำหรับติดตามผู้ใช้ (แก้ไขแล้ว)
   Future<void> followUser(int targetUserId) async {
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
@@ -207,11 +215,11 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        log('ติดตามผู้ใช้ $targetUserId สำเร็จ');
+        log('ส่งคำขอติดตามผู้ใช้ $targetUserId สำเร็จ');
         setState(() {
           followingUserIds.add(targetUserId);
           _isFollowing = true;
-          followersCount++;
+          _followStatus = 'pending'; // ตั้งสถานะเป็น pending
         });
       } else {
         log('เกิดข้อผิดพลาดในการติดตาม: ${response.body}');
@@ -223,7 +231,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
     }
   }
 
-  // ฟังก์ชันสำหรับเลิกติดตามผู้ใช้
+  // ฟังก์ชันสำหรับเลิกติดตามผู้ใช้ (แก้ไขแล้ว)
   Future<void> unfollowUser(int targetUserId) async {
     var config = await Configuration.getConfig();
     var url = config['apiEndpoint'];
@@ -245,6 +253,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         setState(() {
           followingUserIds.remove(targetUserId);
           _isFollowing = false;
+          _followStatus = null;
           followersCount = followersCount > 0 ? followersCount - 1 : 0;
         });
       } else {
@@ -446,7 +455,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                       ),
                     ),
                   ),
-                  // ปุ่มสำหรับติดตาม/เลิกติดตาม
+                  // ปุ่มสำหรับติดตาม/เลิกติดตาม (แก้ไขแล้ว)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -457,9 +466,11 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                             child: Container(
                               height: 32,
                               decoration: BoxDecoration(
-                                color: _isFollowing
+                                color: _followStatus == 'accepted'
                                     ? Colors.grey[200]
-                                    : const Color.fromARGB(255, 0, 0, 0),
+                                    : _followStatus == 'pending'
+                                        ? Colors.grey[300]
+                                        : const Color.fromARGB(255, 0, 0, 0),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Material(
@@ -479,13 +490,15 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                                             ),
                                           )
                                         : Text(
-                                            _isFollowing
+                                            _followStatus == 'accepted'
                                                 ? "กำลังติดตาม"
-                                                : "ติดตาม",
+                                                : _followStatus == 'pending'
+                                                    ? "รอการยอมรับ"
+                                                    : "ติดตาม",
                                             style: TextStyle(
-                                              color: _isFollowing
-                                                  ? Colors.black
-                                                  : Colors.white,
+                                              color: _followStatus == null
+                                                  ? Colors.white
+                                                  : Colors.black,
                                               fontWeight: FontWeight.w600,
                                               fontSize: 14,
                                             ),
@@ -538,6 +551,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
     );
   }
 
+  // แก้ไข _buildPostsGrid() (แก้ไขแล้ว)
   Widget _buildPostsGrid() {
     // ตรวจสอบ userPosts ว่างหรือ loading
     if (userPosts == null && _isRefreshing) {
@@ -549,12 +563,15 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
       );
     }
 
+    // ✅ เช็คว่าเป็น accepted จริงๆ หรือไม่
+    final bool isAccepted = _followStatus == 'accepted';
+
     // กรองโพสต์ตามสถานะและการติดตาม
-    final List<model.GetPostUser> visiblePosts = _isFollowing
-        ? userPosts! // ติดตามแล้ว → เห็นทุกโพสต์
+    final List<model.GetPostUser> visiblePosts = isAccepted
+        ? userPosts! // ติดตามและ accepted แล้ว → เห็นทุกโพสต์
         : userPosts!
             .where((postUser) => postUser.post.postStatus == 'public')
-            .toList(); // ยังไม่ติดตาม → เห็นเฉพาะ public
+            .toList(); // ยังไม่ accepted → เห็นเฉพาะ public
 
     // ถ้าไม่มีโพสต์ให้แสดง
     if (visiblePosts.isEmpty) {
@@ -563,22 +580,31 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (!_isFollowing)
-              const Icon(Icons.lock_outline, size: 60, color: Colors.black54),
+            Icon(
+              _followStatus == 'pending'
+                  ? Icons.hourglass_empty
+                  : Icons.lock_outline,
+              size: 60,
+              color: Colors.black54,
+            ),
             const SizedBox(height: 16),
-            const Text(
-              'บัญชีนี้เป็นส่วนตัว',
-              style: TextStyle(
+            Text(
+              _followStatus == 'pending'
+                  ? 'รอการยอมรับ'
+                  : 'บัญชีนี้เป็นส่วนตัว',
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 color: Colors.black,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'ติดตามเพื่อดูโพสต์และรูปภาพทั้งหมดของผู้ใช้นี้',
+            Text(
+              _followStatus == 'pending'
+                  ? 'รอให้ผู้ใช้นี้ยอมรับคำขอติดตามของคุณ'
+                  : 'ติดตามเพื่อดูโพสต์และรูปภาพทั้งหมดของผู้ใช้นี้',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54),
+              style: const TextStyle(color: Colors.black54),
             ),
           ],
         ),

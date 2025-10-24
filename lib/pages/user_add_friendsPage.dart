@@ -26,7 +26,8 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
   final GetStorage gs = GetStorage();
   late int loggedInUid;
 
-  Set<int> followingUserIds = {};
+  // เปลี่ยนจาก Set<int> เป็น Map เพื่อเก็บทั้ง uid และ status
+  Map<int, String> followStatusMap = {}; // uid: status ('pending' or 'accept')
 
   bool _isInitialLoading = true;
   bool _isRefreshing = false;
@@ -53,6 +54,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
   Future<void> _initializeData() async {
     try {
       await loadDataUser(loggedInUid);
+      await loadFollowStatus(); // โหลดสถานะการติดตาม
     } catch (e) {
       setState(() {
         _errorMessage = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
@@ -72,6 +74,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
 
     try {
       await loadDataUser(loggedInUid);
+      await loadFollowStatus();
     } catch (e) {
       setState(() {
         _errorMessage = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
@@ -80,6 +83,42 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
       setState(() {
         _isRefreshing = false;
       });
+    }
+  }
+
+  /// ================== API Load Follow Status ==================
+  Future<void> loadFollowStatus() async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      Map<int, String> statusMap = {};
+      
+      // เช็คสถานะแต่ละคนใน user list
+      for (var u in user) {
+        try {
+          final response = await http.get(
+            Uri.parse("$url/user/is-following?follower_id=$loggedInUid&following_id=${u.uid}"),
+          );
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['isFollowing'] == true && data['status'] != null) {
+              statusMap[u.uid] = data['status'];
+            }
+          }
+        } catch (e) {
+          log('Error checking status for user ${u.uid}: $e');
+        }
+      }
+
+      setState(() {
+        followStatusMap = statusMap;
+      });
+      
+      log('Follow status loaded: ${statusMap.length} relationships found');
+    } catch (e) {
+      log('Error loading follow status: $e');
     }
   }
 
@@ -111,58 +150,94 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
 
   /// ================== API Search Users ==================
   Future<void> searchUsers(String query) async {
-  if (query.isEmpty) {
-    // ถ้าไม่พิมพ์ search ให้ใช้ user ทั้งหมด แต่กรองคนที่ติดตามแล้ว
-    setState(() {
-      filteredUsers = user.where((u) => !followingUserIds.contains(u.uid)).toList();
-    });
-    return;
-  }
-
-  try {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
-
-    final loggedInUid = gs.read("user");
-    if (loggedInUid == null) {
-      log("❌ ไม่พบ uid ใน storage");
+    if (query.isEmpty) {
       setState(() {
-        filteredUsers = [];
+        filteredUsers = user;
       });
+      // โหลดสถานะใหม่เมื่อแสดงผู้ใช้ทั้งหมด
+      await loadFollowStatus();
       return;
     }
 
-    final response = await http.get(
-      Uri.parse("$url/user/search-user?name=$query&uid=$loggedInUid"),
-    );
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
 
-    if (response.statusCode == 200) {
-      final searchResults = getAllUserFromJson(response.body);
+      final loggedInUid = gs.read("user");
+      if (loggedInUid == null) {
+        log("❌ ไม่พบ uid ใน storage");
+        setState(() {
+          filteredUsers = [];
+        });
+        return;
+      }
 
-      // ✅ กรองคนที่ติดตามแล้ว
-      final filteredResults = searchResults
-          .where((u) => !followingUserIds.contains(u.uid))
-          .toList();
+      final response = await http.get(
+        Uri.parse("$url/user/search-user?name=$query&uid=$loggedInUid"),
+      );
 
-      setState(() {
-        filteredUsers = filteredResults;
-      });
+      if (response.statusCode == 200) {
+        final searchResults = getAllUserFromJson(response.body);
 
-      log('Search results (filtered): ${filteredResults.length} users');
-    } else {
-      log('Search failed: ${response.body}');
+        setState(() {
+          filteredUsers = searchResults;
+        });
+
+        // โหลดสถานะสำหรับผลลัพธ์ที่ค้นหา
+        await loadFollowStatusForFilteredUsers();
+
+        log('Search results: ${searchResults.length} users');
+      } else {
+        log('Search failed: ${response.body}');
+        setState(() {
+          filteredUsers = [];
+        });
+      }
+    } catch (e) {
+      log('Error searching users: $e');
       setState(() {
         filteredUsers = [];
       });
     }
-  } catch (e) {
-    log('Error searching users: $e');
-    setState(() {
-      filteredUsers = [];
-    });
   }
-}
 
+  /// โหลดสถานะเฉพาะผู้ใช้ที่กรองแล้ว
+  Future<void> loadFollowStatusForFilteredUsers() async {
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
+
+      Map<int, String> statusMap = {};
+      
+      for (var u in filteredUsers) {
+        try {
+          final response = await http.get(
+            Uri.parse("$url/user/is-following?follower_id=$loggedInUid&following_id=${u.uid}"),
+          );
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['isFollowing'] == true && data['status'] != null) {
+              statusMap[u.uid] = data['status'];
+            }
+          }
+        } catch (e) {
+          log('Error checking status for user ${u.uid}: $e');
+        }
+      }
+
+      setState(() {
+        // อัพเดตเฉพาะส่วนที่เกี่ยวข้อง
+        for (var entry in statusMap.entries) {
+          followStatusMap[entry.key] = entry.value;
+        }
+      });
+      
+      log('Follow status loaded for filtered users: ${statusMap.length} relationships');
+    } catch (e) {
+      log('Error loading follow status for filtered users: $e');
+    }
+  }
 
   /// ================== API Follow / Unfollow ==================
   Future<void> followUser(int targetUserId) async {
@@ -180,10 +255,11 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
       );
 
       if (response.statusCode == 200) {
-        log('ติดตามผู้ใช้ $targetUserId สำเร็จ');
+        log('ส่งคำขอติดตามผู้ใช้ $targetUserId สำเร็จ');
         setState(() {
-          followingUserIds.add(targetUserId);
+          followStatusMap[targetUserId] = 'pending';
         });
+        _showSuccessSnackBar('ส่งคำขอติดตามแล้ว');
       } else {
         log('เกิดข้อผิดพลาดในการติดตาม: ${response.body}');
         _showErrorSnackBar('ไม่สามารถติดตามได้ในขณะนี้');
@@ -213,8 +289,9 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
       if (response.statusCode == 200) {
         log('เลิกติดตามผู้ใช้ $targetUserId สำเร็จ');
         setState(() {
-          followingUserIds.remove(targetUserId);
+          followStatusMap.remove(targetUserId);
         });
+        _showSuccessSnackBar('เลิกติดตามแล้ว');
       } else {
         log('เกิดข้อผิดพลาดในการเลิกติดตาม: ${response.body}');
         _showErrorSnackBar('ไม่สามารถเลิกติดตามได้ในขณะนี้');
@@ -222,6 +299,38 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
     } catch (e) {
       log('Error unfollowing user: $e');
       _showErrorSnackBar('เกิดข้อผิดพลาดในการเลิกติดตาม');
+    }
+  }
+
+  Future<void> cancelFollowRequest(int targetUserId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+
+    try {
+      final uri = Uri.parse('$url/user/unfollow');
+      final request = http.Request('DELETE', uri);
+      request.headers['Content-Type'] = 'application/json';
+      request.body = jsonEncode({
+        'follower_id': loggedInUid,
+        'following_id': targetUserId,
+      });
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        log('ยกเลิกคำขอติดตามผู้ใช้ $targetUserId สำเร็จ');
+        setState(() {
+          followStatusMap.remove(targetUserId);
+        });
+        _showSuccessSnackBar('ยกเลิกคำขอแล้ว');
+      } else {
+        log('เกิดข้อผิดพลาดในการยกเลิกคำขอ: ${response.body}');
+        _showErrorSnackBar('ไม่สามารถยกเลิกได้ในขณะนี้');
+      }
+    } catch (e) {
+      log('Error canceling follow request: $e');
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการยกเลิกคำขอ');
     }
   }
 
@@ -233,6 +342,18 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
         backgroundColor: Colors.red[400],
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green[400],
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -475,7 +596,9 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
         itemCount: filteredUsers.length,
         itemBuilder: (context, index) {
           final users = filteredUsers[index];
-          final isFollowing = followingUserIds.contains(users.uid);
+          final followStatus = followStatusMap[users.uid];
+          final isPending = followStatus == 'pending';
+          final isAccepted = followStatus == 'accept';
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -539,7 +662,7 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                   ),
                                 ),
                               )),
-                          if (isFollowing)
+                          if (isAccepted)
                             Positioned(
                               bottom: 0,
                               right: 0,
@@ -554,6 +677,26 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                                 ),
                                 child: const Icon(
                                   Icons.check,
+                                  size: 10,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          if (isPending)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: Colors.orange[500],
+                                  borderRadius: BorderRadius.circular(10),
+                                  border:
+                                      Border.all(color: Colors.white, width: 2),
+                                ),
+                                child: const Icon(
+                                  Icons.schedule,
                                   size: 10,
                                   color: Colors.white,
                                 ),
@@ -582,14 +725,18 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              isFollowing
-                                  ? 'คุณติดตามผู้ใช้นี้แล้ว'
-                                  : 'แนะนำสำหรับคุณ',
+                              isPending
+                                  ? 'กำลังรอการยอมรับ'
+                                  : isAccepted
+                                      ? 'คุณติดตามผู้ใช้นี้แล้ว'
+                                      : 'แนะนำสำหรับคุณ',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isFollowing
-                                    ? Colors.green[600]
-                                    : Colors.grey[600],
+                                color: isPending
+                                    ? Colors.orange[600]
+                                    : isAccepted
+                                        ? Colors.green[600]
+                                        : Colors.grey[600],
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -605,18 +752,26 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                       duration: const Duration(milliseconds: 200),
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              isFollowing ? Colors.grey[100] : Colors.black87,
-                          foregroundColor:
-                              isFollowing ? Colors.black87 : Colors.white,
+                          backgroundColor: isPending
+                              ? Colors.orange[50]
+                              : isAccepted
+                                  ? Colors.grey[100]
+                                  : Colors.black87,
+                          foregroundColor: isPending
+                              ? Colors.orange[700]
+                              : isAccepted
+                                  ? Colors.black87
+                                  : Colors.white,
                           elevation: 0,
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                             side: BorderSide(
-                              color: isFollowing
-                                  ? Colors.grey[300]!
-                                  : Colors.transparent,
+                              color: isPending
+                                  ? Colors.orange[300]!
+                                  : isAccepted
+                                      ? Colors.grey[300]!
+                                      : Colors.transparent,
                               width: 1.5,
                             ),
                           ),
@@ -625,7 +780,9 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                           minimumSize: const Size(double.infinity, 40),
                         ),
                         onPressed: () {
-                          if (isFollowing) {
+                          if (isPending) {
+                            cancelFollowRequest(users.uid);
+                          } else if (isAccepted) {
                             unfollowUser(users.uid);
                           } else {
                             followUser(users.uid);
@@ -635,14 +792,20 @@ class _UserAddFriendspageState extends State<UserAddFriendspage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              isFollowing
-                                  ? Icons.person_remove_rounded
-                                  : Icons.person_add_rounded,
+                              isPending
+                                  ? Icons.schedule_rounded
+                                  : isAccepted
+                                      ? Icons.person_remove_rounded
+                                      : Icons.person_add_rounded,
                               size: 16,
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              isFollowing ? 'เลิกติดตาม' : 'ติดตาม',
+                              isPending
+                                  ? 'กำลังรอการยอมรับ'
+                                  : isAccepted
+                                      ? 'เลิกติดตาม'
+                                      : 'ติดตาม',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,

@@ -202,21 +202,23 @@ class _NotificationsPageState extends State<NotificationsPage> {
     var url = config['apiEndpoint'];
 
     try {
-      final response = await http.put(
-        Uri.parse('$url/user/reject-follow'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "follower_id": followerUid,
-          "following_id": loggedInUid,
-        }),
-      );
+      final request =
+          http.Request('DELETE', Uri.parse('$url/user/reject-follow'));
+      request.headers['Content-Type'] = 'application/json';
+      request.body = jsonEncode({
+        'follower_id': followerUid,
+        'following_id': loggedInUid,
+      });
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
         _showSnackBar('ปฏิเสธคำขอติดตามแล้ว', Colors.orange);
-        // ลบ notification ออก หรือรีเฟรช
-        await fetchNotifications();
+        await fetchNotifications(); // รีเฟรช notification
       } else {
         _showSnackBar('ไม่สามารถปฏิเสธได้', Colors.red);
+        log('Reject follow failed: ${response.statusCode}, ${response.body}');
       }
     } catch (e) {
       _showSnackBar('เกิดข้อผิดพลาด', Colors.red);
@@ -326,7 +328,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Widget rejectFollowButton(int followerUid) {
     return GestureDetector(
       onTap: () async {
-        await rejectFollowRequest(followerUid);
+        await rejectFollowRequest(followerUid); // <-- เรียกฟังก์ชัน reject
       },
       child: Container(
         height: 32,
