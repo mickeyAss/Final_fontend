@@ -12,8 +12,7 @@ class GetNotification {
 
   GetNotification({required this.notifications});
 
-  factory GetNotification.fromJson(Map<String, dynamic> json) =>
-      GetNotification(
+  factory GetNotification.fromJson(Map<String, dynamic> json) => GetNotification(
         notifications: json["notifications"] == null
             ? []
             : List<NotificationItem>.from(
@@ -37,7 +36,6 @@ class NotificationItem {
   Sender sender;
   Post? post;
 
-  // เพิ่มสถานะติดตาม
   bool isFollowing;
   String? status; // null / pending / accepted
 
@@ -56,15 +54,14 @@ class NotificationItem {
     this.status,
   });
 
-  factory NotificationItem.fromJson(Map<String, dynamic> json) =>
-      NotificationItem(
+  factory NotificationItem.fromJson(Map<String, dynamic> json) => NotificationItem(
         notificationId: json["notification_id"],
         senderUid: json["sender_uid"],
         receiverUid: json["receiver_uid"],
         postId: json["post_id"],
         type: json["type"],
         message: json["message"],
-        isRead: json["is_read"],
+        isRead: json["is_read"] ?? 0,
         createdAt: DateTime.parse(json["created_at"]),
         sender: Sender.fromJson(json["sender"]),
         post: json["post"] == null ? null : Post.fromJson(json["post"]),
@@ -128,26 +125,16 @@ class Post {
 }
 
 class ImageItem {
-  int imageId;
   String image;
-  int imageFkPostid;
 
-  ImageItem({
-    required this.imageId,
-    required this.image,
-    required this.imageFkPostid,
-  });
+  ImageItem({required this.image});
 
   factory ImageItem.fromJson(Map<String, dynamic> json) => ImageItem(
-        imageId: json["image_id"],
-        image: json["image"],
-        imageFkPostid: json["image_fk_postid"],
+        image: json["image"] ?? "",
       );
 
   Map<String, dynamic> toJson() => {
-        "image_id": imageId,
         "image": image,
-        "image_fk_postid": imageFkPostid,
       };
 }
 
@@ -197,7 +184,7 @@ class Sender {
         waistCircumference: json["waist_circumference"],
         hip: json["hip"],
         type: json["type"],
-        isBanned: json["is_banned"],
+        isBanned: json["is_banned"] ?? 0,
         bannedAt: json["banned_at"],
       );
 

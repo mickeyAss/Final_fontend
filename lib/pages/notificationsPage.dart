@@ -45,6 +45,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             NotificationModel.getNotificationFromJson(response.body);
 
         log('Fetched ${data.notifications.length} notifications');
+        
 
         setState(() {
           notificationData = data;
@@ -311,7 +312,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.blue,
+          color: const Color.fromARGB(255, 0, 0, 0),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Center(
@@ -498,36 +499,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
   String getNotificationMessage(
       NotificationModel.NotificationItem notification) {
     final senderName = notification.sender.name;
-    final type = notification.type;
+    final messageText = notification.message.toLowerCase();
     final status = followingStatus[notification.sender.uid] ?? 'none';
 
-    switch (type.toLowerCase()) {
-      case 'like':
-        return '$senderName ถูกใจโพสต์ของคุณ';
-      case 'comment':
-        return '$senderName แสดงความคิดเห็นในโพสต์ของคุณ: "${notification.message}"';
-      case 'follow':
-      case 'user':
-        // แสดงข้อความตามสถานะ
-        if (status == 'both_following') {
-          return '$senderName และคุณติดตามกันแล้ว';
-        } else if (status == 'follow_back') {
-          return '$senderName เริ่มติดตามคุณ';
-        } else {
-          return '$senderName ต้องการติดตามคุณ';
-        }
-      case 'report':
-        final reportMessage = notification.message.isNotEmpty
-            ? notification.message
-            : 'มีการรายงานโพสต์';
-        return 'โพสต์ของคุณถูกรายงาน: "$reportMessage"';
-      case 'report_user':
-        final reportMessage = notification.message.isNotEmpty
-            ? notification.message
-            : 'มีผู้รายงานคุณ';
-        return 'ผู้ใช้ $senderName รายงานคุณ: "$reportMessage"';
-      default:
-        return notification.message;
+    if (messageText.contains('กดถูกใจ')) {
+      return '$senderName ถูกใจโพสต์ของคุณ';
+    } else if (messageText.contains('คอมเมนต์')) {
+      return '$senderName แสดงความคิดเห็นในโพสต์ของคุณ';
+    } else if (messageText.contains('ติดตาม')) {
+      if (status == 'both_following') {
+        return '$senderName และคุณติดตามกันแล้ว';
+      } else if (status == 'follow_back') {
+        return '$senderName เริ่มติดตามคุณ';
+      } else {
+        return 'ส่งคำขอการติดตามให้ $senderName แล้ว';
+      }
+    } else {
+      // เผื่อไว้ถ้าเป็นข้อความอื่น
+      return '$senderName ${notification.message}';
     }
   }
 
@@ -755,10 +744,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                             color: Colors.grey.shade600),
                                       ),
                                       // แสดงปุ่มสำหรับ follow notification
-                                      if (notification.type.toLowerCase() ==
-                                              'user' ||
-                                          notification.type.toLowerCase() ==
-                                              'follow')
+                                      // ✅ แสดงปุ่มเฉพาะเมื่อเป็นการติดตาม
+                                      if (notification.message
+                                          .toLowerCase()
+                                          .contains('ติดตาม'))
                                         Padding(
                                           padding:
                                               const EdgeInsets.only(top: 12),

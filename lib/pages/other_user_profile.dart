@@ -583,7 +583,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
             Icon(
               _followStatus == 'pending'
                   ? Icons.hourglass_empty
-                  : Icons.lock_outline,
+                  : Icons.image_not_supported_outlined,
               size: 60,
               color: Colors.black54,
             ),
@@ -591,7 +591,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
             Text(
               _followStatus == 'pending'
                   ? 'รอการยอมรับ'
-                  : 'บัญชีนี้เป็นส่วนตัว',
+                  : 'บัญชีนี้ยังไม่มีโพสต์',
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,

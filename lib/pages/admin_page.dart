@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'package:fontend_pro/pages/admin_detailpost.dart';
+import 'package:fontend_pro/pages/user_detail_post.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -9,8 +11,6 @@ import 'package:fontend_pro/config/config.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fontend_pro/models/admin_report.dart';
-import 'package:fontend_pro/pages/admin_detailpost.dart';
-import 'package:fontend_pro/pages/user_detail_post.dart';
 import 'package:fontend_pro/pages/admin_profile_user.dart';
 import 'package:fontend_pro/pages/admin_insertcategorys.dart';
 import 'package:fontend_pro/pages/admin_editcategorypage.dart';
@@ -146,8 +146,8 @@ class _AdminPageState extends State<AdminPage>
       var config = await Configuration.getConfig();
       var url = config['apiEndpoint'];
 
-      final response =
-          await http.delete(Uri.parse("$url/image_post/delete-post/$postId"));
+      final response = await http
+          .delete(Uri.parse("$url/image_post/delete-post-byadmin/$postId"));
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -483,269 +483,256 @@ class _AdminPageState extends State<AdminPage>
     return RefreshIndicator(
       onRefresh: fetchAllReports,
       color: Colors.red,
-      child: ListView.builder(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
-        itemCount: userReports.length,
-        itemBuilder: (context, index) {
-          final userReport = userReports[index];
-          return _buildUserReportCard(userReport);
-        },
+        children: () {
+          // รวมรายงานตาม reportedId
+          Map<int, List<UserReport>> groupedReports = {};
+          for (var report in userReports) {
+            groupedReports.putIfAbsent(report.reportedId, () => []);
+            groupedReports[report.reportedId]!.add(report);
+          }
+
+          // สร้าง list ของ Widgets
+          return groupedReports.values
+              .map((reportsForUser) => _buildUserReportCard(reportsForUser))
+              .toList();
+        }(),
       ),
     );
   }
 
-  Widget _buildUserReportCard(UserReport userReport) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
+  Widget _buildUserReportCard(List<UserReport> reportsForUser) {
+    final firstReport = reportsForUser.first;
+    bool isExpanded = false;
+
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 2,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.person_off, color: Colors.red, size: 24),
-                const SizedBox(width: 8),
-                const Text(
-                  "รายงานผู้ใช้",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    "ID: ${userReport.reportId}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                // Header
+                Row(
+                  children: [
+                    const Icon(Icons.person_off, color: Colors.red, size: 24),
+                    const SizedBox(width: 8),
+                    const Text(
+                      "รายงานผู้ใช้",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Reported User Info
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red[200]!),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.person, color: Colors.red, size: 20),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "ผู้ถูกรายงาน:",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      Text(
-                        userReport.reportedName ?? "ไม่ระบุ",
+                      child: Text(
+                        "ID: ${firstReport.reportedId}",
                         style: const TextStyle(
-                          fontSize: 16,
+                          color: Colors.white,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: Colors.red,
                         ),
                       ),
-                      Text(
-                        "ID: ${userReport.reportedId}",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // ข้อมูลผู้ถูกรายงาน
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "ผู้ถูกรายงาน:",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            firstReport.reportedName ?? "ไม่ระบุ",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                          Text(
+                            "โดนรายงาน ${reportsForUser.length} ครั้ง",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
+                const SizedBox(height: 12),
 
-            const SizedBox(height: 12),
-
-            // Reporter Info
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue[200]!),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.report_problem,
-                      color: Colors.blue, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "ผู้รายงาน:",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                            fontWeight: FontWeight.w500,
-                          ),
+                // ปุ่มขยาย/ย่อ
+                GestureDetector(
+                  onTap: () => setState(() => isExpanded = !isExpanded),
+                  child: Row(
+                    children: [
+                      Text(
+                        isExpanded
+                            ? "ซ่อนรายละเอียดรายงาน"
+                            : "ดูรายละเอียดรายงาน",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.bold,
                         ),
-                        Text(
-                          userReport.reporterName ?? "ไม่ระบุ",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
+                      ),
+                      Icon(
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.blue[700],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // รายละเอียดแต่ละรายงาน
+                if (isExpanded)
+                  ...reportsForUser.map((report) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[300]!),
                         ),
-                        Text(
-                          "ID: ${userReport.reporterId}",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "ผู้รายงาน: ${report.reporterName ?? 'ไม่ระบุ'} (ID: ${report.reporterId})",
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            if (report.reason?.isNotEmpty == true)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text("เหตุผล: ${report.reason}"),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                "รายงานเมื่อ: ${formatTime(report.createdAt)}",
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey[600]),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                      ),
+                    );
+                  }).toList(),
 
-            const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-            // Reason
-            if (userReport.reason?.isNotEmpty == true) ...[
-              const Text(
-                "เหตุผลในการรายงาน:",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Text(
-                  userReport.reason!,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
+                // ปุ่ม Action
 
-            // Time
-            Row(
-              children: [
-                const Icon(Icons.access_time, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  "รายงานเมื่อ: ${formatTime(userReport.createdAt)}",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Action Buttons
-            // ในส่วน Action Buttons
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Get.to(() =>
-                        AdminprofileUserPage(userId: userReport.reportedId));
-                  },
-                  icon: const Icon(Icons.visibility, size: 16),
-                  label: const Text("ดูโปรไฟล์"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.blue,
-                  ),
-                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    const SizedBox(width: 8),
-
-                    // 👇 ปุ่มแจ้งเตือนก่อนแบน
-                    if (!userReport.isBanned)
-                      ElevatedButton.icon(
-                        onPressed: () => _showWarnUserDialog(userReport),
-                        icon:
-                            const Icon(Icons.notification_important, size: 16),
-                        label: const Text("แจ้งเตือนผู้ใช้"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange[700],
-                          foregroundColor: Colors.white,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // ปุ่มดูโปรไฟล์
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Get.to(() => AdminprofileUserPage(
+                                userId: firstReport.reportedId));
+                          },
+                          icon: const Icon(Icons.visibility, size: 16),
+                          label: const Text("ดูโปรไฟล์"),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue,
+                          ),
                         ),
-                      ),
-
-                    const SizedBox(width: 8),
-
-                    // ปุ่มแบน / ปลดแบน
-                    if (userReport.isBanned)
-                      ElevatedButton.icon(
-                        onPressed: () => _showUnbanUserDialog(userReport),
-                        icon: const Icon(Icons.check_circle, size: 16),
-                        label: const Text("ปลดแบน"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[700],
-                          foregroundColor: Colors.white,
+                    
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ปุ่มแจ้งเตือนก่อนแบน
+                            if (!firstReport.isBanned)
+                              ElevatedButton.icon(
+                                onPressed: () => _showWarnUserDialog(firstReport),
+                                icon: const Icon(Icons.notification_important,
+                                    size: 16),
+                                label: const Text("แจ้งเตือนผู้ใช้"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange[700],
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            const SizedBox(width: 8),
+                    
+                            // ปุ่มแบน / ปลดแบน
+                            if (firstReport.isBanned)
+                              ElevatedButton.icon(
+                                onPressed: () => _showUnbanUserDialog(firstReport),
+                                icon: const Icon(Icons.check_circle, size: 16),
+                                label: const Text("ปลดแบน"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green[700],
+                                  foregroundColor: Colors.white,
+                                ),
+                              )
+                            else
+                              ElevatedButton.icon(
+                                onPressed: () => _showBanUserDialog(firstReport),
+                                icon: const Icon(Icons.block, size: 16),
+                                label: const Text("แบนผู้ใช้"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red[700],
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                          ],
                         ),
-                      )
-                    else
-                      ElevatedButton.icon(
-                        onPressed: () => _showBanUserDialog(userReport),
-                        icon: const Icon(Icons.block, size: 16),
-                        label: const Text("แบนผู้ใช้"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[700],
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
+                      ],
+                    ),
                   ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -768,7 +755,6 @@ class _AdminPageState extends State<AdminPage>
           ),
           TextButton(
             onPressed: () async {
-             
               Navigator.pop(context);
 
               // 🔹 เรียก API หรือฟังก์ชันแจ้งเตือนผู้ใช้
@@ -796,7 +782,6 @@ class _AdminPageState extends State<AdminPage>
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-     
       );
 
       if (response.statusCode == 200) {
@@ -1185,7 +1170,7 @@ class _AdminPageState extends State<AdminPage>
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    "${reportData.reports.length} รายงาน", // <-- แก้จาก reportCount เป็น reports.length
+                    "${uniqueReports.length} รายงาน", // <-- แก้จาก reportCount เป็น reports.length
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -1414,8 +1399,7 @@ class _AdminPageState extends State<AdminPage>
                                     fontWeight: FontWeight.bold),
                               ),
                               Text("เจ้าของ: ${reportData.owner.name}"),
-                              Text(
-                                  "ถูกรายงาน: ${reportData.reportCount} ครั้ง"),
+                              Text("ถูกรายงาน: ${uniqueReports.length} ครั้ง"),
                             ],
                           ),
                           actions: [
