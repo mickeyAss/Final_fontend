@@ -107,6 +107,9 @@ class RecommendedTabState extends State<RecommendedTab>
   // ปรับปรุงการจัดการ firstLoad
   bool _isFirstLoadAfterPost = false;
   bool _hasInitialized = false;
+
+  Map<int, String?> followingStatusMap =
+      {}; // เก็บ status: 'accepted', 'pending', 'rejected', null
   @override
   void initState() {
     super.initState();
@@ -135,8 +138,7 @@ class RecommendedTabState extends State<RecommendedTab>
     if (_isFirstLoadAfterPost) {
       _isFirstLoadAfterPost = false;
       // รีโหลดเป็น normal feed แบบ random
-      loadAllPosts(
-          firstLoad: false, randomize: false); //
+      loadAllPosts(firstLoad: false, randomize: false); //
     }
   }
 
@@ -174,7 +176,8 @@ class RecommendedTabState extends State<RecommendedTab>
     });
 
     await loadCategories();
-    await loadAllPosts(firstLoad: false, randomize: false); // เริ่มต้นด้วย normal feed
+    await loadAllPosts(
+        firstLoad: false, randomize: false); // เริ่มต้นด้วย normal feed
 
     setState(() {
       isInitialLoading = false;
@@ -261,47 +264,44 @@ class RecommendedTabState extends State<RecommendedTab>
   }
 
   // เพิ่มฟังก์ชันสำหรับตรวจสอบว่าผู้ใช้ไลค์คอมเมนต์หรือไม่
-Future<void> checkCommentLikes(List<int> commentIds) async {
-  if (loggedInUid == 0 || commentIds.isEmpty) return;
+  Future<void> checkCommentLikes(List<int> commentIds) async {
+    if (loggedInUid == 0 || commentIds.isEmpty) return;
 
-  try {
-    var config = await Configuration.getConfig();
-    var url = config['apiEndpoint'];
+    try {
+      var config = await Configuration.getConfig();
+      var url = config['apiEndpoint'];
 
-    // สร้าง list ของ Future สำหรับแต่ละ comment
-    List<Future> futures = commentIds.map((commentId) async {
-      // ตรวจสอบว่าไลค์หรือไม่
-      final likeUri = Uri.parse(
-          '$url/image_post/is-comment-liked?user_id=$loggedInUid&comment_id=$commentId');
-      final likeRes = await http.get(likeUri);
-      if (likeRes.statusCode == 200) {
-        final data = json.decode(likeRes.body);
-        setState(() {
-          commentLikedMap[commentId] = data['liked'] ?? false;
-        });
-      }
+      // สร้าง list ของ Future สำหรับแต่ละ comment
+      List<Future> futures = commentIds.map((commentId) async {
+        // ตรวจสอบว่าไลค์หรือไม่
+        final likeUri = Uri.parse(
+            '$url/image_post/is-comment-liked?user_id=$loggedInUid&comment_id=$commentId');
+        final likeRes = await http.get(likeUri);
+        if (likeRes.statusCode == 200) {
+          final data = json.decode(likeRes.body);
+          setState(() {
+            commentLikedMap[commentId] = data['liked'] ?? false;
+          });
+        }
 
-      // ดึงจำนวนไลค์
-      final countUri =
-          Uri.parse('$url/image_post/comment-like-count/$commentId');
-      final countRes = await http.get(countUri);
-      if (countRes.statusCode == 200) {
-        final countData = json.decode(countRes.body);
-        setState(() {
-          commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
-        });
-      }
-    }).toList();
+        // ดึงจำนวนไลค์
+        final countUri =
+            Uri.parse('$url/image_post/comment-like-count/$commentId');
+        final countRes = await http.get(countUri);
+        if (countRes.statusCode == 200) {
+          final countData = json.decode(countRes.body);
+          setState(() {
+            commentLikeCountMap[commentId] = countData['like_count'] ?? 0;
+          });
+        }
+      }).toList();
 
-    // รันทุก request พร้อมกัน
-    await Future.wait(futures);
-
-  } catch (e) {
-    debugPrint('Error checking comment likes: $e');
+      // รันทุก request พร้อมกัน
+      await Future.wait(futures);
+    } catch (e) {
+      debugPrint('Error checking comment likes: $e');
+    }
   }
-}
-
-
 
 // ฟังก์ชันสำหรับกดไลค์/ยกเลิกไลค์คอมเมนต์
   Future<void> toggleCommentLike(int commentId) async {
@@ -367,68 +367,70 @@ Future<void> checkCommentLikes(List<int> commentIds) async {
       setState(() {});
     }
   }
-Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) async {
-  try {
-    final config = await Configuration.getConfig();
-    final url = config['apiEndpoint'];
-    final uid = gs.read('user');
 
-    final shouldShowOwnPosts = firstLoad || _isFirstLoadAfterPost;
+  Future<void> loadAllPosts(
+      {bool firstLoad = false, bool randomize = false}) async {
+    try {
+      final config = await Configuration.getConfig();
+      final url = config['apiEndpoint'];
+      final uid = gs.read('user');
 
-    // ✅ โหลด API พร้อมกัน
-    final responses = await Future.wait([
-      http.get(Uri.parse("$url/image_post/get?uid=$uid&firstLoad=$shouldShowOwnPosts&randomize=$randomize")),
-      http.get(Uri.parse("$url/image_post/liked-posts/$uid")),
-    ]);
+      final shouldShowOwnPosts = firstLoad || _isFirstLoadAfterPost;
 
-    final postResponse = responses[0];
-    final likedResponse = responses[1];
+      // ✅ โหลด API พร้อมกัน
+      final responses = await Future.wait([
+        http.get(Uri.parse(
+            "$url/image_post/get?uid=$uid&firstLoad=$shouldShowOwnPosts&randomize=$randomize")),
+        http.get(Uri.parse("$url/image_post/liked-posts/$uid")),
+      ]);
 
-    if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
-      final List<dynamic> jsonData = jsonDecode(postResponse.body);
-      final allPostsFromApi = jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
+      final postResponse = responses[0];
+      final likedResponse = responses[1];
 
-      final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
-      final likedSet = Set<int>.from(likedIds);
+      if (postResponse.statusCode == 200 && likedResponse.statusCode == 200) {
+        final List<dynamic> jsonData = jsonDecode(postResponse.body);
+        final allPostsFromApi =
+            jsonData.map((item) => model.GetAllPost.fromJson(item)).toList();
 
-      // ✅ โหลดสถานะ follow พร้อมกัน (หรือปรับให้ backend รวมข้อมูลมา)
-      await _loadFollowingStatusForPosts(allPostsFromApi);
+        final likedIds = jsonDecode(likedResponse.body)['likedPostIds'];
+        final likedSet = Set<int>.from(likedIds);
 
-      allPosts = allPostsFromApi;
-      filteredPosts = _filterPostsByPrivacy(allPosts);
+        // ✅ โหลดสถานะ follow พร้อมกัน (หรือปรับให้ backend รวมข้อมูลมา)
+        await _loadFollowingStatusForPosts(allPostsFromApi);
 
-      showHeartMap.clear();
-      likeCountMap.clear();
-      likedMap.clear();
+        allPosts = allPostsFromApi;
+        filteredPosts = _filterPostsByPrivacy(allPosts);
 
-      allPosts.forEach((postItem) {
-        final postId = postItem.post.postId;
-        likeCountMap[postId] = postItem.post.amountOfLike;
-        likedMap[postId] = likedSet.contains(postId);
-      });
+        showHeartMap.clear();
+        likeCountMap.clear();
+        likedMap.clear();
 
-      for (int i = 0; i < filteredPosts.length; i++) {
-        showHeartMap[i] = false;
+        allPosts.forEach((postItem) {
+          final postId = postItem.post.postId;
+          likeCountMap[postId] = postItem.post.amountOfLike;
+          likedMap[postId] = likedSet.contains(postId);
+        });
+
+        for (int i = 0; i < filteredPosts.length; i++) {
+          showHeartMap[i] = false;
+        }
+
+        if (mounted) setState(() {});
+      } else {
+        throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
       }
-
+    } catch (e) {
+      dev.log('Error loading posts: $e');
+      allPosts = [];
+      filteredPosts = [];
+      likedMap.clear();
+      likeCountMap.clear();
+      showHeartMap.clear();
+      followingUserIds.clear();
       if (mounted) setState(() {});
-    } else {
-      throw Exception('โหลดโพสต์หรือโพสต์ที่ไลก์ไม่สำเร็จ');
     }
-  } catch (e) {
-    dev.log('Error loading posts: $e');
-    allPosts = [];
-    filteredPosts = [];
-    likedMap.clear();
-    likeCountMap.clear();
-    showHeartMap.clear();
-    followingUserIds.clear();
-    if (mounted) setState(() {});
   }
-}
 
-
-// ฟังก์ชันใหม่สำหรับโหลดสถานะการติดตามเฉพาะโพสต์ที่ได้รับมา
   Future<void> _loadFollowingStatusForPosts(
       List<model.GetAllPost> posts) async {
     var config = await Configuration.getConfig();
@@ -436,14 +438,13 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
 
     try {
       // เคลียร์ข้อมูลเก่า
-      followingUserIds.clear();
+      followingStatusMap.clear();
 
       // ตรวจสอบสถานะการติดตามสำหรับทุกคนในโพสต์
       Set<int> uniqueUserIds = posts.map((post) => post.user.uid).toSet();
 
       for (int targetUserId in uniqueUserIds) {
         if (targetUserId != loggedInUid) {
-          // ไม่ตรวจสอบตัวเอง
           final response = await http.get(
             Uri.parse(
                 '$url/user/is-following?follower_id=$loggedInUid&following_id=$targetUserId'),
@@ -451,8 +452,13 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
 
           if (response.statusCode == 200) {
             final data = jsonDecode(response.body);
-            if (data['isFollowing'] == true) {
-              followingUserIds.add(targetUserId);
+            final isFollowing = data['isFollowing'] ?? false;
+            final status = data['status']; // 'accepted', 'pending', หรือ null
+
+            if (isFollowing) {
+              followingStatusMap[targetUserId] = status;
+            } else {
+              followingStatusMap[targetUserId] = null;
             }
           }
         }
@@ -475,12 +481,12 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
         return true;
       }
 
-      // ถ้าเป็นโพสต์เฉพาะเพื่อน ให้แสดงเฉพาะคนที่ติดตามอยู่
+      // ถ้าเป็นโพสต์เฉพาะเพื่อน ให้แสดงเฉพาะคนที่ติดตามแล้ว (status = 'accepted')
       if (post.post.postStatus == model.PostStatus.friends) {
-        return followingUserIds.contains(post.user.uid);
+        final status = followingStatusMap[post.user.uid];
+        return status == 'accepted';
       }
 
-      // default case - ไม่แสดง
       return false;
     }).toList();
   }
@@ -513,6 +519,11 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
         showHeartMap[i] = false;
       }
     });
+  }
+
+  Future<void> cancelFollowRequest(int targetUserId) async {
+    // ใช้ unfollowUser เดิม แต่เปลี่ยน message
+    await unfollowUser(targetUserId);
   }
 
   void likePost(int postId) async {
@@ -648,17 +659,50 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        dev.log('ติดตามผู้ใช้ $targetUserId สำเร็จ: ${data['message']}');
+        final status = data['status'] ?? 'pending'; // รับ status จาก backend
+
+        dev.log(
+            'ติดตามผู้ใช้ $targetUserId สำเร็จ: ${data['message']} (status: $status)');
 
         setState(() {
-          followingUserIds.add(targetUserId);
+          followingStatusMap[targetUserId] = status;
         });
+
+        // แสดง snackbar แตกต่างกันตามสถานะ
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    status == 'accepted'
+                        ? Icons.check_circle
+                        : Icons.access_time,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      status == 'accepted'
+                          ? 'ติดตามสำเร็จ'
+                          : 'ส่งคำขอติดตามแล้ว รอการยืนยัน',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor:
+                  status == 'accepted' ? Colors.green : Colors.orange,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       } else {
         final errorData = jsonDecode(response.body);
         dev.log(
             'เกิดข้อผิดพลาดในการติดตาม: ${errorData['error'] ?? errorData['message']}');
 
-        // แสดง snackbar หรือ dialog แจ้งเตือนผู้ใช้
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -703,14 +747,30 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
         dev.log('เลิกติดตามผู้ใช้ $targetUserId สำเร็จ: ${data['message']}');
 
         setState(() {
-          followingUserIds.remove(targetUserId);
+          followingStatusMap[targetUserId] = null;
         });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text('เลิกติดตามสำเร็จ'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       } else {
         final errorData = jsonDecode(response.body);
         dev.log(
             'เกิดข้อผิดพลาดในการเลิกติดตาม: ${errorData['error'] ?? errorData['message']}');
 
-        // แจ้งเตือนผู้ใช้ถ้าไม่พบข้อมูลการติดตาม หรือเกิดข้อผิดพลาดอื่นๆ
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -835,11 +895,53 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
 
   // เพิ่มฟังก์ชัน buildFollowButton สำหรับจัดการปุ่มติดตาม
   Widget buildFollowButton(model.GetAllPost postItem) {
-    final isFollowing = followingUserIds.contains(postItem.user.uid);
+    final status = followingStatusMap[postItem.user.uid];
     final isSelf = postItem.user.uid == loggedInUid;
 
     if (isSelf) {
       return const SizedBox.shrink();
+    }
+
+    // กำหนด UI ตามสถานะ
+    IconData icon;
+    String text;
+    Color backgroundColor;
+    Color textColor;
+    Color borderColor;
+    VoidCallback onTap;
+
+    if (status == 'accepted') {
+      // ✅ กำลังติดตามอยู่ (accepted)
+      icon = Icons.check_rounded;
+      text = '';
+      backgroundColor = Colors.grey[50]!;
+      textColor = Colors.green[600]!;
+      borderColor = Colors.grey[300]!;
+      onTap = () => unfollowUser(postItem.user.uid);
+    } else if (status == 'pending') {
+      // ⏳ รอการยืนยัน (pending)
+      icon = Icons.access_time_rounded;
+      text = 'รอยืนยัน';
+      backgroundColor = Colors.orange[50]!;
+      textColor = Colors.orange[700]!;
+      borderColor = Colors.orange[200]!;
+      onTap = () => cancelFollowRequest(postItem.user.uid);
+    } else if (status == 'rejected') {
+      // ❌ ถูกปฏิเสธ (rejected) - แสดงเป็นปุ่มติดตามใหม่ได้
+      icon = Icons.person_add_rounded;
+      text = 'ติดตามอีกครั้ง';
+      backgroundColor = Colors.red[50]!;
+      textColor = Colors.red[700]!;
+      borderColor = Colors.red[200]!;
+      onTap = () => followUser(postItem.user.uid);
+    } else {
+      // 👤 ยังไม่ได้ติดตาม (null)
+      icon = Icons.person_add_rounded;
+      text = 'ติดตาม';
+      backgroundColor = Colors.black87;
+      textColor = Colors.white;
+      borderColor = Colors.black87;
+      onTap = () => followUser(postItem.user.uid);
     }
 
     return AnimatedContainer(
@@ -848,25 +950,19 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            if (isFollowing) {
-              unfollowUser(postItem.user.uid);
-            } else {
-              followUser(postItem.user.uid);
-            }
-          },
+          onTap: onTap,
           borderRadius: BorderRadius.circular(20),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             padding: EdgeInsets.symmetric(
-              horizontal: isFollowing ? 9 : 9,
+              horizontal: text.isEmpty ? 9 : 12,
               vertical: 7,
             ),
             decoration: BoxDecoration(
-              color: isFollowing ? Colors.grey[50] : Colors.black87,
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isFollowing ? Colors.grey[300]! : Colors.black87,
+                color: borderColor,
                 width: 1,
               ),
               boxShadow: [
@@ -884,22 +980,20 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
-                    isFollowing
-                        ? Icons.check_rounded
-                        : Icons.person_add_rounded,
-                    key: ValueKey(isFollowing),
+                    icon,
+                    key: ValueKey(status),
                     size: 15,
-                    color: isFollowing ? Colors.green[600] : Colors.white,
+                    color: textColor,
                   ),
                 ),
-                if (!isFollowing) ...[
+                if (text.isNotEmpty) ...[
                   const SizedBox(width: 6),
                   Text(
-                    'ติดตาม',
+                    text,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: textColor,
                       letterSpacing: 0.2,
                     ),
                   ),
@@ -2583,24 +2677,24 @@ Future<void> loadAllPosts({bool firstLoad = false, bool randomize = false}) asyn
       },
     );
   }
-Future<GetComment> _fetchComments(int postId) async {
-  var config = await Configuration.getConfig();
-  var url = config['apiEndpoint'];
-  final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
 
-  if (res.statusCode == 200) {
-    final commentData = getCommentFromJson(res.body);
+  Future<GetComment> _fetchComments(int postId) async {
+    var config = await Configuration.getConfig();
+    var url = config['apiEndpoint'];
+    final res = await http.get(Uri.parse('$url/image_post/comments/$postId'));
 
-    // ดึง commentId แล้วเรียก checkCommentLikes แต่ไม่ต้อง await
-    final commentIds = commentData.comments.map((c) => c.commentId).toList();
-    checkCommentLikes(commentIds); // 🔥 เรียก background
+    if (res.statusCode == 200) {
+      final commentData = getCommentFromJson(res.body);
 
-    return commentData; // คืนค่าคอมเมนต์ทันที
-  } else {
-    throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
+      // ดึง commentId แล้วเรียก checkCommentLikes แต่ไม่ต้อง await
+      final commentIds = commentData.comments.map((c) => c.commentId).toList();
+      checkCommentLikes(commentIds); // 🔥 เรียก background
+
+      return commentData; // คืนค่าคอมเมนต์ทันที
+    } else {
+      throw Exception('โหลดคอมเมนต์ไม่สำเร็จ');
+    }
   }
-}
-
 
   Future<void> _submitComment(int postId, String commentText) async {
     final gs = GetStorage();
