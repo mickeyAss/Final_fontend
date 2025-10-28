@@ -512,7 +512,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       } else if (status == 'follow_back') {
         return '$senderName เริ่มติดตามคุณ';
       } else {
-        return 'ส่งคำขอการติดตามให้ $senderName แล้ว';
+        return '$senderName ส่งคำขอการติดตามคุณ';
       }
     } else {
       // เผื่อไว้ถ้าเป็นข้อความอื่น

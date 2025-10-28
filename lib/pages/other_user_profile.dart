@@ -280,30 +280,55 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   }
 
   // ฟังก์ชันสำหรับติดตาม/เลิกติดตาม (ปรับปรุงแล้ว)
-  Future<void> _toggleFollow() async {
-    if (currentUserId == null || _isFollowLoading) return;
+  void _toggleFollow() async {
+  if (_isFollowLoading) return;
 
-    setState(() {
-      _isFollowLoading = true;
+  setState(() {
+    _isFollowLoading = true;
+    // Optimistic update
+    if (_followStatus == null) {
+      _followStatus = 'pending';
+    } else if (_followStatus == 'pending') {
+      _followStatus = null; // ยกเลิกการติดตาม
+    }
+  });
+
+  try {
+    final config = await Configuration.getConfig();
+    final url = config['apiEndpoint'];
+    final uri = Uri.parse('$url/user/toggle-follow');
+    final response = await http.post(uri, body: {
+      'follower_id': currentUserId.toString(),
+      'following_id': widget.userId.toString(),
     });
 
-    try {
-      if (_isFollowing) {
-        await unfollowUser(widget.userId);
-      } else {
-        await followUser(widget.userId);
-      }
-    } catch (e) {
-      log('Error toggling follow: $e');
-      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isFollowLoading = false;
-        });
-      }
+    if (response.statusCode != 200) {
+      // ถ้า API ล้มเหลว ให้ย้อนสถานะ
+      setState(() {
+        if (_followStatus == 'pending') {
+          _followStatus = null;
+        } else if (_followStatus == null) {
+          _followStatus = 'pending';
+        }
+      });
     }
+  } catch (e) {
+    log('Error toggling follow: $e');
+    // ถ้าเกิด error ให้ย้อนสถานะ
+    setState(() {
+      if (_followStatus == 'pending') {
+        _followStatus = null;
+      } else if (_followStatus == null) {
+        _followStatus = 'pending';
+      }
+    });
+  } finally {
+    setState(() {
+      _isFollowLoading = false;
+    });
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

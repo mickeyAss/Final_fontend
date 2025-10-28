@@ -267,7 +267,18 @@ class _AdminPageState extends State<AdminPage>
   @override
   Widget build(BuildContext context) {
     final postReports = getFilteredPostReports();
-    final userReports = reportsData?.userReports ?? [];
+    // ดึงรายงานทั้งหมด
+    final allUserReports = reportsData?.userReports ?? [];
+
+    // ✅ กรองให้เหลือเฉพาะผู้ใช้ที่ไม่ซ้ำกันตาม reportedId
+    final uniqueUserReports = allUserReports
+        .fold<Map<String, UserReport>>({}, (map, report) {
+          map[report.reportedId.toString()] = report;
+
+          return map;
+        })
+        .values
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -318,7 +329,7 @@ class _AdminPageState extends State<AdminPage>
             ),
             Tab(
               icon: const Icon(Icons.person_off),
-              text: "รายงานผู้ใช้ (${userReports.length})",
+              text: "รายงานผู้ใช้ (${uniqueUserReports.length})",
             ),
           ],
         ),
@@ -348,7 +359,7 @@ class _AdminPageState extends State<AdminPage>
                         Colors.white),
                     _buildStatCard(
                         "ผู้ใช้ทั้งหมด",
-                        userReports.length.toString(),
+                        uniqueUserReports.length.toString(),
                         Icons.people_alt,
                         Colors.white),
                     _buildStatCard(
@@ -402,7 +413,7 @@ class _AdminPageState extends State<AdminPage>
                 ),
 
                 // User Reports Tab
-                _buildUserReportsContent(userReports),
+                _buildUserReportsContent(allUserReports),
               ],
             ),
           ),
@@ -683,14 +694,15 @@ class _AdminPageState extends State<AdminPage>
                             foregroundColor: Colors.blue,
                           ),
                         ),
-                    
+
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             // ปุ่มแจ้งเตือนก่อนแบน
                             if (!firstReport.isBanned)
                               ElevatedButton.icon(
-                                onPressed: () => _showWarnUserDialog(firstReport),
+                                onPressed: () =>
+                                    _showWarnUserDialog(firstReport),
                                 icon: const Icon(Icons.notification_important,
                                     size: 16),
                                 label: const Text("แจ้งเตือนผู้ใช้"),
@@ -700,11 +712,12 @@ class _AdminPageState extends State<AdminPage>
                                 ),
                               ),
                             const SizedBox(width: 8),
-                    
+
                             // ปุ่มแบน / ปลดแบน
                             if (firstReport.isBanned)
                               ElevatedButton.icon(
-                                onPressed: () => _showUnbanUserDialog(firstReport),
+                                onPressed: () =>
+                                    _showUnbanUserDialog(firstReport),
                                 icon: const Icon(Icons.check_circle, size: 16),
                                 label: const Text("ปลดแบน"),
                                 style: ElevatedButton.styleFrom(
@@ -714,7 +727,8 @@ class _AdminPageState extends State<AdminPage>
                               )
                             else
                               ElevatedButton.icon(
-                                onPressed: () => _showBanUserDialog(firstReport),
+                                onPressed: () =>
+                                    _showBanUserDialog(firstReport),
                                 icon: const Icon(Icons.block, size: 16),
                                 label: const Text("แบนผู้ใช้"),
                                 style: ElevatedButton.styleFrom(
@@ -1122,12 +1136,14 @@ class _AdminPageState extends State<AdminPage>
     // ✅ ตัดรูปซ้ำก่อนแสดง
     final uniqueImages = reportData.images.toSet().toList();
 // ✅ กรองรายงานไม่ซ้ำก่อนแสดง (ใช้ Report)
-    final uniqueReports = <Report>[];
-    for (var report in reportData.reports) {
-      if (!uniqueReports.any((r) => r.reportId == report.reportId)) {
-        uniqueReports.add(report);
-      }
-    }
+    // ✅ กรองรายงานไม่ซ้ำ (ตาม reporterId)
+    final uniqueReports = reportData.reports
+        .fold<Map<int, Report>>({}, (map, r) {
+          map[r.reporterId ?? 0] = r; // ใช้ reporterId เป็น key
+          return map;
+        })
+        .values
+        .toList();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
